@@ -1,0 +1,3 @@
+﻿-- PickForMe V1 Schema
+-- Für die Clean Baseline bleibt das Profil lokal.
+-- Supabase Auth und persistente Profile werden im nächsten Architekturblock aktiviert.

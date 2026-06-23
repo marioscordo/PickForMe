@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.expo/
+dist/
+build/
+.env
+.env.local
+npm-debug.log*
+api-response.json

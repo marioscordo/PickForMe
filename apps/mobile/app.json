@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "PickForMe",
+    "slug": "pickforme",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "pickforme",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "de.scordo.pickforme",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "de.scordo.pickforme"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "local-dev"
+      }
+    }
+  }
+}
