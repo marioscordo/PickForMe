@@ -15,7 +15,7 @@ export function PickScreen() {
 
   if (analyze.result) {
     return (
-      <Screen>
+      <Screen scrollToTopKey="result">
         <RecommendationCard result={analyze.result} onReset={analyze.reset} />
       </Screen>
     );
@@ -43,7 +43,7 @@ export function PickScreen() {
         onPress={() => analyze.run(menuText, situation)}
         disabled={analyze.loading}
       >
-        <Text style={styles.buttonText}>{analyze.loading ? "PickForMe prüft..." : "3 passende Gerichte finden"}</Text>
+        <Text style={styles.buttonText}>{analyze.loading ? "PickForMe prüft..." : "Finde meine 3 passenden Gerichte"}</Text>
       </Pressable>
     </Screen>
   );

@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Pressable, Text, View } from "react-native";
 import { styles } from "../../theme/styles";
 
@@ -16,7 +16,7 @@ export function BottomTabs({
         onPress={() => setActiveTab("pick")}
       >
         <Text style={[styles.tabButtonText, activeTab === "pick" && styles.tabButtonTextActive]}>
-          PickForMe
+          Speisekarte
         </Text>
       </Pressable>
 

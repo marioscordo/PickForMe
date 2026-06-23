@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Text, TextInput, View } from "react-native";
 import { styles } from "../../theme/styles";
 
@@ -13,7 +13,7 @@ export function MenuInputCard({
     <View style={styles.card}>
       <Text style={styles.h2}>Speisekarte</Text>
       <Text style={styles.hint}>
-        Kopiere hier den Text der Karte hinein. Foto- und PDF-Erkennung bauen wir danach sauber ein.
+        Text der Speisekarte einfügen. Lange Karten bleiben im Feld scrollbar, damit der Button erreichbar bleibt.
       </Text>
 
       <TextInput

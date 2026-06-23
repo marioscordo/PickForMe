@@ -108,8 +108,8 @@ export const styles = StyleSheet.create({
   },
 
   textArea: {
-    minHeight: 230,
-    maxHeight: 330,
+    minHeight: 150,
+    maxHeight: 190,
     textAlignVertical: "top",
     lineHeight: 22
   },
@@ -130,7 +130,8 @@ export const styles = StyleSheet.create({
   buttonText: {
     color: "#FFFFFF",
     fontWeight: "900",
-    fontSize: 17
+    fontSize: 16,
+    textAlign: "center"
   },
 
   ghostButton: {
