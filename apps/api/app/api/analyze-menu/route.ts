@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { requireUser } from "../../../src/auth/requireUser";
+import { askPickForMeAI } from "../../../src/ai/askPickForMeAI";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
@@ -18,6 +19,27 @@ export async function POST(request: Request) {
 
     if (!body.menuText || body.menuText.trim().length < 20) {
       throw new AppError(400, "MENU_TOO_SHORT", "Bitte zuerst eine Speisekarte einfügen.");
+    }
+
+    if (process.env.PICKFORME_AI_ENABLED === "true") {
+      try {
+        const aiResult = await askPickForMeAI({
+          menuText: body.menuText,
+          profile: body.profile,
+          situation: body.situation
+        });
+
+        return NextResponse.json({
+          ok: true,
+          data: {
+            mode: "ai",
+            dishes: aiResult.dishes,
+            recommendations: aiResult.recommendations
+          }
+        });
+      } catch (aiError) {
+        console.error("PickForMe AI failed, falling back to local recommendation.", aiError);
+      }
     }
 
     const dishes = parseMenu(body.menuText);

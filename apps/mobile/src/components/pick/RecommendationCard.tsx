@@ -21,7 +21,7 @@ export function RecommendationCard({
     <>
       <Text style={styles.title}>PickForMe empfiehlt:</Text>
       <Text style={styles.subtitle}>
-        Aus {result.dishes.length} erkannten Speisen habe ich diese Auswahl für Dich reduziert.
+        Ich habe Dir 3 passende Empfehlungen aus der Speisekarte ausgewählt.
       </Text>
 
       <View style={styles.heroCard}>
