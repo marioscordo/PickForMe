@@ -9,9 +9,15 @@ module.exports = {
     orientation: "portrait",
     scheme: IS_PROD ? "pickforme" : "pickforme-dev",
     userInterfaceStyle: "automatic",
+
+    icon: "./assets/icon.png",
+
     ios: {
       supportsTablet: false,
-      bundleIdentifier: IS_PROD ? "com.marioscordo.pickforme" : "com.marioscordo.pickforme.dev",
+      bundleIdentifier: IS_PROD
+        ? "com.marioscordo.pickforme"
+        : "com.marioscordo.pickforme.dev",
+
       infoPlist: IS_PROD
         ? {}
         : {
@@ -21,10 +27,24 @@ module.exports = {
             }
           }
     },
+
     android: {
-      package: IS_PROD ? "com.marioscordo.pickforme" : "com.marioscordo.pickforme.dev"
+      package: IS_PROD
+        ? "com.marioscordo.pickforme"
+        : "com.marioscordo.pickforme.dev",
+
+      adaptiveIcon: {
+        foregroundImage: "./assets/icon.png",
+        backgroundColor: "#071B4A"
+      }
     },
+
+    web: {
+      favicon: "./assets/icon.png"
+    },
+
     plugins: ["expo-dev-client"],
+
     extra: {
       eas: {
         projectId: "7f45f9ad-456e-4ba2-b7c7-16c4edf44358"
