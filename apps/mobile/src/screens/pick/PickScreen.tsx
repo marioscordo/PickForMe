@@ -13,6 +13,14 @@ export function PickScreen() {
   const [situation, setSituation] = useState<Situation>("regional");
   const analyze = useAnalyzeMenu();
 
+  if (analyze.result) {
+    return (
+      <Screen>
+        <RecommendationCard result={analyze.result} onReset={analyze.reset} />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <Text style={styles.title}>PickForMe {"\u{1F37D}\uFE0F"}</Text>
@@ -37,8 +45,6 @@ export function PickScreen() {
       >
         <Text style={styles.buttonText}>{analyze.loading ? "PickForMe prüft..." : "3 passende Gerichte finden"}</Text>
       </Pressable>
-
-      {analyze.result ? <RecommendationCard result={analyze.result} /> : null}
     </Screen>
   );
 }

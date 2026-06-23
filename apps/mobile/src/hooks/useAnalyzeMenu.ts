@@ -36,10 +36,16 @@ export function useAnalyzeMenu() {
     }
   }
 
+  function reset() {
+    setError("");
+    setResult(null);
+  }
+
   return {
     result,
     loading,
     error,
-    run
+    run,
+    reset
   };
 }
