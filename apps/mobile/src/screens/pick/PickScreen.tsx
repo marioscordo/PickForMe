@@ -1,6 +1,7 @@
 ﻿import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { MenuInputCard } from "../../components/pick/MenuInputCard";
+import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
 import { RecommendationCard } from "../../components/pick/RecommendationCard";
 import { SituationSelector } from "../../components/pick/SituationSelector";
 import { Screen } from "../../components/ui/Screen";
@@ -11,6 +12,7 @@ import type { Situation } from "../../types/profile";
 export function PickScreen() {
   const [menuText, setMenuText] = useState("");
   const [situation, setSituation] = useState<Situation>("regional");
+  const [showQrScanner, setShowQrScanner] = useState(false);
   const analyze = useAnalyzeMenu();
 
   if (analyze.result) {
@@ -29,9 +31,23 @@ export function PickScreen() {
       <View style={styles.heroCard}>
         <Text style={styles.heroTitle}>Für Mario</Text>
         <Text style={styles.heroText}>
-          Speisekarte einfügen, Situation wählen und wenige passende Gerichte bekommen.
+          Speisekarte einfügen, QR-Code scannen, Situation wählen und passende Gerichte bekommen.
         </Text>
       </View>
+
+      {showQrScanner ? (
+        <QrMenuScanner
+          onUrlScanned={(url) => {
+            setMenuText(url.trim());
+            setShowQrScanner(false);
+          }}
+          onClose={() => setShowQrScanner(false)}
+        />
+      ) : (
+        <Pressable style={styles.ghostButton} onPress={() => setShowQrScanner(true)}>
+          <Text style={styles.ghostButtonText}>QR-Code der Speisekarte scannen</Text>
+        </Pressable>
+      )}
 
       <MenuInputCard menuText={menuText} setMenuText={setMenuText} />
       <SituationSelector situation={situation} setSituation={setSituation} />

@@ -43,7 +43,15 @@ module.exports = {
       favicon: "./assets/icon.png"
     },
 
-    plugins: ["expo-dev-client"],
+    plugins: [
+      "expo-dev-client",
+      [
+        "expo-camera",
+        {
+          cameraPermission: "PickForMe benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
+        }
+      ]
+    ],
 
     extra: {
       eas: {

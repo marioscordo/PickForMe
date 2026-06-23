@@ -222,6 +222,19 @@ export const styles = StyleSheet.create({
     marginTop: 12
   },
 
+  qrCameraBox: {
+    height: 280,
+    borderRadius: 22,
+    overflow: "hidden",
+    backgroundColor: "#000000",
+    marginTop: 8,
+    marginBottom: 12
+  },
+
+  qrCamera: {
+    flex: 1
+  },
+
   tabBar: {
     flexDirection: "row",
     backgroundColor: colors.primarySoft,
