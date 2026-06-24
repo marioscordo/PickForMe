@@ -1,8 +1,12 @@
 ﻿import { useState } from "react";
 import { analyzeMenu } from "../api/pickformeApi";
+import { PickForMeApiError } from "../api/apiClient";
 import { useProfile } from "../app/providers/ProfileProvider";
 import type { AnalyzeData } from "../types/recommendations";
 import type { Situation } from "../types/profile";
+
+const UNSAFE_PROFILE_MESSAGE =
+  "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.";
 
 export function useAnalyzeMenu() {
   const { profile } = useProfile();
@@ -30,7 +34,15 @@ export function useAnalyzeMenu() {
 
       setResult(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Analyse fehlgeschlagen.");
+      if (
+        e instanceof PickForMeApiError &&
+        (e.code === "NO_SAFE_RECOMMENDATIONS" || e.message.includes("Profilregeln"))
+      ) {
+        setError(UNSAFE_PROFILE_MESSAGE);
+        return;
+      }
+
+      setError("Ich konnte diese Speisekarte nicht sicher auswerten.");
     } finally {
       setLoading(false);
     }

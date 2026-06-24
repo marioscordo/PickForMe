@@ -1,9 +1,12 @@
 ﻿import OpenAI from "openai";
 import { z } from "zod";
+import type { UserProfile } from "../types/profile";
+import { blockReasonForRecommendation, buildProfilePromptLines } from "../profile/profileRules";
 
 const RecommendationSchema = z.object({
   rank: z.number(),
   nameOriginal: z.string().min(1),
+  translatedName: z.string().optional(),
   priceRaw: z.string().optional(),
   descriptionOriginal: z.string().optional(),
   reason: z.string().min(1),
@@ -11,19 +14,12 @@ const RecommendationSchema = z.object({
 });
 
 const PdfAiResponseSchema = z.object({
-  recommendations: z.array(RecommendationSchema).length(3)
+  recommendations: z.array(RecommendationSchema).min(1).max(3)
 });
 
 type PdfAiRecommendation = z.infer<typeof RecommendationSchema>;
 
-type ProfileInput = {
-  displayName?: string;
-  primaryLikes?: string[];
-  secondaryLikes?: string[];
-  dislikes?: string[];
-  intolerances?: string[];
-  dietStyle?: string;
-};
+type ProfileInput = Partial<UserProfile>;
 
 type AskPickForMePdfUrlAIInput = {
   pdfUrl: string;
@@ -68,39 +64,31 @@ export async function askPickForMePdfUrlAI(input: AskPickForMePdfUrlAIInput) {
   const outputText = stripJsonFence(response.output_text ?? "");
   const parsedJson = JSON.parse(outputText);
   const parsed = PdfAiResponseSchema.parse(parsedJson);
+  const profileSafe = validateAgainstProfile(parsed, profile);
 
-  return toAnalyzeDataParts(parsed.recommendations);
+  return toAnalyzeDataParts(profileSafe.recommendations);
 }
 
 function buildPdfPrompt(input: { profile: ProfileInput; situation?: string }) {
-  const profile = input.profile;
-
   return [
     "Du bist PickForMe, ein persoenlicher Restaurant-Assistent.",
     "Lies die beigefuegte Restaurant-Speisekarte aus dem PDF.",
     "Wichtig: Das PDF kann bildbasiert sein. Nutze sichtbare Inhalte der PDF-Seiten.",
-    "Empfiehl genau 3 echte Gerichte aus der Speisekarte.",
+    "Empfiehl bis zu 3 echte und sichere Gerichte aus der Speisekarte.",
     "Erfinde nichts.",
     "Aendere keine Gerichtsnamen.",
     "Nutze ausschliesslich Gerichte, die wirklich im PDF sichtbar sind.",
     "Keine allgemeinen Kategorien, keine Getraenke, keine Beilagen allein.",
     "Bevorzuge vollwertige Hauptgerichte gegenueber Vorspeisen, Beilagen oder einfachen Salaten.",
-    "Wenn starke Vorlieben wie Fleisch, Fisch, kraeftige Sauce oder asiatische Kueche genannt sind, muessen diese im Ranking sichtbar bevorzugt werden.",
-    "Salate nur empfehlen, wenn sie klar als eigenstaendiges Gericht passen oder keine staerkeren Hauptgerichte sichtbar sind.",
+    "Harte Profil-Ausschluesse sind verbindlich und duerfen nie durch Vorlieben ueberstimmt werden.",
+    "Bei Allergien oder Unvertraeglichkeiten gilt: Wenn unsicher, nicht empfehlen.",
     "Ein Gericht darf nur empfohlen werden, wenn Gerichtname und Beleg sichtbar aus derselben Speisekarte stammen.",
     "evidence muss ein konkreter sichtbarer Originalauszug aus der Speisekarte sein.",
     "evidence darf niemals eine allgemeine Aussage sein wie: Preis und Beschreibung sind sichtbar.",
     "evidence soll den Gerichtnamen, die Beschreibung oder den sichtbaren Preis enthalten.",
     "Wenn kein konkreter Beleg moeglich ist, waehle ein anderes Gericht.",
     "",
-    "Nutzerprofil:",
-    `Name: ${profile.displayName ?? "Gast"}`,
-    `Starke Vorlieben: ${(profile.primaryLikes ?? []).join(", ") || "keine Angabe"}`,
-    `Weitere Vorlieben: ${(profile.secondaryLikes ?? []).join(", ") || "keine Angabe"}`,
-    `Abneigungen: ${(profile.dislikes ?? []).join(", ") || "keine Angabe"}`,
-    `Unvertraeglichkeiten/harte Ausschluesse: ${(profile.intolerances ?? []).join(", ") || "keine Angabe"}`,
-    `Ernaehrungsstil: ${profile.dietStyle ?? "normal"}`,
-    `Situation: ${input.situation ?? "nicht angegeben"}`,
+    ...buildProfilePromptLines(input.profile, input.situation),
     "",
     "Antwortformat:",
     "Antworte ausschliesslich als valides JSON ohne Markdown.",
@@ -110,6 +98,7 @@ function buildPdfPrompt(input: { profile: ProfileInput; situation?: string }) {
     "    {",
     '      "rank": 1,',
     '      "nameOriginal": "exakter Gerichtname aus der Speisekarte",',
+    '      "translatedName": "kurze deutsche Uebersetzung des Gerichtnamens, falls sinnvoll",',
     '      "priceRaw": "Preis falls sichtbar",',
     '      "descriptionOriginal": "Originalbeschreibung falls sichtbar",',
     '      "reason": "kurze persoenliche Begruendung",',
@@ -118,6 +107,23 @@ function buildPdfPrompt(input: { profile: ProfileInput; situation?: string }) {
     "  ]",
     "}"
   ].join("\n");
+}
+
+function validateAgainstProfile(
+  result: { recommendations: PdfAiRecommendation[] },
+  profile: ProfileInput
+): { recommendations: PdfAiRecommendation[] } {
+  const blocked = result.recommendations.filter((recommendation) =>
+    blockReasonForRecommendation(recommendation, profile)
+  );
+
+  if (blocked.length > 0) {
+    throw new Error(
+      `Die PDF-KI-Antwort verletzt aktive Profilregeln: ${blocked.map((item) => item.nameOriginal).join(", ")}`
+    );
+  }
+
+  return result;
 }
 
 function stripJsonFence(value: string) {
@@ -144,7 +150,8 @@ function toAnalyzeDataParts(recommendations: PdfAiRecommendation[]) {
     recommendations: recommendations.map((item, index) => ({
       dishId: dishes[index]!.id,
       rank: item.rank,
-      reason: item.reason
+      reason: item.reason,
+      translatedName: item.translatedName
     }))
   };
 }
@@ -172,3 +179,6 @@ function parsePrice(value?: string) {
 
   return Number(match[1]);
 }
+
+
+

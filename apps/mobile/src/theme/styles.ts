@@ -213,6 +213,29 @@ export const styles = StyleSheet.create({
     marginBottom: 12
   },
 
+  errorCard: {
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FDBA74",
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14
+  },
+
+  errorTitle: {
+    color: "#9A3412",
+    fontWeight: "900",
+    fontSize: 16,
+    marginBottom: 6
+  },
+
+  errorText: {
+    color: "#7C2D12",
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "700"
+  },
+
   hint: {
     color: colors.muted,
     fontSize: 13,
@@ -293,5 +316,6 @@ export const styles = StyleSheet.create({
     color: "#FFFFFF"
   }
 });
+
 
 

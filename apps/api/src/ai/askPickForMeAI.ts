@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Dish } from "../types/menu";
 import type { Situation, UserProfile } from "../types/profile";
 import type { Recommendation } from "../types/recommendations";
+import { blockReasonForRecommendation, buildProfilePromptLines } from "../profile/profileRules";
 
 const PickForMeAIResponseSchema = z.object({
   recommendations: z
@@ -16,7 +17,7 @@ const PickForMeAIResponseSchema = z.object({
         evidence: z.string().min(8)
       })
     )
-    .length(3)
+    .min(1).max(3)
 });
 
 type PickForMeAIResponse = z.infer<typeof PickForMeAIResponseSchema>;
@@ -44,7 +45,7 @@ export async function askPickForMeAI({
 
   const completion = await client.chat.completions.create({
     model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-    temperature: 0.2,
+    temperature: 0.1,
     response_format: { type: "json_object" },
     messages: [
       {
@@ -67,8 +68,9 @@ export async function askPickForMeAI({
   const parsedJson = JSON.parse(content) as unknown;
   const parsed = PickForMeAIResponseSchema.parse(parsedJson);
   const validated = validateOriginalEvidence(parsed, menuText);
+  const profileSafe = validateAgainstProfile(validated, profile);
 
-  return toAnalyzeDataParts(validated);
+  return toAnalyzeDataParts(profileSafe);
 }
 
 function buildSystemPrompt() {
@@ -80,7 +82,9 @@ function buildSystemPrompt() {
     "Du darfst Gerichtsnamen nicht veraendern oder schoener formulieren.",
     "Du darfst Preise nur uebernehmen, wenn sie im Originaltext erkennbar sind.",
     "Du bewertest nicht die Restaurantqualitaet.",
-    "Du gibst exakt JSON aus.",
+    "Harte Profil-Ausschluesse sind verbindlich und duerfen nie durch Vorlieben ueberstimmt werden.",
+    "Bei Allergien oder Unvertraeglichkeiten gilt: Wenn unsicher, nicht empfehlen.",
+    "Du gibst ausschliesslich valides JSON aus.",
     "Das JSON-Format ist:",
     "{",
     '  "recommendations": [',
@@ -99,20 +103,13 @@ function buildSystemPrompt() {
 
 function buildUserPrompt(menuText: string, profile: UserProfile, situation: Situation) {
   return [
-    "Nutzerprofil:",
-    `Name: ${profile.displayName}`,
-    `Ernaehrungsstil: ${profile.dietStyle}`,
-    `Starke Vorlieben: ${profile.primaryLikes.join(", ") || "keine angegeben"}`,
-    `Weitere Vorlieben: ${profile.secondaryLikes.join(", ") || "keine angegeben"}`,
-    `Abneigungen: ${profile.dislikes.join(", ") || "keine angegeben"}`,
-    `Unvertraeglichkeiten / harte Ausschluesse: ${profile.intolerances.join(", ") || "keine angegeben"}`,
-    `Aktuelle Situation: ${situation}`,
+    ...buildProfilePromptLines(profile, situation),
     "",
     "Aufgabe:",
-    "Waehle genau 3 passende echte Gerichte aus der folgenden Speisekarte.",
-    "Beachte harte Ausschluesse und Abneigungen.",
-    "Nutze die Vorlieben und die aktuelle Situation fuer die Auswahl.",
-    "Wenn ein Gericht gut passt, aber eine Abneigung oder Unvertraeglichkeit enthaelt, empfehle es nicht.",
+    "Waehle bis zu 3 passende echte und sichere Gerichte aus der folgenden Speisekarte.",
+    "Beachte harte Ausschluesse, Allergien und Unvertraeglichkeiten strikt.",
+    "Nutze Vorlieben, Ausnahmen, Ess-Stimmung und aktuelle Situation fuer das Ranking.",
+    "Wenn ein Gericht gut passt, aber eine aktive Abneigung, einen aktiven Ausschluss oder eine aktive Unvertraeglichkeit enthaelt, empfehle es nicht.",
     "Gib zu jedem Gericht einen evidence-Ausschnitt an, der woertlich oder nahezu woertlich im Originaltext vorkommt.",
     "",
     "Speisekartentext:",
@@ -137,13 +134,29 @@ function validateOriginalEvidence(result: PickForMeAIResponse, menuText: string)
     return evidenceMatches || nameMatches;
   });
 
-  if (validRecommendations.length !== 3) {
-    throw new Error("Die KI-Antwort konnte nicht sicher gegen den Originaltext validiert werden.");
+  if (validRecommendations.length === 0) {
+    throw new Error("Die KI-Antwort enthielt keine sicher belegbare Empfehlung.");
+  }
+
+  if (validRecommendations.length !== result.recommendations.length) {
+    throw new Error("Mindestens eine KI-Empfehlung konnte nicht sicher gegen den Originaltext validiert werden.");
   }
 
   return {
     recommendations: validRecommendations
   };
+}
+
+function validateAgainstProfile(result: PickForMeAIResponse, profile: UserProfile): PickForMeAIResponse {
+  const blocked = result.recommendations.filter((recommendation) => blockReasonForRecommendation(recommendation, profile));
+
+  if (blocked.length > 0) {
+    throw new Error(
+      `Die KI-Antwort verletzt aktive Profilregeln: ${blocked.map((item) => item.nameOriginal).join(", ")}`
+    );
+  }
+
+  return result;
 }
 
 function toAnalyzeDataParts(result: PickForMeAIResponse): {
@@ -190,3 +203,5 @@ function normalize(value: string) {
     .replace(/[.,;:!?()[\]{}"']/g, "")
     .trim();
 }
+
+

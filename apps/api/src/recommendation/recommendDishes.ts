@@ -1,6 +1,11 @@
 ﻿import type { Dish } from "../types/menu";
 import type { Recommendation } from "../types/recommendations";
 import type { Situation, UserProfile } from "../types/profile";
+import {
+  appetiteMoodScoreForDish,
+  blockReasonForDish,
+  preferenceMatchesDish
+} from "../profile/profileRules";
 
 export function recommendDishes({
   dishes,
@@ -11,7 +16,9 @@ export function recommendDishes({
   profile: UserProfile;
   situation: Situation;
 }): Recommendation[] {
-  const scored = dishes
+  const safeDishes = dishes.filter((dish) => !blockReasonForDish(dish, profile));
+
+  const scored = safeDishes
     .map((dish) => ({
       dish,
       score: scoreDish(dish, profile, situation)
@@ -26,32 +33,24 @@ export function recommendDishes({
 }
 
 function scoreDish(dish: Dish, profile: UserProfile, situation: Situation) {
-  const text = `${dish.nameOriginal} ${dish.descriptionOriginal ?? ""} ${dish.category ?? ""}`.toLowerCase();
   let score = 0;
+  const activeLikes = [...(profile.primaryLikes ?? []), ...(profile.secondaryLikes ?? [])];
 
-  for (const like of [...profile.primaryLikes, ...profile.secondaryLikes]) {
-    if (text.includes(like.toLowerCase())) {
+  for (const like of activeLikes) {
+    if (preferenceMatchesDish(dish, like)) {
       score += profile.primaryLikes.includes(like) ? 6 : 3;
     }
   }
 
-  for (const dislike of profile.dislikes) {
-    if (text.includes(dislike.toLowerCase())) {
-      score -= 12;
-    }
-  }
+  score += appetiteMoodScoreForDish(dish, profile.appetiteMood);
 
-  for (const intolerance of profile.intolerances) {
-    if (text.includes(intolerance.toLowerCase())) {
-      score -= 20;
-    }
-  }
+  const text = `${dish.nameOriginal} ${dish.descriptionOriginal ?? ""} ${dish.category ?? ""}`.toLowerCase();
 
-  if (situation === "regional" && matchesAny(text, ["regional", "fränkisch", "hausgemacht", "schäufele", "braten"])) {
+  if (situation === "regional" && matchesAny(text, ["regional", "fränkisch", "fraenkisch", "hausgemacht", "schäufele", "schaeufele", "braten"])) {
     score += 5;
   }
 
-  if (situation === "leicht" && matchesAny(text, ["salat", "gemüse", "fisch", "leicht"])) {
+  if (situation === "leicht" && matchesAny(text, ["salat", "gemüse", "gemuese", "fisch", "leicht", "bowl"])) {
     score += 5;
   }
 
@@ -60,18 +59,33 @@ function scoreDish(dish: Dish, profile: UserProfile, situation: Situation) {
   }
 
   if (situation === "überraschen") {
-    score += dish.id.endsWith("3") ? 2 : 0;
+    score += matchesAny(text, ["spezial", "hausgemacht", "variation", "chef", "tempura", "curry"]) ? 3 : 0;
   }
 
   return score;
 }
 
 function buildReason(dish: Dish, profile: UserProfile, situation: Situation) {
-  const text = `${dish.nameOriginal} ${dish.descriptionOriginal ?? ""} ${dish.category ?? ""}`.toLowerCase();
-  const matchedLike = profile.primaryLikes.find((like) => text.includes(like.toLowerCase()));
+  const matchedLike = (profile.primaryLikes ?? []).find((like) => preferenceMatchesDish(dish, like));
 
   if (matchedLike) {
-    return `Passt zu Marios Vorliebe für ${matchedLike}.`;
+    return `Passt zu Deiner Vorliebe für ${matchedLike}.`;
+  }
+
+  if (profile.appetiteMood === "richtig_hunger") {
+    return "Wirkt passend, wenn Du richtig Hunger hast.";
+  }
+
+  if (profile.appetiteMood === "leicht") {
+    return "Wirkt passend, wenn es heute etwas Leichteres sein soll.";
+  }
+
+  if (profile.appetiteMood === "neues_probieren") {
+    return "Wirkt passend, wenn Du etwas Neues probieren möchtest.";
+  }
+
+  if (profile.appetiteMood === "sicher") {
+    return "Wirkt passend, wenn Du auf Nummer sicher gehen möchtest.";
   }
 
   if (situation === "regional") {
