@@ -92,6 +92,8 @@ export function buildProfilePromptLines(profile: ProfileInput = {}, situation?: 
       ? canonicalRules.map((rule) => `- ${rule.id}: ${semanticRuleDescription(rule.id)} Quelle: ${rule.source}`).join("\n")
       : "- keine aktiven semantischen Hard Rules",
     "",
+    ...buildFeedbackPromptLines(profile),
+    "",
     "Verbindliche Auswertung:",
     "- Die semantischen Profilregeln sind wichtiger als Vorlieben.",
     "- Bei harten Ausschluessen, Allergien und Unvertraeglichkeiten gilt: Wenn unsicher, nicht empfehlen.",
@@ -509,4 +511,50 @@ function escapeRegExp(value: string) {
 }
 
 
+
+
+type RecommendationFeedbackInput = {
+  dishNameOriginal: string;
+  translatedName?: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  accepted: boolean;
+  createdAt: string;
+};
+
+type ProfileInputWithFeedback = ProfileInput & {
+  recommendationFeedback?: RecommendationFeedbackInput[];
+};
+
+function buildFeedbackPromptLines(profile: ProfileInput): string[] {
+  const feedback = (profile as ProfileInputWithFeedback).recommendationFeedback ?? [];
+
+  if (feedback.length === 0) {
+    return [];
+  }
+
+  const recentFeedback = feedback
+    .slice(-12)
+    .map((item: RecommendationFeedbackInput) => {
+      const name = item.translatedName
+        ? `${item.dishNameOriginal} (${item.translatedName})`
+        : item.dishNameOriginal;
+
+      const signal =
+        item.rating >= 4
+          ? "positives Signal"
+          : item.rating <= 2
+            ? "negatives Signal"
+            : "neutrales Signal";
+
+      return `- ${name}: ${item.rating}/5 Sterne, ${signal}`;
+    });
+
+  return [
+    "",
+    "Persoenliche Feedbacksignale dieses Nutzers:",
+    ...recentFeedback,
+    "Diese Feedbacksignale sind nur weiche Ranking-Signale fuer diesen Nutzer.",
+    "Sie duerfen harte Ausschluesse, Allergien oder Unvertraeglichkeiten niemals ueberstimmen."
+  ];
+}
 

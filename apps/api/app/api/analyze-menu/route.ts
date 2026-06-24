@@ -24,9 +24,11 @@ export async function POST(request: Request) {
     }
 
     const rawMenuText = body.menuText.trim();
-    const isPdfUrl = looksLikeUrl(rawMenuText) && new URL(rawMenuText).pathname.toLowerCase().endsWith(".pdf");
+    const directPdfUrl = looksLikeUrl(rawMenuText) && looksLikePdfUrl(rawMenuText) ? rawMenuText : null;
+    const linkedPdfUrl = looksLikeUrl(rawMenuText) && !directPdfUrl ? await findLinkedPdfUrl(rawMenuText) : null;
+    const pdfMenuUrl = directPdfUrl ?? linkedPdfUrl;
 
-    if (isPdfUrl) {
+    if (pdfMenuUrl) {
       if (process.env.PICKFORME_AI_ENABLED !== "true") {
         throw new AppError(400, "PDF_AI_DISABLED", "PDF-Speisekarten benötigen in V1 den KI-Modus.");
       }
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
       try {
         const aiResult = await withTimeout(
           askPickForMePdfUrlAI({
-          pdfUrl: rawMenuText,
+          pdfUrl: pdfMenuUrl,
           profile: body.profile,
           situation: body.situation
           }),
@@ -186,3 +188,80 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorCode: strin
 
 
 
+
+function looksLikePdfUrl(value: string): boolean {
+  try {
+    return new URL(value).pathname.toLowerCase().endsWith(".pdf");
+  } catch {
+    return false;
+  }
+}
+
+async function findLinkedPdfUrl(value: string): Promise<string | null> {
+  try {
+    const response = await fetch(value, { redirect: "follow" });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const finalUrl = response.url || value;
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+
+    if (looksLikePdfUrl(finalUrl) || contentType.includes("application/pdf")) {
+      return finalUrl;
+    }
+
+    const html = await response.text();
+    const candidates = extractPdfCandidates(html, finalUrl);
+
+    return candidates[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function extractPdfCandidates(html: string, baseUrl: string): string[] {
+  const candidates = new Set<string>();
+  const pattern = /\b(?:href|src)=["']([^"']+)["']/gi;
+
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(html)) !== null) {
+    const rawValue = decodeHtmlAttribute(match[1] ?? "");
+
+    if (!rawValue.toLowerCase().includes(".pdf")) {
+      continue;
+    }
+
+    try {
+      candidates.add(new URL(rawValue, baseUrl).toString());
+    } catch {
+      // ignore invalid links
+    }
+  }
+
+  return [...candidates].sort((a, b) => scorePdfCandidate(b) - scorePdfCandidate(a));
+}
+
+function scorePdfCandidate(value: string): number {
+  const normalized = decodeURIComponent(value.toLowerCase());
+  let score = 0;
+
+  if (normalized.includes("deutsch")) score += 5;
+  if (normalized.includes("german")) score += 5;
+  if (normalized.includes("speisekarte")) score += 4;
+  if (normalized.includes("menu")) score += 2;
+  if (normalized.includes("english")) score -= 3;
+  if (normalized.includes("englisch")) score -= 3;
+
+  return score;
+}
+
+function decodeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&#47;/g, "/")
+    .trim();
+}
