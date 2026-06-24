@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as AnalyzeMenuRequest;
 
     if (body.sourceKind !== "text") {
-      throw new AppError(400, "SOURCE_KIND_UNSUPPORTED", "In V1 wird zuerst Texteingabe unterstützt.");
+      throw new AppError(400, "SOURCE_KIND_UNSUPPORTED", "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.");
     }
 
     if (!body.menuText || body.menuText.trim().length < 20) {
@@ -24,6 +24,14 @@ export async function POST(request: Request) {
     }
 
     const rawMenuText = body.menuText.trim();
+
+    if (looksLikeUrl(rawMenuText) && isKnownDynamicMenuPlatform(rawMenuText)) {
+      throw new AppError(
+        422,
+        "DYNAMIC_MENU_UNSUPPORTED",
+        "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein."
+      );
+    }
     const directPdfUrl = looksLikeUrl(rawMenuText) && looksLikePdfUrl(rawMenuText) ? rawMenuText : null;
     const linkedPdfUrl = looksLikeUrl(rawMenuText) && !directPdfUrl ? await findLinkedPdfUrl(rawMenuText) : null;
     const pdfMenuUrl = directPdfUrl ?? linkedPdfUrl;
@@ -58,17 +66,17 @@ export async function POST(request: Request) {
         const message = pdfAiError instanceof Error ? pdfAiError.message : "";
 
         if (
-          message.includes("429") ||
-          message.includes("Rate limit") ||
-          message.includes("rate limit") ||
-          message.includes("TPM")
-        ) {
-          throw new AppError(
-            422,
-            "ANALYSIS_NOT_SAFE",
-            "Ich konnte diese Speisekarte nicht sicher auswerten."
-          );
-        }
+            message.includes("429") ||
+            message.includes("Rate limit") ||
+            message.includes("rate limit") ||
+            message.includes("TPM")
+          ) {
+            throw new AppError(
+              429,
+              "AI_RATE_LIMIT",
+              "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+            );
+          }
 
         if (
           message.includes("429") ||
@@ -107,11 +115,29 @@ export async function POST(request: Request) {
       }
     }
 
-    const effectiveMenuText = looksLikeUrl(rawMenuText)
-      ? await loadMenuTextFromUrl(rawMenuText)
-      : rawMenuText;
+    if (looksLikeUrl(rawMenuText) && isKnownDynamicMenuPlatform(rawMenuText)) {
+      throw new AppError(
+        422,
+        "DYNAMIC_MENU_UNSUPPORTED",
+        "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein."
+      );
+    }
+
+    let effectiveMenuText: string;
+
+    try {
+      effectiveMenuText = looksLikeUrl(rawMenuText)
+        ? await loadMenuTextFromUrl(rawMenuText)
+        : rawMenuText;
+    } catch {
+      throw new AppError(422, "MENU_URL_LOAD_FAILED", "Diese Speisekarte konnte nicht geladen werden.");
+    }
 
     if (effectiveMenuText.trim().length < 20) {
+      if (looksLikeUrl(rawMenuText)) {
+        throw new AppError(422, "MENU_URL_LOAD_FAILED", "Diese Speisekarte konnte nicht geladen werden.");
+      }
+
       throw new AppError(400, "MENU_TOO_SHORT", "Aus dieser Eingabe konnte kein ausreichender Speisekartentext gelesen werden.");
     }
 
@@ -199,7 +225,7 @@ function looksLikePdfUrl(value: string): boolean {
 
 async function findLinkedPdfUrl(value: string): Promise<string | null> {
   try {
-    const response = await fetch(value, { redirect: "follow" });
+    const response = await fetchWithTimeout(value, 8000);
 
     if (!response.ok) {
       return null;
@@ -264,4 +290,29 @@ function decodeHtmlAttribute(value: string): string {
     .replace(/&#x2F;/g, "/")
     .replace(/&#47;/g, "/")
     .trim();
+}
+
+function isKnownDynamicMenuPlatform(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+
+    return hostname === "menury.com" || hostname.endsWith(".menury.com");
+  } catch {
+    return false;
+  }
+}
+
+
+async function fetchWithTimeout(value: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(value, {
+      redirect: "follow",
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
