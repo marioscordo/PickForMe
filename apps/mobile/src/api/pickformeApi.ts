@@ -2,7 +2,7 @@
 import type { UserProfile } from "../types/profile";
 import type { AnalyzeData } from "../types/recommendations";
 
-type Situation = "leicht" | "regional" | "teilen" | "überraschen";
+type Situation = "richtig_hunger" | "leicht" | "neues_probieren" | "sicher";
 
 type AnalyzeMenuMobileArgs = {
   menuText: string;
@@ -27,3 +27,4 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
 
   return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body);
 }
+

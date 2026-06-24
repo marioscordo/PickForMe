@@ -29,7 +29,10 @@ export function useAnalyzeMenu() {
       const data = await analyzeMenu({
         menuText,
         situation,
-        profile
+        profile: {
+          ...profile,
+          appetiteMood: situation
+        }
       });
 
       setResult(data);
@@ -61,3 +64,4 @@ export function useAnalyzeMenu() {
     reset
   };
 }
+

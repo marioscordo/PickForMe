@@ -6,7 +6,7 @@ import { blockReasonForRecommendation, buildProfilePromptLines } from "../profil
 const RecommendationSchema = z.object({
   rank: z.number(),
   nameOriginal: z.string().min(1),
-  translatedName: z.string().optional(),
+  translatedName: z.string().min(1),
   priceRaw: z.string().optional(),
   descriptionOriginal: z.string().optional(),
   reason: z.string().min(1),
@@ -98,7 +98,7 @@ function buildPdfPrompt(input: { profile: ProfileInput; situation?: string }) {
     "    {",
     '      "rank": 1,',
     '      "nameOriginal": "exakter Gerichtname aus der Speisekarte",',
-    '      "translatedName": "kurze deutsche Uebersetzung des Gerichtnamens, falls sinnvoll",',
+    '      "translatedName": "kurze deutsche Uebersetzung oder Kurzbeschreibung fuer deutschsprachige Nutzer",',
     '      "priceRaw": "Preis falls sichtbar",',
     '      "descriptionOriginal": "Originalbeschreibung falls sichtbar",',
     '      "reason": "kurze persoenliche Begruendung",',
@@ -151,7 +151,8 @@ function toAnalyzeDataParts(recommendations: PdfAiRecommendation[]) {
       dishId: dishes[index]!.id,
       rank: item.rank,
       reason: item.reason,
-      translatedName: item.translatedName
+      translatedName: item.translatedName,
+
     }))
   };
 }
@@ -179,6 +180,12 @@ function parsePrice(value?: string) {
 
   return Number(match[1]);
 }
+
+
+
+
+
+
 
 
 

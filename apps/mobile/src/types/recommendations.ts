@@ -4,7 +4,7 @@ export type Recommendation = {
   dishId: string;
   rank?: number;
   reason: string;
-  translatedName?: string;
+  translatedName: string;
 };
 
 export type AnalyzeData = {
@@ -12,4 +12,5 @@ export type AnalyzeData = {
   dishes: Dish[];
   recommendations: Recommendation[];
 };
+
 

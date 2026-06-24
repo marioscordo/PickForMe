@@ -1,26 +1,32 @@
-﻿import React from "react";
-import { Text, View } from "react-native";
+﻿import { View } from "react-native";
 import { Chip } from "../ui/Chip";
 import { styles } from "../../theme/styles";
 import type { Situation } from "../../types/profile";
 
-const SITUATIONS: Situation[] = ["leicht", "regional", "teilen", "überraschen"];
+const SITUATION_OPTIONS: Array<{ value: Situation; label: string }> = [
+  { value: "richtig_hunger", label: "😋 Richtig Hunger" },
+  { value: "leicht", label: "🤏 Etwas Leichtes" },
+  { value: "neues_probieren", label: "🧪 Etwas Neues probieren" },
+  { value: "sicher", label: "🛡️ Auf Nummer sicher gehen" }
+];
 
 export function SituationSelector({
   situation,
   setSituation
 }: {
   situation: Situation;
-  setSituation: (situation: Situation) => void;
+  setSituation: (value: Situation) => void;
 }) {
   return (
-    <View style={styles.card}>
-      <Text style={styles.h3}>Situation</Text>
-      <View style={styles.chipRow}>
-        {SITUATIONS.map((item) => (
-          <Chip key={item} label={item} active={situation === item} onPress={() => setSituation(item)} />
-        ))}
-      </View>
+    <View style={styles.chipRow}>
+      {SITUATION_OPTIONS.map((option) => (
+        <Chip
+          key={option.value}
+          label={option.label}
+          active={situation === option.value}
+          onPress={() => setSituation(option.value)}
+        />
+      ))}
     </View>
   );
 }

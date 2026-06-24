@@ -2,7 +2,7 @@
 import { Alert, Pressable, Text, TextInput, View } from "react-native";
 import { Chip } from "../ui/Chip";
 import { styles } from "../../theme/styles";
-import type { AppetiteMood, UserProfile } from "../../types/profile";
+import type { UserProfile } from "../../types/profile";
 
 const PREFERENCE_OPTIONS = [
   { label: "🍗 Ich esse Fleisch", value: "Fleisch", kind: "like" },
@@ -45,12 +45,6 @@ const ALLERGY_OPTIONS = [
   "⚠️ Fructose"
 ];
 
-const MOOD_OPTIONS: Array<{ value: AppetiteMood; label: string }> = [
-  { value: "richtig_hunger", label: "😋 Richtig Hunger" },
-  { value: "leicht", label: "🤏 Etwas Leichtes" },
-  { value: "neues_probieren", label: "🧪 Etwas Neues probieren" },
-  { value: "sicher", label: "🛡️ Auf Nummer sicher gehen" }
-];
 
 export function ProfileEditor({
   profile,
@@ -555,22 +549,6 @@ export function ProfileEditor({
           </View>
         ) : null}
       </View>
-
-      <View style={styles.profileSection}>
-        <Text style={styles.profileSectionTitle}>Meine Ess-Stimmung</Text>
-        <Text style={styles.profileSectionHint}>Wonach dir gerade ist.</Text>
-
-        <View style={styles.chipRow}>
-          {MOOD_OPTIONS.map((option) => (
-            <Chip
-              key={option.value}
-              label={option.label}
-              active={profile.appetiteMood === option.value}
-              onPress={() => updateProfile({ appetiteMood: option.value })}
-            />
-          ))}
-        </View>
-      </View>
     </View>
   );
 }
@@ -604,3 +582,5 @@ function uniqueValues(values: string[]) {
     return includesValue(result, value) ? result : [...result, value];
   }, []);
 }
+
+

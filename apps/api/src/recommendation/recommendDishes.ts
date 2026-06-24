@@ -46,7 +46,7 @@ function scoreDish(dish: Dish, profile: UserProfile, situation: Situation) {
 
   const text = `${dish.nameOriginal} ${dish.descriptionOriginal ?? ""} ${dish.category ?? ""}`.toLowerCase();
 
-  if (situation === "regional" && matchesAny(text, ["regional", "fränkisch", "fraenkisch", "hausgemacht", "schäufele", "schaeufele", "braten"])) {
+  if (situation === "richtig_hunger" && matchesAny(text, ["regional", "fränkisch", "fraenkisch", "hausgemacht", "schäufele", "schaeufele", "braten"])) {
     score += 5;
   }
 
@@ -54,11 +54,11 @@ function scoreDish(dish: Dish, profile: UserProfile, situation: Situation) {
     score += 5;
   }
 
-  if (situation === "teilen" && matchesAny(text, ["platte", "variation", "antipasti", "tapas", "zum teilen"])) {
+  if (situation === "neues_probieren" && matchesAny(text, ["platte", "variation", "antipasti", "tapas", "zum teilen"])) {
     score += 5;
   }
 
-  if (situation === "überraschen") {
+  if (situation === "neues_probieren") {
     score += matchesAny(text, ["spezial", "hausgemacht", "variation", "chef", "tempura", "curry"]) ? 3 : 0;
   }
 
@@ -88,7 +88,7 @@ function buildReason(dish: Dish, profile: UserProfile, situation: Situation) {
     return "Wirkt passend, wenn Du auf Nummer sicher gehen möchtest.";
   }
 
-  if (situation === "regional") {
+  if (situation === "richtig_hunger") {
     return "Wirkt passend für eine regionale Auswahl aus der Karte.";
   }
 
@@ -96,7 +96,7 @@ function buildReason(dish: Dish, profile: UserProfile, situation: Situation) {
     return "Wirkt passend, wenn es heute etwas leichter sein soll.";
   }
 
-  if (situation === "teilen") {
+  if (situation === "neues_probieren") {
     return "Wirkt passend, wenn am Tisch geteilt werden soll.";
   }
 
@@ -106,3 +106,4 @@ function buildReason(dish: Dish, profile: UserProfile, situation: Situation) {
 function matchesAny(text: string, needles: string[]) {
   return needles.some((needle) => text.includes(needle));
 }
+

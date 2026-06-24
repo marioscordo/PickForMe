@@ -11,7 +11,7 @@ import type { Situation } from "../../types/profile";
 
 export function PickScreen() {
   const [menuText, setMenuText] = useState("");
-  const [situation, setSituation] = useState<Situation>("leicht");
+  const [situation, setSituation] = useState<Situation>("richtig_hunger");
   const [showQrScanner, setShowQrScanner] = useState(false);
   const analyze = useAnalyzeMenu();
 
@@ -207,3 +207,4 @@ const local = StyleSheet.create({
     fontWeight: "900"
   }
 });
+
