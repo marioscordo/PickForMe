@@ -16,7 +16,12 @@ export function RootNavigator({ auth }: { auth: AuthState }) {
 
   return (
     <View style={styles.appShell}>
-      {activeTab === "pick" ? <PickScreen /> : <ProfileScreen />}
+      {activeTab === "pick" ? (
+        <PickScreen />
+      ) : (
+        <ProfileScreen onGoToMenu={() => setActiveTab("pick")} />
+      )}
+
       <BottomTabs activeTab={activeTab} setActiveTab={setActiveTab} />
     </View>
   );

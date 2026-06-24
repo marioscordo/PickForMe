@@ -25,8 +25,8 @@ export const styles = StyleSheet.create({
   screenContent: {
     flexGrow: 1,
     paddingHorizontal: 18,
-    paddingTop: 54,
-    paddingBottom: 18
+    paddingTop: 20,
+    paddingBottom: 130
   },
 
   title: {
@@ -180,6 +180,33 @@ export const styles = StyleSheet.create({
     color: "#FFFFFF"
   },
 
+  profileSection: {
+    marginTop: 18,
+    padding: 16,
+    borderRadius: 22,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+
+  profileSectionTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: colors.text,
+    marginBottom: 6
+  },
+
+  profileSectionHint: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.muted,
+    marginBottom: 14
+  },
+
+  profileSubBlock: {
+    marginTop: 16
+  },
+
   error: {
     color: colors.danger,
     fontWeight: "800",
@@ -266,3 +293,5 @@ export const styles = StyleSheet.create({
     color: "#FFFFFF"
   }
 });
+
+

@@ -3,11 +3,23 @@ import type { UserProfile } from "../../types/profile";
 
 const defaultProfile: UserProfile = {
   displayName: "Mario",
-  primaryLikes: ["Fleisch", "Regional"],
-  secondaryLikes: ["Pasta", "Salat"],
-  dislikes: ["Innereien", "Grätenfisch"],
+  primaryLikes: ["Fleisch", "Fisch", "Große Portionen"],
+  secondaryLikes: ["Pasta", "Salat", "Scharf"],
+  dislikes: ["Keine Innereien", "Kein Grätenfisch"],
   intolerances: [],
-  dietStyle: "normal"
+  dietStyle: "normal",
+  appetiteMood: "richtig_hunger",
+  exceptions: [],
+
+  customPreferences: [],
+  customExclusions: [],
+  customIntolerances: [],
+  customExceptions: [],
+
+  hiddenPreferences: [],
+  hiddenExclusions: [],
+  hiddenIntolerances: [],
+  hiddenExceptions: []
 };
 
 type ProfileContextValue = {

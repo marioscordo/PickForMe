@@ -1,30 +1,33 @@
-import React, { useEffect, useRef } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+﻿import React, { useEffect, useRef } from "react";
+import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView } from "react-native";
 import { styles } from "../../theme/styles";
 
-export function Screen({
-  children,
-  scrollToTopKey
-}: {
+type ScreenProps = {
   children: React.ReactNode;
-  scrollToTopKey?: string | number;
-}) {
-  const scrollRef = useRef<ScrollView | null>(null);
+  scrollToTopKey?: string;
+};
+
+export function Screen({ children, scrollToTopKey }: ScreenProps) {
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    if (scrollToTopKey) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    }
   }, [scrollToTopKey]);
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
-      <ScrollView
-        ref={scrollRef}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.screenContent}
-      >
-        {children}
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <SafeAreaView style={styles.appShell}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
+        <ScrollView
+          ref={scrollViewRef}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.screenContent}
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
