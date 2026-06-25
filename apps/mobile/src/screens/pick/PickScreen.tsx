@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Screen } from "../../components/ui/Screen";
 import { MenuInputCard } from "../../components/pick/MenuInputCard";
@@ -9,11 +9,34 @@ import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
 import { styles } from "../../theme/styles";
 import type { Situation } from "../../types/profile";
 
+const LOADING_STEPS = [
+  "Speisekarte wird gelesen ...",
+  "Gerichte werden erkannt ...",
+  "Dein Profil wird beruecksichtigt ...",
+  "PickForMe waehlt passende Empfehlungen ..."
+];
+
 export function PickScreen() {
   const [menuText, setMenuText] = useState("");
   const [situation, setSituation] = useState<Situation>("richtig_hunger");
   const [showQrScanner, setShowQrScanner] = useState(false);
   const analyze = useAnalyzeMenu();
+  const [loadingStepIndex, setLoadingStepIndex] = useState(0);
+
+  useEffect(() => {
+    if (!analyze.loading) {
+      setLoadingStepIndex(0);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setLoadingStepIndex((current) =>
+        Math.min(current + 1, LOADING_STEPS.length - 1)
+      );
+    }, 7000);
+
+    return () => clearInterval(timer);
+  }, [analyze.loading]);
 
   if (analyze.result) {
     return (
@@ -69,6 +92,24 @@ export function PickScreen() {
         <SituationSelector situation={situation} setSituation={setSituation} />
       </View>
 
+      {analyze.loading ? (
+        <View style={local.loadingCard}>
+          <Text style={local.loadingTitle}>PickForMe arbeitet fuer Dich</Text>
+          <Text style={local.loadingText}>{LOADING_STEPS[loadingStepIndex]}</Text>
+          <View style={local.loadingDots}>
+            {LOADING_STEPS.map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  local.loadingDot,
+                  index === loadingStepIndex && local.loadingDotActive
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       {analyze.error ? (
         <View style={local.errorCard}>
           <Text style={local.errorTitle}>Speisekarte nicht sicher ausgewertet</Text>
@@ -82,7 +123,7 @@ export function PickScreen() {
         disabled={analyze.loading}
       >
         <Text style={local.mainButtonText}>
-          {analyze.loading ? "PickForMe prüft..." : "Passende Gerichte finden"}
+          {analyze.loading ? "Analyse läuft ..." : "Passende Gerichte finden"}
         </Text>
       </Pressable>
     </Screen>
@@ -164,6 +205,46 @@ const local = StyleSheet.create({
     marginBottom: 8
   },
 
+  loadingCard: {
+    backgroundColor: "#EEF4F8",
+    borderColor: "#C9DCE8",
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 12
+  },
+
+  loadingTitle: {
+    color: "#314A5C",
+    fontWeight: "900",
+    fontSize: 16,
+    marginBottom: 6
+  },
+
+  loadingText: {
+    color: "#3E5B6F",
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "800",
+    marginBottom: 10
+  },
+
+  loadingDots: {
+    flexDirection: "row",
+    gap: 6
+  },
+
+  loadingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: "#C5D5DF"
+  },
+
+  loadingDotActive: {
+    width: 18,
+    backgroundColor: "#7EA9B8"
+  },
   errorCard: {
     backgroundColor: "#F8EAF0",
     borderColor: "#E8B9C8",
@@ -207,4 +288,7 @@ const local = StyleSheet.create({
     fontWeight: "900"
   }
 });
+
+
+
 
