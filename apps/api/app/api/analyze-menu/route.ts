@@ -6,6 +6,7 @@ import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
+import { loadMenuTextFromMenury, looksLikeMenuryUrl } from "../../../src/menu/loadMenuTextFromMenury";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import type { AnalyzeMenuRequest } from "../../../src/types/api";
 
@@ -25,15 +26,39 @@ export async function POST(request: Request) {
 
     const rawMenuText = body.menuText.trim();
 
-    if (looksLikeUrl(rawMenuText) && isKnownDynamicMenuPlatform(rawMenuText)) {
+    if (!looksLikeMenuryUrl(rawMenuText) && looksLikeUrl(rawMenuText) && isKnownDynamicMenuPlatform(rawMenuText)) {
       throw new AppError(
         422,
         "DYNAMIC_MENU_UNSUPPORTED",
         "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein."
       );
     }
-    const directPdfUrl = looksLikeUrl(rawMenuText) && looksLikePdfUrl(rawMenuText) ? rawMenuText : null;
-    const linkedPdfUrl = looksLikeUrl(rawMenuText) && !directPdfUrl ? await findLinkedPdfUrl(rawMenuText) : null;
+    let dynamicMenuText: string | null = null;
+
+    if (looksLikeUrl(rawMenuText) && looksLikeMenuryUrl(rawMenuText)) {
+      try {
+        dynamicMenuText = await loadMenuTextFromMenury(rawMenuText);
+      } catch (menuryError) {
+        console.error("PickForMe Menury loader failed.", menuryError);
+
+        throw new AppError(
+          422,
+          "DYNAMIC_MENU_UNSUPPORTED",
+          "Diese digitale Menüplattform konnte noch nicht sicher ausgelesen werden. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein."
+        );
+      }
+    }
+
+    if (!dynamicMenuText && looksLikeUrl(rawMenuText) && isKnownDynamicMenuPlatform(rawMenuText)) {
+      throw new AppError(
+        422,
+        "DYNAMIC_MENU_UNSUPPORTED",
+        "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein."
+      );
+    }
+
+    const directPdfUrl = !dynamicMenuText && looksLikeUrl(rawMenuText) && looksLikePdfUrl(rawMenuText) ? rawMenuText : null;
+    const linkedPdfUrl = !dynamicMenuText && looksLikeUrl(rawMenuText) && !directPdfUrl ? await findLinkedPdfUrl(rawMenuText) : null;
     const pdfMenuUrl = directPdfUrl ?? linkedPdfUrl;
 
     if (pdfMenuUrl) {
@@ -115,20 +140,12 @@ export async function POST(request: Request) {
       }
     }
 
-    if (looksLikeUrl(rawMenuText) && isKnownDynamicMenuPlatform(rawMenuText)) {
-      throw new AppError(
-        422,
-        "DYNAMIC_MENU_UNSUPPORTED",
-        "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein."
-      );
-    }
-
     let effectiveMenuText: string;
 
     try {
-      effectiveMenuText = looksLikeUrl(rawMenuText)
+      effectiveMenuText = dynamicMenuText ?? (looksLikeUrl(rawMenuText)
         ? await loadMenuTextFromUrl(rawMenuText)
-        : rawMenuText;
+        : rawMenuText);
     } catch {
       throw new AppError(422, "MENU_URL_LOAD_FAILED", "Diese Speisekarte konnte nicht geladen werden.");
     }
