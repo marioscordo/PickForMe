@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { Screen } from "../../components/ui/Screen";
 import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
@@ -22,6 +22,7 @@ export function PickScreen() {
   const [showQrScanner, setShowQrScanner] = useState(false);
   const analyze = useAnalyzeMenu();
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
+  const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
 
   useEffect(() => {
     if (!analyze.loading) {
@@ -38,10 +39,42 @@ export function PickScreen() {
     return () => clearInterval(timer);
   }, [analyze.loading]);
 
+  function normalizeMenuUrl(value: string) {
+    const trimmed = value.trim();
+
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith("www.")) {
+      return `https://${trimmed}`;
+    }
+
+    return "";
+  }
+
+  function handleAnalyze() {
+    setLastAnalyzedMenuUrl(normalizeMenuUrl(menuText));
+    analyze.run(menuText, situation);
+  }
+
+  async function openAnalyzedMenu() {
+    if (!lastAnalyzedMenuUrl) return;
+    await Linking.openURL(lastAnalyzedMenuUrl);
+  }
+
   if (analyze.result) {
     return (
       <Screen>
         <RecommendationCard result={analyze.result} onReset={analyze.reset} />
+
+        {lastAnalyzedMenuUrl ? (
+          <View style={local.openMenuSection}>
+            <Pressable style={local.openMenuButton} onPress={openAnalyzedMenu}>
+              <Text style={local.openMenuButtonText}>Speisekarte öffnen</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </Screen>
     );
   }
@@ -119,7 +152,7 @@ export function PickScreen() {
 
       <Pressable
         style={[local.mainButton, analyze.loading && styles.buttonDisabled]}
-        onPress={() => analyze.run(menuText, situation)}
+        onPress={handleAnalyze}
         disabled={analyze.loading}
       >
         <Text style={local.mainButtonText}>
@@ -286,7 +319,29 @@ const local = StyleSheet.create({
     color: "#102A2A",
     fontSize: 17,
     fontWeight: "900"
+  },
+
+  openMenuSection: {
+    marginTop: 12,
+    marginBottom: 16
+  },
+
+  openMenuButton: {
+    borderWidth: 1,
+    borderColor: "#C9DCE8",
+    backgroundColor: "#F6FAFC",
+    borderRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: "center"
+  },
+
+  openMenuButtonText: {
+    color: "#314A5C",
+    fontWeight: "900",
+    fontSize: 15
   }
+
 });
 
 
