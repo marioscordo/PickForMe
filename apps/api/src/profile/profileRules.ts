@@ -99,7 +99,10 @@ export function buildProfilePromptLines(profile: ProfileInput = {}, situation?: 
     "- Bei harten Ausschluessen, Allergien und Unvertraeglichkeiten gilt: Wenn unsicher, nicht empfehlen.",
     "- Ausnahmen gelten nur, wenn das konkrete Gericht klar zur Ausnahme passt.",
     "- Vorlieben beeinflussen nur die Reihenfolge sicherer Gerichte.",
-    "- Inaktive gespeicherte Profiloptionen zaehlen nicht. Aktiv sind nur die oben genannten Werte."
+    "- Inaktive gespeicherte Profiloptionen zaehlen nicht. Aktiv sind nur die oben genannten Werte.",
+    "- Eine fruehere Analyse darf niemals wiederverwendet werden. Jede Analyse gilt nur fuer das aktuell uebergebene Nutzerprofil.",
+    "- Wenn Ernaehrungsstil normal ist, gelten vegetarisch oder vegan nicht als aktive Diaet, auch wenn sie frueher einmal aktiv waren.",
+    "- Wenn Fleisch, Fisch oder Proteinreich als aktive starke Vorliebe genannt sind, gewichte passende vollwertige Fleisch-, Fisch- oder Protein-Hauptgerichte hoeher als rein vegane Ausweichgerichte, sofern sie sicher zum Profil passen."
   ];
 }
 

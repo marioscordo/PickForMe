@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { analyzeMenu } from "../api/pickformeApi";
 import { PickForMeApiError } from "../api/apiClient";
 import { useProfile } from "../app/providers/ProfileProvider";
@@ -59,6 +59,28 @@ export function useAnalyzeMenu() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const profileFingerprint = useMemo(
+    () =>
+      JSON.stringify({
+        dietStyle: profile.dietStyle,
+        primaryLikes: profile.primaryLikes,
+        secondaryLikes: profile.secondaryLikes,
+        dislikes: profile.dislikes,
+        intolerances: profile.intolerances,
+        exceptions: profile.exceptions,
+        customPreferences: profile.customPreferences,
+        customExclusions: profile.customExclusions,
+        customIntolerances: profile.customIntolerances,
+        customExceptions: profile.customExceptions
+      }),
+    [profile]
+  );
+
+  useEffect(() => {
+    setResult(null);
+    setError("");
+  }, [profileFingerprint]);
+
   async function run(menuText: string, situation: Situation) {
     setError("");
     setResult(null);
@@ -68,6 +90,8 @@ export function useAnalyzeMenu() {
       return;
     }
 
+    const profileForRequest = JSON.parse(JSON.stringify(profile));
+
     setLoading(true);
 
     try {
@@ -75,7 +99,7 @@ export function useAnalyzeMenu() {
         menuText,
         situation,
         profile: {
-          ...profile,
+          ...profileForRequest,
           appetiteMood: situation
         }
       });
@@ -100,5 +124,7 @@ export function useAnalyzeMenu() {
     reset
   };
 }
+
+
 
 

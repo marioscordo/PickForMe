@@ -128,7 +128,15 @@ export function ProfileEditor({
     const primaryLikes = toggleValue(profile.primaryLikes, value);
     const dietStyle = value === "Fleisch" || value === "Fisch" ? "normal" : profile.dietStyle;
 
-    updateProfile({ primaryLikes, dietStyle });
+    const cleanedPrimaryLikes =
+      value === "Fleisch" || value === "Fisch"
+        ? primaryLikes.filter((item) => item !== "vegan" && item !== "vegetarisch")
+        : primaryLikes;
+
+    updateProfile({
+      primaryLikes: cleanedPrimaryLikes,
+      dietStyle
+    });
   }
 
   function addCustomPreference() {
