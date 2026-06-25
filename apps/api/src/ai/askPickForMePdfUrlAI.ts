@@ -14,7 +14,7 @@ const RecommendationSchema = z.object({
 });
 
 const PdfAiResponseSchema = z.object({
-  recommendations: z.array(RecommendationSchema).min(1).max(3)
+  recommendations: z.array(RecommendationSchema).max(3)
 });
 
 type PdfAiRecommendation = z.infer<typeof RecommendationSchema>;
@@ -79,6 +79,12 @@ function buildPdfPrompt(input: { profile: ProfileInput; situation?: string }) {
     "Aendere keine Gerichtsnamen.",
     "Nutze ausschliesslich Gerichte, die wirklich im PDF sichtbar sind.",
     "Keine allgemeinen Kategorien, keine Getraenke, keine Beilagen allein.",
+    "WICHTIGE REGEL ZU BEILAGEN:",
+    "Keine Beilagen ohne Treffer beim Hauptgericht.",
+    "Empfiehl keine isolierten Beilagen, Extras oder Nebenartikel als Ausweichloesung, wenn wegen harter Ausschlusskriterien kein passendes Hauptgericht gefunden wird.",
+    "Beilagen wie Pommes, Reis, Brot, Salatbeilage, Gemuese, Saucen, Dips oder einzelne Extras duerfen nur empfohlen werden, wenn sie ausdruecklich Teil eines passenden Hauptgerichts sind.",
+    "Ausnahme: Snacks, kleine Mahlzeiten oder Beilagen duerfen nur dann empfohlen werden, wenn der Nutzer danach erkennbar sucht UND sie trotz Profilregeln sicher sind.",
+    "Wenn keine sicheren Hauptgerichte oder vollwertigen Gerichte passen, gib eine leere recommendations-Liste zurueck.",
     "Bevorzuge vollwertige Hauptgerichte gegenueber Vorspeisen, Beilagen oder einfachen Salaten.",
     "Harte Profil-Ausschluesse sind verbindlich und duerfen nie durch Vorlieben ueberstimmt werden.",
     "Bei Allergien oder Unvertraeglichkeiten gilt: Wenn unsicher, nicht empfehlen.",
