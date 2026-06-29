@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import type { Dish } from "../../types/menu";
@@ -59,6 +59,24 @@ export function RecommendationCard({
       item
     ])
   );
+
+  if (safeRecommendations.length === 0) {
+    return (
+      <>
+        <View style={local.hero}>
+          <Text style={local.kicker}>Speisekarte nicht sicher ausgewertet</Text>
+          <Text style={local.title}>Keine sichere Empfehlung</Text>
+          <Text style={local.subtitle}>
+            {"Ich konnte aus dieser Analyse keine sicheren Empfehlungen erzeugen."}
+          </Text>
+        </View>
+
+        <Pressable style={local.resetButton} onPress={onReset}>
+          <Text style={local.resetButtonText}>Neue Speisekarte prüfen</Text>
+        </Pressable>
+      </>
+    );
+  }
 
   function saveRating(originalName: string, translatedName: string | undefined, rating: 1 | 2 | 3 | 4 | 5) {
     const nextItem: RecommendationFeedback = {

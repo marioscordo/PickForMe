@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireUser } from "../../../src/auth/requireUser";
 import { askPickForMeAI } from "../../../src/ai/askPickForMeAI";
 import { askPickForMePdfUrlAI } from "../../../src/ai/askPickForMePdfUrlAI";
@@ -76,6 +76,14 @@ export async function POST(request: Request) {
           45000,
           "PDF_AI_TIMEOUT"
         );
+
+        if (aiResult.recommendations.length === 0) {
+          throw new AppError(
+            422,
+            "NO_SAFE_RECOMMENDATIONS",
+            "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+          );
+        }
 
         return NextResponse.json({
           ok: true,
@@ -170,6 +178,14 @@ export async function POST(request: Request) {
           "TEXT_AI_TIMEOUT"
         );
 
+        if (aiResult.recommendations.length === 0) {
+          throw new AppError(
+            422,
+            "NO_SAFE_RECOMMENDATIONS",
+            "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+          );
+        }
+
         return NextResponse.json({
           ok: true,
           data: {
@@ -194,6 +210,14 @@ export async function POST(request: Request) {
       profile: body.profile,
       situation: body.situation
     });
+
+    if (recommendations.length === 0) {
+      throw new AppError(
+        422,
+        "NO_SAFE_RECOMMENDATIONS",
+        "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+      );
+    }
 
     return NextResponse.json({
       ok: true,

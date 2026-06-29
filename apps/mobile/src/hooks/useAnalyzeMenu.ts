@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { analyzeMenu } from "../api/pickformeApi";
 import { PickForMeApiError } from "../api/apiClient";
 import { useProfile } from "../app/providers/ProfileProvider";
@@ -58,6 +58,7 @@ export function useAnalyzeMenu() {
   const [result, setResult] = useState<AnalyzeData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const requestIdRef = useRef(0);
 
   const profileFingerprint = useMemo(
     () =>
@@ -77,11 +78,16 @@ export function useAnalyzeMenu() {
   );
 
   useEffect(() => {
+    requestIdRef.current += 1;
     setResult(null);
     setError("");
+    setLoading(false);
   }, [profileFingerprint]);
 
   async function run(menuText: string, situation: Situation) {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     setError("");
     setResult(null);
 
@@ -104,16 +110,29 @@ export function useAnalyzeMenu() {
         }
       });
 
-      setResult(data);      } catch (e) {
-        setError(getAnalyzeMenuErrorMessage(e));
-      } finally {
-      setLoading(false);
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
+      setResult(data);
+    } catch (e) {
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
+      setError(getAnalyzeMenuErrorMessage(e));
+    } finally {
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }
 
   function reset() {
+    requestIdRef.current += 1;
     setError("");
     setResult(null);
+    setLoading(false);
   }
 
   return {
@@ -124,7 +143,3 @@ export function useAnalyzeMenu() {
     reset
   };
 }
-
-
-
-
