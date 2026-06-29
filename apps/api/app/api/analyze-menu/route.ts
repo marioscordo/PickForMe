@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { requireUser } from "../../../src/auth/requireUser";
 import { askPickForMeAI } from "../../../src/ai/askPickForMeAI";
 import { askPickForMePdfUrlAI } from "../../../src/ai/askPickForMePdfUrlAI";
+import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
+import { findLinkedMenuImageUrls, looksLikeImageUrl } from "../../../src/menu/findLinkedMenuImageUrls";
 import { loadMenuTextFromMenury, looksLikeMenuryUrl } from "../../../src/menu/loadMenuTextFromMenury";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import type { AnalyzeMenuRequest } from "../../../src/types/api";
@@ -148,6 +150,82 @@ export async function POST(request: Request) {
       }
     }
 
+    const directImageUrl = !dynamicMenuText && looksLikeUrl(rawMenuText) && looksLikeImageUrl(rawMenuText) ? rawMenuText : null;
+
+    if (directImageUrl) {
+      if (process.env.PICKFORME_AI_ENABLED !== "true") {
+        throw new AppError(400, "IMAGE_AI_DISABLED", "Bild-Speisekarten benötigen in V1 den KI-Modus.");
+      }
+
+      try {
+        const aiResult = await withTimeout(
+          askPickForMeImageUrlsAI({
+            imageUrls: [directImageUrl],
+            profile: body.profile,
+            situation: body.situation
+          }),
+          45000,
+          "IMAGE_AI_TIMEOUT"
+        );
+
+        if (aiResult.recommendations.length === 0) {
+          throw new AppError(
+            422,
+            "NO_SAFE_RECOMMENDATIONS",
+            "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+          );
+        }
+
+        return NextResponse.json({
+          ok: true,
+          data: {
+            mode: "ai_image",
+            dishes: aiResult.dishes,
+            recommendations: aiResult.recommendations
+          }
+        });
+      } catch (imageAiError) {
+        console.error("PickForMe Image AI failed.", imageAiError);
+
+        const message = imageAiError instanceof Error ? imageAiError.message : "";
+
+        if (
+          message.includes("429") ||
+          message.includes("Rate limit") ||
+          message.includes("rate limit") ||
+          message.includes("TPM")
+        ) {
+          throw new AppError(
+            429,
+            "AI_RATE_LIMIT",
+            "Ich kann die Bild-Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+          );
+        }
+
+        if (message.includes("IMAGE_AI_TIMEOUT")) {
+          throw new AppError(
+            422,
+            "ANALYSIS_NOT_SAFE",
+            "Ich konnte diese Bild-Speisekarte nicht sicher auswerten."
+          );
+        }
+
+        if (
+          message.includes("Profilregeln") ||
+          message.includes("keine sicher") ||
+          message.includes("NO_SAFE")
+        ) {
+          throw new AppError(
+            422,
+            "NO_SAFE_RECOMMENDATIONS",
+            "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+          );
+        }
+
+        throw imageAiError;
+      }
+    }
+
     let effectiveMenuText: string;
 
     try {
@@ -177,29 +255,96 @@ export async function POST(request: Request) {
           15000,
           "TEXT_AI_TIMEOUT"
         );
-
-        if (aiResult.recommendations.length === 0) {
-          throw new AppError(
-            422,
-            "NO_SAFE_RECOMMENDATIONS",
-            "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
-          );
+        if (aiResult.recommendations.length > 0) {
+          return NextResponse.json({
+            ok: true,
+            data: {
+              mode: "ai",
+              dishes: aiResult.dishes,
+              recommendations: aiResult.recommendations
+            }
+          });
         }
-
-        return NextResponse.json({
-          ok: true,
-          data: {
-            mode: "ai",
-            dishes: aiResult.dishes,
-            recommendations: aiResult.recommendations
-          }
-        });
       } catch (aiError) {
         console.error("PickForMe AI failed, falling back to local recommendation.", aiError);
       }
     }
 
     const dishes = parseMenu(effectiveMenuText);
+
+    if (dishes.length === 0 && looksLikeUrl(rawMenuText) && process.env.PICKFORME_AI_ENABLED === "true") {
+      const imageUrls = await findLinkedMenuImageUrls(rawMenuText);
+
+      if (imageUrls.length > 0) {
+        try {
+          const aiResult = await withTimeout(
+            askPickForMeImageUrlsAI({
+              imageUrls,
+              profile: body.profile,
+              situation: body.situation
+            }),
+            45000,
+            "IMAGE_AI_TIMEOUT"
+          );
+
+          if (aiResult.recommendations.length === 0) {
+            throw new AppError(
+              422,
+              "NO_SAFE_RECOMMENDATIONS",
+              "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+            );
+          }
+
+          return NextResponse.json({
+            ok: true,
+            data: {
+              mode: "ai_image",
+              dishes: aiResult.dishes,
+              recommendations: aiResult.recommendations
+            }
+          });
+        } catch (imageAiError) {
+          console.error("PickForMe linked Image AI failed.", imageAiError);
+
+          const message = imageAiError instanceof Error ? imageAiError.message : "";
+
+          if (
+            message.includes("429") ||
+            message.includes("Rate limit") ||
+            message.includes("rate limit") ||
+            message.includes("TPM")
+          ) {
+            throw new AppError(
+              429,
+              "AI_RATE_LIMIT",
+              "Ich kann die Bild-Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+            );
+          }
+
+          if (message.includes("IMAGE_AI_TIMEOUT")) {
+            throw new AppError(
+              422,
+              "ANALYSIS_NOT_SAFE",
+              "Ich konnte diese Bild-Speisekarte nicht sicher auswerten."
+            );
+          }
+
+          if (
+            message.includes("Profilregeln") ||
+            message.includes("keine sicher") ||
+            message.includes("NO_SAFE")
+          ) {
+            throw new AppError(
+              422,
+              "NO_SAFE_RECOMMENDATIONS",
+              "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+            );
+          }
+
+          throw imageAiError;
+        }
+      }
+    }
 
     if (dishes.length === 0) {
       throw new AppError(400, "NO_DISHES_FOUND", "PickForMe konnte noch keine Gerichte erkennen.");

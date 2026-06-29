@@ -1,4 +1,4 @@
-﻿import OpenAI from "openai";
+import OpenAI from "openai";
 import { z } from "zod";
 import type { Dish } from "../types/menu";
 import type { Situation, UserProfile } from "../types/profile";
@@ -17,7 +17,7 @@ const PickForMeAIResponseSchema = z.object({
         evidence: z.string().min(8)
       })
     )
-    .min(1).max(3)
+    .max(3)
 });
 
 type PickForMeAIResponse = z.infer<typeof PickForMeAIResponseSchema>;
@@ -139,14 +139,6 @@ function validateOriginalEvidence(result: PickForMeAIResponse, menuText: string)
 
     return evidenceMatches || nameMatches;
   });
-
-  if (validRecommendations.length === 0) {
-    throw new Error("Die KI-Antwort enthielt keine sicher belegbare Empfehlung.");
-  }
-
-  if (validRecommendations.length !== result.recommendations.length) {
-    throw new Error("Mindestens eine KI-Empfehlung konnte nicht sicher gegen den Originaltext validiert werden.");
-  }
 
   return {
     recommendations: validRecommendations
