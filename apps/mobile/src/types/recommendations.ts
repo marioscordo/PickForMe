@@ -11,6 +11,9 @@ export type AnalyzeData = {
   mode: "ai" | "ai_pdf" | "fallback";
   dishes: Dish[];
   recommendations: Recommendation[];
+  conciergeCompass?: string;
+  recommendationMode?: "single_dishes" | "whole_menu" | "sharing_menu";
+  menuType?: string;
 };
 
 

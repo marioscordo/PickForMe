@@ -52,6 +52,8 @@ export function RecommendationCard({
   const safeRecommendations = result.recommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
+  const heroSubtitle =
+    result.conciergeCompass?.trim() || "Aus der Speisekarte ausgewählt und mit Deinem Profil abgeglichen.";
 
   const feedbackByName = new Map(
     (((profile as ProfileWithFeedback).recommendationFeedback ?? []) as RecommendationFeedback[]).map((item) => [
@@ -103,9 +105,7 @@ export function RecommendationCard({
       <View style={local.hero}>
         <Text style={local.kicker}>PickForMe empfiehlt</Text>
         <Text style={local.title}>Das passt zu Dir</Text>
-        <Text style={local.subtitle}>
-          {"Aus der Speisekarte ausgewählt und mit Deinem Profil abgeglichen."}
-        </Text>
+        <Text style={local.subtitle}>{heroSubtitle}</Text>
       </View>
 
       <View style={local.list}>

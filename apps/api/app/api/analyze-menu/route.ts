@@ -252,7 +252,7 @@ export async function POST(request: Request) {
           profile: body.profile,
           situation: body.situation
           }),
-          15000,
+          45000,
           "TEXT_AI_TIMEOUT"
         );
         if (aiResult.recommendations.length > 0) {
@@ -261,7 +261,10 @@ export async function POST(request: Request) {
             data: {
               mode: "ai",
               dishes: aiResult.dishes,
-              recommendations: aiResult.recommendations
+              recommendations: aiResult.recommendations,
+              conciergeCompass: aiResult.conciergeCompass,
+              recommendationMode: aiResult.recommendationMode,
+              menuType: aiResult.menuType
             }
           });
         }
