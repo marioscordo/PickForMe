@@ -282,7 +282,7 @@ async function findLinkedPdfUrl(value: string): Promise<string | null> {
     const html = await response.text();
     const candidates = extractPdfCandidates(html, finalUrl);
 
-    return candidates[0] ?? null;
+    return candidates.find((candidate) => scorePdfCandidate(candidate) > 0) ?? null;
   } catch {
     return null;
   }
@@ -317,11 +317,23 @@ function scorePdfCandidate(value: string): number {
 
   if (normalized.includes("deutsch")) score += 5;
   if (normalized.includes("german")) score += 5;
-  if (normalized.includes("speisekarte")) score += 4;
-  if (normalized.includes("menu")) score += 2;
+  if (normalized.includes("speisekarte")) score += 6;
+  if (normalized.includes("menu")) score += 3;
+  if (normalized.includes("menue")) score += 3;
+  if (normalized.includes("menü")) score += 3;
+  if (normalized.includes("food")) score += 3;
+  if (normalized.includes("essen")) score += 3;
+  if (normalized.includes("speisen")) score += 4;
+
+  if (normalized.includes("weinkarte")) score -= 10;
+  if (normalized.includes("wine")) score -= 10;
+  if (normalized.includes("getraenk")) score -= 10;
+  if (normalized.includes("getränk")) score -= 10;
+  if (normalized.includes("drinks")) score -= 10;
+  if (normalized.includes("cocktail")) score -= 10;
+
   if (normalized.includes("english")) score -= 3;
   if (normalized.includes("englisch")) score -= 3;
-
   return score;
 }
 
