@@ -11,6 +11,7 @@ const PickForMeAIResponseSchema = z.object({
       z.object({
         rank: z.number().int().min(1).max(3),
         nameOriginal: z.string().min(2),
+        translatedName: z.string().min(1),
         priceRaw: z.string().optional(),
         descriptionOriginal: z.string().optional(),
         reason: z.string().min(8),
@@ -81,6 +82,12 @@ function buildSystemPrompt() {
     "Du darfst keine Gerichte erfinden.",
     "Du darfst Gerichtsnamen nicht veraendern oder schoener formulieren.",
     "Du darfst Preise nur uebernehmen, wenn sie im Originaltext erkennbar sind.",
+    "priceRaw darf nur gesetzt werden, wenn ein Preis im Originaltext sichtbar ist.",
+    "priceRaw muss den Originalpreis roh enthalten, inklusive Waehrung, Symbol oder Text, falls sichtbar.",
+    "Keine Waehrungsumrechnung, keine Preisnormalisierung und keine erfundenen Preise.",
+    "Bei fremdsprachigen Gerichten muss translatedName eine verstaendliche deutsche Kurzbeschreibung sein.",
+    "nameOriginal darf nicht uebersetzt oder veraendert werden.",
+    "reason muss konkret auf sichtbare Zutaten oder Beschreibung und das Nutzerprofil Bezug nehmen, nicht nur generisch auf Fleisch oder Hunger.",
     "Du bewertest nicht die Restaurantqualitaet.",
     "Harte Profil-Ausschluesse sind verbindlich und duerfen nie durch Vorlieben ueberstimmt werden.",
     "WICHTIGE REGEL ZU BEILAGEN:",
@@ -97,6 +104,7 @@ function buildSystemPrompt() {
     "    {",
     '      "rank": 1,',
     '      "nameOriginal": "Originaler Gerichtsname aus der Karte",',
+    '      "translatedName": "kurze deutsche Uebersetzung oder Kurzbeschreibung fuer deutschsprachige Nutzer",',
     '      "priceRaw": "Preis aus dem Original, falls vorhanden",',
     '      "descriptionOriginal": "kurze Beschreibung aus dem Original, falls vorhanden",',
     '      "reason": "kurze persoenliche Begruendung",',
@@ -171,7 +179,8 @@ function toAnalyzeDataParts(result: PickForMeAIResponse): {
 
   const recommendations: Recommendation[] = dishes.map((dish, index) => ({
     dishId: dish.id,
-    reason: result.recommendations[index]?.reason ?? "Passt zu Deinem Profil und der aktuellen Situation."
+    reason: result.recommendations[index]?.reason ?? "Passt zu Deinem Profil und der aktuellen Situation.",
+    translatedName: result.recommendations[index]?.translatedName ?? ""
   }));
 
   return {
