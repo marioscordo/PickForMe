@@ -59,6 +59,7 @@ export function useAnalyzeMenu() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestIdRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const profileFingerprint = useMemo(
     () =>
@@ -72,13 +73,19 @@ export function useAnalyzeMenu() {
         customPreferences: profile.customPreferences,
         customExclusions: profile.customExclusions,
         customIntolerances: profile.customIntolerances,
-        customExceptions: profile.customExceptions
+        customExceptions: profile.customExceptions,
+        hiddenPreferences: profile.hiddenPreferences,
+        hiddenExclusions: profile.hiddenExclusions,
+        hiddenIntolerances: profile.hiddenIntolerances,
+        hiddenExceptions: profile.hiddenExceptions
       }),
     [profile]
   );
 
   useEffect(() => {
     requestIdRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setResult(null);
     setError("");
     setLoading(false);
@@ -87,6 +94,9 @@ export function useAnalyzeMenu() {
   async function run(menuText: string, situation: Situation) {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
+    abortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     setError("");
     setResult(null);
@@ -107,7 +117,8 @@ export function useAnalyzeMenu() {
         profile: {
           ...profileForRequest,
           appetiteMood: situation
-        }
+        },
+        signal: abortController.signal
       });
 
       if (requestIdRef.current !== requestId) {
@@ -120,9 +131,14 @@ export function useAnalyzeMenu() {
         return;
       }
 
+      if (e instanceof DOMException && e.name === "AbortError") {
+        return;
+      }
+
       setError(getAnalyzeMenuErrorMessage(e));
     } finally {
       if (requestIdRef.current === requestId) {
+        abortControllerRef.current = null;
         setLoading(false);
       }
     }
@@ -130,6 +146,8 @@ export function useAnalyzeMenu() {
 
   function reset() {
     requestIdRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setError("");
     setResult(null);
     setLoading(false);

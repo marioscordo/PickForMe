@@ -30,7 +30,10 @@ const RawMenuFactsSchema = z.object({
 type RawMenuFacts = z.infer<typeof RawMenuFactsSchema>;
 type RawObject = Record<string, unknown>;
 
-export async function extractMenuFactsFromTextAI(menuText: string): Promise<MenuFacts> {
+export async function extractMenuFactsFromTextAI(
+  menuText: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<MenuFacts> {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -39,21 +42,24 @@ export async function extractMenuFactsFromTextAI(menuText: string): Promise<Menu
 
   const client = new OpenAI({ apiKey });
 
-  const completion = await client.chat.completions.create({
-    model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-    temperature: 0,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: buildSystemPrompt()
-      },
-      {
-        role: "user",
-        content: buildUserPrompt(menuText)
-      }
-    ]
-  });
+  const completion = await client.chat.completions.create(
+    {
+      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: buildSystemPrompt()
+        },
+        {
+          role: "user",
+          content: buildUserPrompt(menuText)
+        }
+      ]
+    },
+    options.signal ? { signal: options.signal } : undefined
+  );
 
   const content = completion.choices[0]?.message?.content;
 
@@ -85,6 +91,8 @@ function buildSystemPrompt() {
     "MenuUnit titleOriginal muss ein exakt sichtbarer Originaltitel, Abschnittstitel oder klar sichtbarer Menue-Titel aus dem Text sein.",
     "Erzeuge keine generischen frei erfundenen MenuUnit-Titel wie Degustationsmenue, wenn dieser Begriff nicht sichtbar ist.",
     "translatedName ist nur eine nuechterne deutsche Uebersetzung oder Kurzbeschreibung, kein Marketingtext.",
+    "descriptionOriginal muss aus sichtbarem Speisekartentext stammen.",
+    "descriptionOriginal darf nicht uebersetzt, zusammengefasst, bewertet, interpretiert oder frei ergaenzt werden.",
     "priceRaw muss den Preis exakt roh aus dem Text uebernehmen, inklusive Waehrung oder Symbol, wenn sichtbar.",
     "Wenn kein Preis sichtbar ist, lasse priceRaw weg.",
     "Degustationsmenues, Set-Menues und Sharing-Menues nur erfassen, wenn ein konkreter sichtbarer Titel, Abschnitt oder eine klare Struktur im Text vorhanden ist.",
@@ -169,8 +177,10 @@ function validateMenuFacts(result: RawMenuFacts, menuText: string): MenuFacts {
       continue;
     }
 
+    const sourceBoundUnit = withSourceBoundDetails(unit, normalizedMenu);
+
     seenUnitIds.add(unit.id);
-    menuUnits.push(unit);
+    menuUnits.push(sourceBoundUnit);
   }
 
   const knownUnitIds = new Set(menuUnits.map((unit) => unit.id));
@@ -196,8 +206,10 @@ function validateMenuFacts(result: RawMenuFacts, menuText: string): MenuFacts {
       continue;
     }
 
+    const sourceBoundItem = withSourceBoundDetails(item, normalizedMenu);
+
     seenItemIds.add(item.id);
-    items.push(item);
+    items.push(sourceBoundItem);
   }
 
   const knownItemIds = new Set(items.map((item) => item.id));
@@ -283,6 +295,18 @@ function toMenuUnitFact(value: unknown, index: number): MenuUnitFact | null {
 
 function isVisibleFact(nameOrTitle: string, evidence: string, normalizedMenu: string): boolean {
   return isVisibleText(nameOrTitle, normalizedMenu) || isVisibleText(evidence, normalizedMenu);
+}
+
+function withSourceBoundDetails<T extends MenuItemFact | MenuUnitFact>(fact: T, normalizedMenu: string): T {
+  return {
+    ...fact,
+    descriptionOriginal: fact.descriptionOriginal && isVisibleText(fact.descriptionOriginal, normalizedMenu)
+      ? fact.descriptionOriginal
+      : undefined,
+    priceRaw: fact.priceRaw && isVisibleText(fact.priceRaw, normalizedMenu)
+      ? fact.priceRaw
+      : undefined
+  };
 }
 
 function isVisibleText(value: string, normalizedMenu: string): boolean {

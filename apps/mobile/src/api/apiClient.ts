@@ -14,7 +14,11 @@ export class PickForMeApiError extends Error {
   }
 }
 
-export async function apiPost<TResponse, TBody>(path: string, body: TBody): Promise<TResponse> {
+export async function apiPost<TResponse, TBody>(
+  path: string,
+  body: TBody,
+  options: { signal?: AbortSignal } = {}
+): Promise<TResponse> {
   const headers = await getAuthHeaders();
 
   const response = await fetch(`${env.apiUrl}${path}`, {
@@ -23,7 +27,8 @@ export async function apiPost<TResponse, TBody>(path: string, body: TBody): Prom
       "Content-Type": "application/json",
       ...headers
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: options.signal
   });
 
   const payload = (await response.json()) as ApiResponse<TResponse>;

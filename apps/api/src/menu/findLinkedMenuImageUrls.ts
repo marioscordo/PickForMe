@@ -1,4 +1,10 @@
-const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
+const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
+const SUPPORTED_IMAGE_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp"
+]);
 
 export function looksLikeImageUrl(value: string): boolean {
   try {
@@ -20,8 +26,12 @@ export async function findLinkedMenuImageUrls(value: string, maxResults = 8): Pr
     const finalUrl = response.url || value;
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
 
-    if (looksLikeImageUrl(finalUrl) || contentType.startsWith("image/")) {
+    if (isSupportedImageContentType(contentType)) {
       return [finalUrl];
+    }
+
+    if (contentType.startsWith("image/")) {
+      return [];
     }
 
     if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
@@ -33,10 +43,54 @@ export async function findLinkedMenuImageUrls(value: string, maxResults = 8): Pr
       .filter((candidate) => scoreImageCandidate(candidate) > 0)
       .sort((a, b) => scoreImageCandidate(b) - scoreImageCandidate(a));
 
-    return dedupeSimilarImageUrls(candidates).slice(0, maxResults);
+    return filterValidImageUrls(dedupeSimilarImageUrls(candidates), maxResults);
   } catch {
     return [];
   }
+}
+
+async function filterValidImageUrls(values: string[], maxResults: number): Promise<string[]> {
+  const result: string[] = [];
+
+  for (const value of values) {
+    if (result.length >= maxResults) {
+      break;
+    }
+
+    if (await isValidImageUrl(value)) {
+      result.push(value);
+    }
+  }
+
+  return result;
+}
+
+async function isValidImageUrl(value: string): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout(value, 8000, "HEAD");
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+
+    if (isSupportedImageContentType(contentType)) {
+      return true;
+    }
+
+    if (contentType) {
+      return false;
+    }
+
+    return looksLikeImageUrl(response.url || value);
+  } catch {
+    return false;
+  }
+}
+
+function isSupportedImageContentType(value: string): boolean {
+  return SUPPORTED_IMAGE_CONTENT_TYPES.has(value.split(";")[0]?.trim() ?? "");
 }
 
 function extractImageCandidates(html: string, baseUrl: string): string[] {
@@ -142,13 +196,14 @@ function decodeHtmlAttribute(value: string): string {
     .trim();
 }
 
-async function fetchWithTimeout(value: string, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(value: string, timeoutMs: number, method: "GET" | "HEAD" = "GET"): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetch(value, {
       redirect: "follow",
+      method,
       signal: controller.signal
     });
   } finally {

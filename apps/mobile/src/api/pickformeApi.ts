@@ -8,6 +8,7 @@ type AnalyzeMenuMobileArgs = {
   menuText: string;
   situation: Situation;
   profile: UserProfile;
+  signal?: AbortSignal;
 };
 
 type AnalyzeMenuApiBody = {
@@ -25,6 +26,8 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
     profile: args.profile
   };
 
-  return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body);
+  return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body, {
+    signal: args.signal
+  });
 }
 

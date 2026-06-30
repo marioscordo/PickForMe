@@ -10,11 +10,12 @@ import {
 import { extractMenuFactsFromTextAI } from "./extractMenuFactsFromTextAI";
 
 const SUMMARY_LABEL = "PickForMe two-step text AI summary";
+const MAX_CONCIERGE_STANDALONE_DISHES = 40;
 
 type TextAiAnalyzeResult = {
   dishes: Dish[];
   recommendations: Recommendation[];
-  conciergeCompass?: string;
+  conciergeHero?: string;
   recommendationMode?: ConciergeRecommendationResult["recommendationMode"];
   menuType?: string;
 };
@@ -35,6 +36,7 @@ type SelectedRecommendation = {
   fact: SelectedFact;
   rank: number;
   reason: string;
+  facts: string;
 };
 
 type FactLookupResult =
@@ -46,11 +48,13 @@ type FactLookupResult =
 export async function askPickForMeAI({
   menuText,
   profile,
-  situation
+  situation,
+  signal
 }: {
   menuText: string;
   profile: UserProfile;
   situation: Situation;
+  signal?: AbortSignal;
 }): Promise<TextAiAnalyzeResult> {
   if (process.env.PICKFORME_AI_ENABLED !== "true") {
     throw new Error("PickForMe AI ist nicht aktiviert.");
@@ -60,11 +64,13 @@ export async function askPickForMeAI({
     throw new Error("OPENAI_API_KEY fehlt.");
   }
 
-  const menuFacts = await extractMenuFactsFromTextAI(menuText);
+  const menuFacts = await extractMenuFactsFromTextAI(menuText, { signal });
+  const conciergeMenuFacts = buildConciergeMenuFacts(menuFacts, profile);
   const conciergeRecommendation = await askConciergeRecommendationAI({
-    menuFacts,
+    menuFacts: conciergeMenuFacts,
     profile,
-    situation
+    situation,
+    signal
   });
   const selectedRecommendations: SelectedRecommendation[] = [];
 
@@ -82,32 +88,31 @@ export async function askPickForMeAI({
     selectedRecommendations.push({
       fact: lookupResult,
       rank: recommendation.rank,
-      reason: recommendation.reason
+      reason: recommendation.reason,
+      facts: buildFactsText(lookupResult, menuFacts)
     });
   }
+
   const recommendationMode =
     conciergeRecommendation.recommendationMode ?? inferRecommendationMode(selectedRecommendations);
-  const conciergeCompass = getConciergeCompass({
-    conciergeCompass: conciergeRecommendation.conciergeCompass,
-    menuFacts,
-    recommendationMode,
-    selectedRecommendations
-  });
+  const conciergeHero = conciergeRecommendation.conciergeHero?.trim();
 
   console.log(SUMMARY_LABEL, {
     menuTextLength: menuText.length,
     items: menuFacts.items.length,
     menuUnits: menuFacts.menuUnits.length,
+    conciergeItems: conciergeMenuFacts.items.length,
+    conciergeMenuUnits: conciergeMenuFacts.menuUnits.length,
     selectedRecommendations: selectedRecommendations.length,
     returnsEmpty: selectedRecommendations.length === 0,
-    hasConciergeCompass: Boolean(conciergeCompass),
+    hasConciergeHero: Boolean(conciergeHero),
     recommendationMode,
     menuTypePresent: Boolean(menuFacts.menuType?.trim())
   });
 
   return {
     ...toAnalyzeDataParts(selectedRecommendations),
-    conciergeCompass,
+    conciergeHero,
     recommendationMode,
     menuType: menuFacts.menuType
   };
@@ -149,6 +154,46 @@ function findSelectableFact(menuFacts: MenuFacts, factId: string): FactLookupRes
   };
 }
 
+function buildConciergeMenuFacts(menuFacts: MenuFacts, profile: UserProfile): MenuFacts {
+  const menuUnits = menuFacts.menuUnits.filter((unit) => unit.orderability === "standalone");
+  const includedItemIds = new Set(menuUnits.flatMap((unit) => unit.includedItemIds ?? []));
+  const menuUnitContextItems = menuFacts.items.filter(
+    (item) => item.parentMenuUnitId && menuUnits.some((unit) => unit.id === item.parentMenuUnitId)
+      || includedItemIds.has(item.id)
+  );
+  const standaloneDishCandidates = menuFacts.items
+    .filter((item) => item.itemType === "dish" && item.orderability === "standalone")
+    .filter((item) => !isBlockedByProfile({ kind: "item", fact: item }, profile, menuFacts))
+    .sort((a, b) => scoreConciergeCandidate(b) - scoreConciergeCandidate(a))
+    .slice(0, MAX_CONCIERGE_STANDALONE_DISHES);
+  const itemIds = new Set<string>();
+  const items = [...menuUnitContextItems, ...standaloneDishCandidates].filter((item) => {
+    if (itemIds.has(item.id)) {
+      return false;
+    }
+
+    itemIds.add(item.id);
+    return true;
+  });
+
+  return {
+    menuType: menuFacts.menuType,
+    items,
+    menuUnits
+  };
+}
+
+function scoreConciergeCandidate(item: MenuItemFact) {
+  let score = 0;
+
+  if (item.descriptionOriginal) score += 3;
+  if (item.translatedName) score += 2;
+  if (item.priceRaw) score += 1;
+  if (item.evidence) score += 1;
+
+  return score;
+}
+
 function isBlockedByProfile(selectedFact: SelectedFact, profile: UserProfile, menuFacts: MenuFacts) {
   return Boolean(
     blockReasonForRecommendation(
@@ -177,7 +222,9 @@ function toAnalyzeDataParts(selectedRecommendations: SelectedRecommendation[]): 
 
   const recommendations: Recommendation[] = selectedRecommendations.map((selected, index) => ({
     dishId: dishes[index]!.id,
+    rank: selected.rank,
     reason: selected.reason,
+    facts: selected.facts,
     translatedName: getTranslatedName(selected.fact) ?? ""
   }));
 
@@ -195,6 +242,27 @@ function getOriginalName(selectedFact: SelectedFact) {
 
 function getTranslatedName(selectedFact: SelectedFact) {
   return selectedFact.fact.translatedName;
+}
+
+function buildFactsText(selectedFact: SelectedFact, menuFacts: MenuFacts) {
+  const fact = selectedFact.fact;
+  const includedItems = selectedFact.kind === "unit"
+    ? getIncludedMenuItems(selectedFact.fact, menuFacts)
+    : [];
+  const parts = [
+    getOriginalName(selectedFact),
+    fact.translatedName,
+    fact.descriptionOriginal,
+    ...includedItems.flatMap((item) => [
+      item.nameOriginal,
+      item.translatedName,
+      item.descriptionOriginal
+    ])
+  ]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+
+  return Array.from(new Set(parts)).join("\n");
 }
 
 function toProfileRuleInput(selectedFact: SelectedFact, menuFacts: MenuFacts) {
@@ -241,42 +309,6 @@ function inferRecommendationMode(selectedRecommendations: SelectedRecommendation
   }
 
   return selectedRecommendations.length > 0 ? "single_dishes" : undefined;
-}
-
-function getConciergeCompass({
-  conciergeCompass,
-  menuFacts,
-  recommendationMode,
-  selectedRecommendations
-}: {
-  conciergeCompass: string | undefined;
-  menuFacts: MenuFacts;
-  recommendationMode: RecommendationMode;
-  selectedRecommendations: SelectedRecommendation[];
-}) {
-  const cleanedCompass = conciergeCompass?.trim();
-
-  if (cleanedCompass) {
-    return cleanedCompass;
-  }
-
-  if (selectedRecommendations.length === 0) {
-    return undefined;
-  }
-
-  if (recommendationMode !== "whole_menu" && recommendationMode !== "sharing_menu") {
-    return undefined;
-  }
-
-  const hasMenuCourses = menuFacts.items.some(
-    (item) => item.itemType === "course" || item.orderability === "part_of_menu"
-  );
-
-  if (hasMenuCourses) {
-    return "Das wirkt hier eher wie ein Menü-Erlebnis als wie eine klassische Speisekarte. Ich würde deshalb nicht einzelne Gänge herauspicken, sondern die Menüeinheit nehmen.";
-  }
-
-  return "Das wirkt hier eher wie eine bestellbare Menüeinheit als wie eine Liste einzelner Gerichte. Ich würde sie als zusammenhängende Empfehlung betrachten.";
 }
 
 function parsePrice(priceRaw: string) {

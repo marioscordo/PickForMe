@@ -143,15 +143,9 @@ export function RecommendationCard({
 
                 {rec.facts?.trim() ? (
                   <View style={local.factsBox}>
-                    <Text style={local.sectionLabel}>Fakten</Text>
                     <Text style={local.factsText}>{rec.facts.trim()}</Text>
                   </View>
                 ) : null}
-
-                <View style={local.reasonBox}>
-                  <Text style={local.sectionLabel}>Warum das passt</Text>
-                  <Text style={local.reason}>{rec.reason}</Text>
-                </View>
 
                 <Pressable style={local.acceptButton} onPress={() => setSelectedDishId(dish.id)}>
                   <Text style={local.acceptButtonText}>Das nehme ich</Text>
@@ -313,20 +307,6 @@ const local = StyleSheet.create({
     color: "#334155",
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: "700"
-  },
-
-  reasonBox: {
-    marginTop: 9,
-    backgroundColor: "#F3F0FA",
-    borderRadius: 14,
-    padding: 10
-  },
-
-  reason: {
-    color: "#172033",
-    fontSize: 15,
-    lineHeight: 21,
     fontWeight: "700"
   },
 
