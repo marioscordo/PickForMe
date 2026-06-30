@@ -37,6 +37,7 @@ function buildDisplayTranslation(originalName: string, translatedName?: string) 
 
   return fallback.toLowerCase() !== originalName.toLowerCase() ? fallback : "";
 }
+
 export function RecommendationCard({
   result,
   onReset
@@ -53,7 +54,8 @@ export function RecommendationCard({
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
   const heroSubtitle =
-    result.conciergeCompass?.trim() || "Aus der Speisekarte ausgewählt und mit Deinem Profil abgeglichen.";
+    result.conciergeHero?.trim() ||
+    "Aus der Speisekarte ausgew\u00e4hlt und mit Deinem Profil abgeglichen.";
 
   const feedbackByName = new Map(
     (((profile as ProfileWithFeedback).recommendationFeedback ?? []) as RecommendationFeedback[]).map((item) => [
@@ -120,7 +122,7 @@ export function RecommendationCard({
           const translatedName = buildDisplayTranslation(originalName, rec.translatedName);
           const showTranslation = translatedName.length > 0;
 
-          const priceText = typeof dishData.price === "number" ? `${dishData.price.toFixed(2).replace(".", ",")} €` : "";
+          const priceText = typeof dishData.price === "number" ? `${dishData.price.toFixed(2).replace(".", ",")} \u20ac` : "";
           const existingFeedback = feedbackByName.get(originalName.toLowerCase());
           const isSelected = selectedDishId === dish.id || Boolean(existingFeedback);
 
@@ -139,7 +141,17 @@ export function RecommendationCard({
 
                 {priceText ? <Text style={local.price}>{priceText}</Text> : null}
 
-                <Text style={local.reason}>{rec.reason}</Text>
+                {rec.facts?.trim() ? (
+                  <View style={local.factsBox}>
+                    <Text style={local.sectionLabel}>Fakten</Text>
+                    <Text style={local.factsText}>{rec.facts.trim()}</Text>
+                  </View>
+                ) : null}
+
+                <View style={local.reasonBox}>
+                  <Text style={local.sectionLabel}>Warum das passt</Text>
+                  <Text style={local.reason}>{rec.reason}</Text>
+                </View>
 
                 <Pressable style={local.acceptButton} onPress={() => setSelectedDishId(dish.id)}>
                   <Text style={local.acceptButtonText}>Das nehme ich</Text>
@@ -161,7 +173,7 @@ export function RecommendationCard({
                             }
                           >
                             <Text style={[local.star, active && local.starActive]}>
-                              {active ? "★" : "☆"}
+                              {active ? "\u2605" : "\u2606"}
                             </Text>
                           </Pressable>
                         );
@@ -170,7 +182,7 @@ export function RecommendationCard({
 
                     {existingFeedback ? (
                       <Text style={local.savedText}>
-                        {`Gespeichert: ${existingFeedback.rating} von 5 Sternen für Dein persönliches Ranking.`}
+                        {`Gespeichert: ${existingFeedback.rating} von 5 Sternen f\u00fcr Dein pers\u00f6nliches Ranking.`}
                       </Text>
                     ) : null}
                   </View>
@@ -279,15 +291,43 @@ const local = StyleSheet.create({
     marginTop: 4
   },
 
-  reason: {
-    color: "#172033",
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: "700",
+  factsBox: {
+    marginTop: 9,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0"
+  },
+
+  sectionLabel: {
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "900",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.6
+  },
+
+  factsText: {
+    color: "#334155",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700"
+  },
+
+  reasonBox: {
     marginTop: 9,
     backgroundColor: "#F3F0FA",
     borderRadius: 14,
     padding: 10
+  },
+
+  reason: {
+    color: "#172033",
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "700"
   },
 
   acceptButton: {
@@ -359,4 +399,3 @@ const local = StyleSheet.create({
     fontWeight: "900"
   }
 });
-
