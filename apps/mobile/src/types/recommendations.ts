@@ -13,6 +13,11 @@ export type AnalyzeData = {
   dishes: Dish[];
   recommendations: Recommendation[];
   conciergeHero?: string;
+  analysisStatus?: "analysis_not_safe";
+  analysisWarning?: string;
+  restaurantDescription?: string;
+  restaurantDescriptionSource?: "official_website";
+  restaurantDescriptionUrl?: string;
   recommendationMode?: "single_dishes" | "whole_menu" | "sharing_menu";
   menuType?: string;
 };
