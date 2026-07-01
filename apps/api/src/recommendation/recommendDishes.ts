@@ -17,11 +17,12 @@ export function recommendDishes({
   situation: Situation;
 }): Recommendation[] {
   const safeDishes = dishes.filter((dish) => !blockReasonForDish(dish, profile));
+  const structuredContext = buildStructuredContext(safeDishes);
 
   const scored = safeDishes
     .map((dish) => ({
       dish,
-      score: scoreDish(dish, profile, situation)
+      score: scoreDish(dish, profile, situation, structuredContext)
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
@@ -32,9 +33,15 @@ export function recommendDishes({
   }));
 }
 
-function scoreDish(dish: Dish, profile: UserProfile, situation: Situation) {
+function scoreDish(
+  dish: Dish,
+  profile: UserProfile,
+  situation: Situation,
+  structuredContext: StructuredRecommendationContext
+) {
   let score = 0;
   const activeLikes = [...(profile.primaryLikes ?? []), ...(profile.secondaryLikes ?? [])];
+  const hasStructuredAttributes = hasStructuredRecommendationAttributes(dish);
 
   for (const like of activeLikes) {
     if (preferenceMatchesDish(dish, like)) {
@@ -42,24 +49,78 @@ function scoreDish(dish: Dish, profile: UserProfile, situation: Situation) {
     }
   }
 
-  score += appetiteMoodScoreForDish(dish, profile.appetiteMood);
+  score += hasStructuredAttributes
+    ? structuredSituationScoreForDish(dish, situation, structuredContext)
+    : appetiteMoodScoreForDish(dish, profile.appetiteMood);
 
   const text = `${dish.nameOriginal} ${dish.descriptionOriginal ?? ""} ${dish.category ?? ""}`.toLowerCase();
 
-  if (situation === "richtig_hunger" && matchesAny(text, ["regional", "fränkisch", "fraenkisch", "hausgemacht", "schäufele", "schaeufele", "braten"])) {
-    score += 5;
+  if (!hasStructuredAttributes) {
+    if (situation === "richtig_hunger" && matchesAny(text, ["regional", "fränkisch", "fraenkisch", "hausgemacht", "schäufele", "schaeufele", "braten"])) {
+      score += 5;
+    }
+
+    if (situation === "leicht" && matchesAny(text, ["salat", "gemüse", "gemuese", "fisch", "leicht", "bowl"])) {
+      score += 5;
+    }
+
+    if (situation === "neues_probieren" && matchesAny(text, ["platte", "variation", "antipasti", "tapas", "zum teilen"])) {
+      score += 5;
+    }
+
+    if (situation === "neues_probieren") {
+      score += matchesAny(text, ["spezial", "hausgemacht", "variation", "chef", "tempura", "curry"]) ? 3 : 0;
+    }
   }
 
-  if (situation === "leicht" && matchesAny(text, ["salat", "gemüse", "gemuese", "fisch", "leicht", "bowl"])) {
-    score += 5;
+  return score;
+}
+
+type StructuredRecommendationContext = {
+  hasSubstantialMainCourseCandidate: boolean;
+};
+
+function buildStructuredContext(dishes: Dish[]): StructuredRecommendationContext {
+  return {
+    hasSubstantialMainCourseCandidate: dishes.some((dish) =>
+      hasStructuredRecommendationAttributes(dish) &&
+      dish.isMainCourseCandidate === true &&
+      (dish.substanceLevel === "substantial" || dish.substanceLevel === "medium")
+    )
+  };
+}
+
+function hasStructuredRecommendationAttributes(dish: Dish) {
+  return dish.classificationConfidence !== undefined && dish.classificationConfidence > 0;
+}
+
+function structuredSituationScoreForDish(
+  dish: Dish,
+  situation: Situation,
+  context: StructuredRecommendationContext
+) {
+  if (situation !== "richtig_hunger") {
+    return 0;
   }
 
-  if (situation === "neues_probieren" && matchesAny(text, ["platte", "variation", "antipasti", "tapas", "zum teilen"])) {
-    score += 5;
+  let score = 0;
+
+  if (dish.isMainCourseCandidate) {
+    score += 4;
   }
 
-  if (situation === "neues_probieren") {
-    score += matchesAny(text, ["spezial", "hausgemacht", "variation", "chef", "tempura", "curry"]) ? 3 : 0;
+  if (dish.substanceLevel === "substantial") {
+    score += 12;
+  } else if (dish.substanceLevel === "medium") {
+    score += 6;
+  }
+
+  if (context.hasSubstantialMainCourseCandidate && dish.isLightDishCandidate) {
+    score -= 18;
+  }
+
+  if (dish.dishRole === "starter" || dish.dishRole === "side" || dish.dishRole === "dessert") {
+    score -= 8;
   }
 
   return score;
