@@ -178,8 +178,8 @@ const local = StyleSheet.create({
 
   title: {
     color: "#132238",
-    fontSize: 30,
-    lineHeight: 33,
+    fontSize: 28,
+    lineHeight: 31,
     fontWeight: "900",
     marginBottom: 6
   },
@@ -233,7 +233,7 @@ const local = StyleSheet.create({
 
   moodTitle: {
     color: "#285C55",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "900",
     marginBottom: 8
   },
@@ -250,7 +250,7 @@ const local = StyleSheet.create({
   loadingTitle: {
     color: "#314A5C",
     fontWeight: "900",
-    fontSize: 16,
+    fontSize: 14,
     marginBottom: 6
   },
 
@@ -290,7 +290,7 @@ const local = StyleSheet.create({
   errorTitle: {
     color: "#7A3146",
     fontWeight: "900",
-    fontSize: 16,
+    fontSize: 14,
     marginBottom: 5
   },
 
@@ -343,7 +343,6 @@ const local = StyleSheet.create({
   }
 
 });
-
 
 
 

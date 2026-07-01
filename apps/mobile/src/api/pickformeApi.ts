@@ -1,4 +1,5 @@
 ﻿import { apiPost } from "./apiClient";
+import { DEFAULT_OUTPUT_LOCALE } from "../config/outputLocales";
 import type { UserProfile } from "../types/profile";
 import type { AnalyzeData } from "../types/recommendations";
 
@@ -23,7 +24,10 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
     sourceKind: "text",
     menuText: args.menuText,
     situation: args.situation,
-    profile: args.profile
+    profile: {
+      ...args.profile,
+      outputLocale: args.profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE
+    }
   };
 
   return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body, {

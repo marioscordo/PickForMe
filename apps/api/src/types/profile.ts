@@ -17,6 +17,7 @@ export type UserProfile = {
   dislikes: string[];
   intolerances: string[];
   dietStyle: "normal" | "vegetarisch" | "vegan" | "flexitarisch";
+  outputLocale: string;
   appetiteMood?: AppetiteMood;
   exceptions?: string[];
 

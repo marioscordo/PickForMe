@@ -2,8 +2,10 @@
 import { Pressable, Text, View } from "react-native";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useProfile } from "../../app/providers/ProfileProvider";
+import { OutputLocaleField } from "../../components/profile/OutputLocaleField";
 import { ProfileEditor } from "../../components/profile/ProfileEditor";
 import { Screen } from "../../components/ui/Screen";
+import { resolveOutputLocale } from "../../config/outputLocales";
 import { styles } from "../../theme/styles";
 
 export function ProfileScreen({ onGoToMenu }: { onGoToMenu: () => void }) {
@@ -13,6 +15,15 @@ export function ProfileScreen({ onGoToMenu }: { onGoToMenu: () => void }) {
   return (
     <Screen>
       <Text style={styles.title}>Profil</Text>
+      <OutputLocaleField
+        value={profile.outputLocale}
+        onChange={(outputLocale) =>
+          setProfile({
+            ...profile,
+            outputLocale: resolveOutputLocale(outputLocale)
+          })
+        }
+      />
       <Text style={styles.subtitle}>PickForMe merkt sich, was Dir wichtig ist — ohne Fragebogen.</Text>
 
       <ProfileEditor profile={profile} setProfile={setProfile} />

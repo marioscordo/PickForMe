@@ -68,8 +68,8 @@ const local = StyleSheet.create({
 
   title: {
     color: "#172033",
-    fontSize: 32,
-    lineHeight: 35,
+    fontSize: 26,
+    lineHeight: 30,
     fontWeight: "900"
   },
 

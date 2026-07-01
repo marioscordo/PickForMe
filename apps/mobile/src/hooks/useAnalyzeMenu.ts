@@ -65,6 +65,7 @@ export function useAnalyzeMenu() {
     () =>
       JSON.stringify({
         dietStyle: profile.dietStyle,
+        outputLocale: profile.outputLocale,
         primaryLikes: profile.primaryLikes,
         secondaryLikes: profile.secondaryLikes,
         dislikes: profile.dislikes,

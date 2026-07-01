@@ -53,9 +53,17 @@ export function RecommendationCard({
   const safeRecommendations = result.recommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
-  const heroSubtitle =
-    result.conciergeHero?.trim() ||
-    "Aus der Speisekarte ausgew\u00e4hlt und mit Deinem Profil abgeglichen.";
+  const restaurantDescription = result.restaurantDescription?.trim() ?? "";
+  const fallbackHeroText =
+    "PickForMe ordnet die sicher erkannten Gerichte f\u00fcr Deine aktuelle Situation ein.";
+  const topBoxTitle = restaurantDescription ? "\u00dcber das Restaurant" : "Das passt heute zu Dir";
+  const topBoxText = restaurantDescription || fallbackHeroText;
+  const topBox = (
+    <View style={local.hero}>
+      <Text style={local.title}>{topBoxTitle}</Text>
+      <Text style={local.subtitle}>{topBoxText}</Text>
+    </View>
+  );
 
   const feedbackByName = new Map(
     (((profile as ProfileWithFeedback).recommendationFeedback ?? []) as RecommendationFeedback[]).map((item) => [
@@ -67,11 +75,13 @@ export function RecommendationCard({
   if (safeRecommendations.length === 0) {
     return (
       <>
+        {topBox}
+
         <View style={local.hero}>
           <Text style={local.kicker}>Speisekarte nicht sicher ausgewertet</Text>
           <Text style={local.title}>Keine sichere Empfehlung</Text>
           <Text style={local.subtitle}>
-            {"Ich konnte aus dieser Analyse keine sicheren Empfehlungen erzeugen."}
+            {"Ich konnte daraus keine sicheren Empfehlungen erzeugen."}
           </Text>
         </View>
 
@@ -104,11 +114,7 @@ export function RecommendationCard({
 
   return (
     <>
-      <View style={local.hero}>
-        <Text style={local.kicker}>PickForMe empfiehlt</Text>
-        <Text style={local.title}>Das passt zu Dir</Text>
-        <Text style={local.subtitle}>{heroSubtitle}</Text>
-      </View>
+      {topBox}
 
       <View style={local.list}>
         {safeRecommendations.map(({ rec, dish }, index) => {
@@ -213,8 +219,8 @@ const local = StyleSheet.create({
 
   title: {
     color: "#132238",
-    fontSize: 30,
-    lineHeight: 34,
+    fontSize: 24,
+    lineHeight: 28,
     fontWeight: "900",
     marginBottom: 6
   },
@@ -264,8 +270,8 @@ const local = StyleSheet.create({
 
   dishName: {
     color: "#111827",
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 21,
     fontWeight: "900"
   },
 
@@ -337,7 +343,7 @@ const local = StyleSheet.create({
 
   ratingTitle: {
     color: "#334155",
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "900",
     marginBottom: 6
   },

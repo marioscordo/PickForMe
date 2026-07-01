@@ -35,11 +35,16 @@ type LinkedPdfMenu = {
   restaurantContextText?: string;
 };
 
+type LocalizedRestaurantDescriptionResult = RestaurantDescriptionResult & {
+  displayText: string;
+};
+
 export async function POST(request: Request) {
   try {
     await requireUser(request);
 
     const body = (await request.json()) as AnalyzeMenuRequest;
+    const outputLocale = normalizeTargetLocale(body.profile.outputLocale);
 
     if (body.sourceKind !== "text") {
       throw new AppError(400, "SOURCE_KIND_UNSUPPORTED", "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.");
@@ -82,15 +87,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const directPdfUrl = !dynamicMenuText && looksLikeUrl(rawMenuText) && looksLikePdfUrl(rawMenuText) ? rawMenuText : null;
-    const linkedPdfMenu = !dynamicMenuText && looksLikeUrl(rawMenuText) && !directPdfUrl ? await findLinkedPdfMenu(rawMenuText) : null;
+    const inputLooksLikeUrl = looksLikeUrl(rawMenuText);
+    const directPdfUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikePdfUrl(rawMenuText) ? rawMenuText : null;
+    const linkedPdfMenu = !dynamicMenuText && inputLooksLikeUrl && !directPdfUrl ? await findLinkedPdfMenu(rawMenuText) : null;
     const pdfMenuUrl = directPdfUrl ?? linkedPdfMenu?.url;
-    const officialRestaurantContextText = looksLikeUrl(rawMenuText)
-      ? await loadOfficialRestaurantContextFromOrigin(rawMenuText) ?? linkedPdfMenu?.restaurantContextText
-      : undefined;
-    const officialRestaurantUrl = looksLikeUrl(rawMenuText)
+    const officialRestaurantUrl = inputLooksLikeUrl
       ? getOfficialRestaurantHomepageUrl(rawMenuText)
       : undefined;
+    const restaurantDescription = officialRestaurantUrl
+      ? await loadRestaurantDescriptionFromOrigin(officialRestaurantUrl)
+      : null;
+    const localizedRestaurantDescription = await localizeRestaurantDescriptionForPayload(
+      restaurantDescription,
+      outputLocale
+    );
     if (pdfMenuUrl) {
       if (process.env.PICKFORME_AI_ENABLED !== "true") {
         throw new AppError(400, "PDF_AI_DISABLED", "PDF-Speisekarten benötigen in V1 den KI-Modus.");
@@ -101,7 +111,8 @@ export async function POST(request: Request) {
           askPdfWithShortRateLimitRetry({
             pdfUrl: pdfMenuUrl,
             profile: body.profile,
-            situation: body.situation
+            situation: body.situation,
+            userLocale: outputLocale
           }),
           45000,
           "PDF_AI_TIMEOUT"
@@ -116,7 +127,7 @@ export async function POST(request: Request) {
         }
 
         const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
-          officialWebsiteText: officialRestaurantContextText,
+          officialWebsiteText: restaurantDescription?.text,
           restaurantUrl: officialRestaurantUrl,
           fallbackHero: buildFallbackConciergeHero({
             dishes: aiResult.dishes,
@@ -130,26 +141,12 @@ export async function POST(request: Request) {
             mode: "ai_pdf",
             dishes: aiResult.dishes,
             recommendations: aiResult.recommendations,
-            conciergeHero
+            conciergeHero,
+            ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
           }
         });
       } catch (pdfAiError) {
-        console.error("PickForMe PDF AI failed.", pdfAiError);
-
         const message = pdfAiError instanceof Error ? pdfAiError.message : "";
-
-        if (
-            message.includes("429") ||
-            message.includes("Rate limit") ||
-            message.includes("rate limit") ||
-            message.includes("TPM")
-          ) {
-            throw new AppError(
-              429,
-              "AI_RATE_LIMIT",
-              "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
-            );
-          }
 
         if (
           message.includes("429") ||
@@ -164,12 +161,15 @@ export async function POST(request: Request) {
           );
         }
 
-        if (message.includes("PDF_AI_TIMEOUT") || message.includes("TEXT_AI_TIMEOUT")) {
-          throw new AppError(
-            422,
-            "ANALYSIS_NOT_SAFE",
-            "Ich konnte diese Speisekarte nicht sicher auswerten."
-          );
+        if (
+          message.includes("PDF_AI_TIMEOUT") ||
+          message.includes("TEXT_AI_TIMEOUT") ||
+          message.includes("PDF_LOCALIZATION_FAILED")
+        ) {
+          return NextResponse.json({
+            ok: true,
+            data: buildPdfTimeoutAnalysisPayload(localizedRestaurantDescription)
+          });
         }
 
         if (
@@ -184,11 +184,13 @@ export async function POST(request: Request) {
           );
         }
 
+        console.error("PickForMe PDF AI failed.", pdfAiError);
+
         throw pdfAiError;
       }
     }
 
-    const directImageUrl = !dynamicMenuText && looksLikeUrl(rawMenuText) && looksLikeImageUrl(rawMenuText) ? rawMenuText : null;
+    const directImageUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikeImageUrl(rawMenuText) ? rawMenuText : null;
 
     if (directImageUrl) {
       if (process.env.PICKFORME_AI_ENABLED !== "true") {
@@ -215,7 +217,7 @@ export async function POST(request: Request) {
         }
 
         const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
-          officialWebsiteText: officialRestaurantContextText,
+          officialWebsiteText: restaurantDescription?.text,
           restaurantUrl: officialRestaurantUrl,
           fallbackHero: buildFallbackConciergeHero({
             dishes: aiResult.dishes,
@@ -229,7 +231,8 @@ export async function POST(request: Request) {
             mode: "ai_image",
             dishes: aiResult.dishes,
             recommendations: aiResult.recommendations,
-            conciergeHero
+            conciergeHero,
+            ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
           }
         });
       } catch (imageAiError) {
@@ -282,10 +285,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const restaurantDescription = looksLikeUrl(rawMenuText)
-      ? await loadRestaurantDescriptionFromOrigin(rawMenuText)
-      : null;
-    const shouldExtractHtmlMenu = !dynamicMenuText && looksLikeUrl(rawMenuText) && !pdfMenuUrl && !directImageUrl;
+    const shouldExtractHtmlMenu = !dynamicMenuText && inputLooksLikeUrl && !pdfMenuUrl && !directImageUrl;
     const htmlMenuExtraction = shouldExtractHtmlMenu
       ? await extractHtmlMenuFromUrl(rawMenuText)
       : null;
@@ -301,7 +301,7 @@ export async function POST(request: Request) {
     let effectiveMenuText: string;
 
     try {
-      effectiveMenuText = dynamicMenuText ?? htmlMenuText ?? (looksLikeUrl(rawMenuText)
+      effectiveMenuText = dynamicMenuText ?? htmlMenuText ?? (inputLooksLikeUrl
         ? await loadMenuTextFromUrl(rawMenuText)
         : rawMenuText);
     } catch {
@@ -309,7 +309,7 @@ export async function POST(request: Request) {
     }
 
     if (effectiveMenuText.trim().length < 20 && !htmlMenuExtraction) {
-      if (looksLikeUrl(rawMenuText)) {
+      if (inputLooksLikeUrl) {
         throw new AppError(422, "MENU_URL_LOAD_FAILED", "Diese Speisekarte konnte nicht geladen werden.");
       }
 
@@ -350,13 +350,13 @@ export async function POST(request: Request) {
               conciergeHero,
               recommendationMode: aiResult.recommendationMode,
               menuType: aiResult.menuType,
-              ...buildRestaurantDescriptionPayload(restaurantDescription),
+              ...buildRestaurantDescriptionPayload(localizedRestaurantDescription),
               ...buildMenuExtractionPayload(htmlMenuExtraction)
             }
           });
         }
 
-        const partialData = buildPartialAnalysisPayload(restaurantDescription, htmlMenuExtraction, aiResult.dishes);
+        const partialData = buildPartialAnalysisPayload(localizedRestaurantDescription, htmlMenuExtraction, aiResult.dishes);
 
         if (partialData) {
           return NextResponse.json({
@@ -369,7 +369,7 @@ export async function POST(request: Request) {
           422,
           "NO_SAFE_RECOMMENDATIONS",
           "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
-          buildMenuAnalysisDetails(restaurantDescription, htmlMenuExtraction)
+          buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
         );
       } catch (aiError) {
         const message = aiError instanceof Error ? aiError.message : "";
@@ -386,7 +386,7 @@ export async function POST(request: Request) {
 
     const dishes = htmlMenuDishes ?? parseMenu(effectiveMenuText);
 
-    if (dishes.length === 0 && looksLikeUrl(rawMenuText) && process.env.PICKFORME_AI_ENABLED === "true") {
+    if (dishes.length === 0 && inputLooksLikeUrl && process.env.PICKFORME_AI_ENABLED === "true") {
       const imageUrls = await findLinkedMenuImageUrls(rawMenuText);
 
       if (imageUrls.length > 0) {
@@ -410,7 +410,7 @@ export async function POST(request: Request) {
           }
 
           const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
-            officialWebsiteText: officialRestaurantContextText,
+            officialWebsiteText: restaurantDescription?.text,
             restaurantUrl: officialRestaurantUrl,
             fallbackHero: buildFallbackConciergeHero({
               dishes: aiResult.dishes,
@@ -424,7 +424,8 @@ export async function POST(request: Request) {
               mode: "ai_image",
               dishes: aiResult.dishes,
               recommendations: aiResult.recommendations,
-              conciergeHero
+              conciergeHero,
+              ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
             }
           });
         } catch (imageAiError) {
@@ -479,7 +480,7 @@ export async function POST(request: Request) {
     }
 
     if (dishes.length === 0) {
-      const partialData = buildPartialAnalysisPayload(restaurantDescription, htmlMenuExtraction, []);
+      const partialData = buildPartialAnalysisPayload(localizedRestaurantDescription, htmlMenuExtraction, []);
 
       if (partialData) {
         return NextResponse.json({
@@ -488,12 +489,12 @@ export async function POST(request: Request) {
         });
       }
 
-      if (looksLikeUrl(rawMenuText)) {
+      if (inputLooksLikeUrl) {
         throw new AppError(
           422,
           "ANALYSIS_NOT_SAFE",
           "Ich konnte diese Speisekarte nicht sicher auswerten. Bitte nutze einen direkten Link zu einer PDF-Speisekarte oder fuege den Speisekartentext ein.",
-          buildMenuAnalysisDetails(restaurantDescription, htmlMenuExtraction)
+          buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
         );
       }
 
@@ -507,7 +508,7 @@ export async function POST(request: Request) {
     });
 
     if (recommendations.length === 0) {
-      const partialData = buildPartialAnalysisPayload(restaurantDescription, htmlMenuExtraction, dishes);
+      const partialData = buildPartialAnalysisPayload(localizedRestaurantDescription, htmlMenuExtraction, dishes);
 
       if (partialData) {
         return NextResponse.json({
@@ -520,7 +521,7 @@ export async function POST(request: Request) {
         422,
         "NO_SAFE_RECOMMENDATIONS",
         "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
-        buildMenuAnalysisDetails(restaurantDescription, htmlMenuExtraction)
+        buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
       );
     }
 
@@ -538,7 +539,7 @@ export async function POST(request: Request) {
               restaurantContextText: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`
             })
         }),
-        ...buildRestaurantDescriptionPayload(restaurantDescription),
+        ...buildRestaurantDescriptionPayload(localizedRestaurantDescription),
         ...buildMenuExtractionPayload(htmlMenuExtraction)
       }
     });
@@ -548,13 +549,13 @@ export async function POST(request: Request) {
 }
 
 
-function buildRestaurantDescriptionPayload(restaurantDescription: RestaurantDescriptionResult | null) {
+function buildRestaurantDescriptionPayload(restaurantDescription: LocalizedRestaurantDescriptionResult | null) {
   if (!restaurantDescription) {
     return {};
   }
 
   return {
-    restaurantDescription: restaurantDescription.text,
+    restaurantDescription: restaurantDescription.displayText,
     restaurantDescriptionSource: restaurantDescription.source,
     restaurantDescriptionUrl: restaurantDescription.sourceUrl
   };
@@ -569,7 +570,7 @@ function buildMenuExtractionPayload(htmlMenuExtraction: MenuExtractionResult | n
 }
 
 function buildMenuAnalysisDetails(
-  restaurantDescription: RestaurantDescriptionResult | null,
+  restaurantDescription: LocalizedRestaurantDescriptionResult | null,
   htmlMenuExtraction: MenuExtractionResult | null
 ) {
   const details = {
@@ -581,7 +582,7 @@ function buildMenuAnalysisDetails(
 }
 
 function buildPartialAnalysisPayload(
-  restaurantDescription: RestaurantDescriptionResult | null,
+  restaurantDescription: LocalizedRestaurantDescriptionResult | null,
   htmlMenuExtraction: MenuExtractionResult | null,
   dishes: Dish[]
 ) {
@@ -599,6 +600,131 @@ function buildPartialAnalysisPayload(
     ...buildRestaurantDescriptionPayload(restaurantDescription),
     ...buildMenuExtractionPayload(htmlMenuExtraction)
   };
+}
+
+function buildPdfTimeoutAnalysisPayload(restaurantDescription: LocalizedRestaurantDescriptionResult | null) {
+  return {
+    mode: "ai_pdf" as const,
+    dishes: [],
+    recommendations: [],
+    conciergeHero: "",
+    analysisStatus: "analysis_not_safe" as const,
+    analysisWarning: "Ich konnte diese PDF-Speisekarte nicht sicher auswerten.",
+    ...buildRestaurantDescriptionPayload(restaurantDescription)
+  };
+}
+
+async function localizeRestaurantDescriptionForPayload(
+  restaurantDescription: RestaurantDescriptionResult | null,
+  userLocale: string | undefined
+): Promise<LocalizedRestaurantDescriptionResult | null> {
+  if (!restaurantDescription) {
+    return null;
+  }
+
+  const displayText = await translateRestaurantDescriptionText({
+    text: restaurantDescription.text,
+    targetLocale: normalizeTargetLocale(userLocale)
+  });
+
+  if (!displayText) {
+    return null;
+  }
+
+  return {
+    ...restaurantDescription,
+    displayText
+  };
+}
+
+async function translateRestaurantDescriptionText({
+  text,
+  targetLocale
+}: {
+  text: string;
+  targetLocale: string;
+}) {
+  const sourceText = text.trim();
+
+  if (!sourceText) {
+    return null;
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    return null;
+  }
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const targetLanguage = getLanguageNameForLocale(targetLocale);
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "Translate and compress official restaurant descriptions for the PickForMe app.",
+            `Target language: ${targetLanguage}.`,
+            `Target locale: ${targetLocale}.`,
+            "",
+            "Rules:",
+            "- Translate the source text into the target language.",
+            "- Compress the result to at most two sentences and at most 30 words.",
+            "- Preserve only facts that are explicitly present in the source text.",
+            "- Omit repetitions and non-essential wording.",
+            "- Do not add facts.",
+            "- Do not add dishes, prices, ingredients, atmosphere, ratings, or recommendations.",
+            "- Do not invent anything.",
+            "- Do not use recommendation language.",
+            "- Return only the compressed restaurant description."
+          ].join("\n")
+        },
+        {
+          role: "user",
+          content: sourceText.slice(0, 5000)
+        }
+      ]
+    });
+
+    return completion.choices[0]?.message?.content?.trim() || null;
+  } catch (error) {
+    console.error("PickForMe restaurant description translation failed.", error);
+    return null;
+  }
+}
+
+function normalizeTargetLocale(value: string | undefined) {
+  const locale = value?.trim();
+
+  return locale ? locale.slice(0, 40) : "de-DE";
+}
+
+function getLanguageNameForLocale(locale: string) {
+  const languageCode = locale.toLowerCase().split(/[-_]/)[0];
+
+  switch (languageCode) {
+    case "de":
+      return "German";
+    case "en":
+      return "English";
+    case "es":
+      return "Spanish";
+    case "fr":
+      return "French";
+    case "it":
+      return "Italian";
+    case "nl":
+      return "Dutch";
+    case "pl":
+      return "Polish";
+    case "pt":
+      return "Portuguese";
+    default:
+      return locale;
+  }
 }
 
 async function buildConciergeHeroFromOfficialWebsiteText({

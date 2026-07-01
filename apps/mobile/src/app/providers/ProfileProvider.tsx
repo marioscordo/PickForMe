@@ -1,4 +1,5 @@
 ﻿import React, { createContext, useContext, useMemo, useState } from "react";
+import { DEFAULT_OUTPUT_LOCALE } from "../../config/outputLocales";
 import type { UserProfile } from "../../types/profile";
 
 const defaultProfile: UserProfile = {
@@ -8,6 +9,7 @@ const defaultProfile: UserProfile = {
   dislikes: ["Keine Innereien", "Kein Grätenfisch"],
   intolerances: [],
   dietStyle: "normal",
+  outputLocale: DEFAULT_OUTPUT_LOCALE,
   appetiteMood: "richtig_hunger",
   exceptions: [],
 

@@ -4,13 +4,70 @@ export type RestaurantDescriptionResult = {
   sourceUrl: string;
 };
 
+type RestaurantDescriptionCandidate = {
+  text: string;
+  priority: number;
+};
+
+const MAX_OFFICIAL_DESCRIPTION_PAGES = 10;
+
+const OFFICIAL_DESCRIPTION_PATHS = [
+  "/",
+  "/home/",
+  "/homepage/",
+  "/restaurant-homepage/",
+  "/restaurant-homepage-2/",
+  "/restaurant/",
+  "/ristorante/",
+  "/about/",
+  "/about-us/",
+  "/chi-siamo/",
+  "/storia/",
+  "/cucina/",
+  "/ueber-uns/",
+  "/%C3%BCber-uns/"
+];
+
 export async function loadRestaurantDescriptionFromOrigin(value: string): Promise<RestaurantDescriptionResult | null> {
+  let inputUrl: URL;
+
   try {
-    const inputUrl = new URL(value.trim());
-    return loadRestaurantDescriptionFromUrl(`${inputUrl.origin}/`);
+    inputUrl = new URL(value.trim());
   } catch {
     return null;
   }
+
+  const urls = buildOfficialDescriptionUrlQueue(inputUrl);
+  const results: RestaurantDescriptionResult[] = [];
+  const visited = new Set<string>();
+
+  for (let index = 0; index < urls.length && visited.size < MAX_OFFICIAL_DESCRIPTION_PAGES; index += 1) {
+    const url = urls[index];
+
+    if (!url || visited.has(url)) {
+      continue;
+    }
+
+    visited.add(url);
+
+    const page = await loadRestaurantDescriptionPage(url, inputUrl.origin);
+
+    if (!page) {
+      continue;
+    }
+
+    if (page.result) {
+      results.push(page.result);
+    }
+
+    for (const linkedUrl of page.linkedUrls) {
+      if (!visited.has(linkedUrl) && !urls.includes(linkedUrl)) {
+        urls.push(linkedUrl);
+      }
+    }
+  }
+
+  return pickBestRestaurantDescriptionResult(results);
 }
 
 export async function loadRestaurantDescriptionFromUrl(value: string): Promise<RestaurantDescriptionResult | null> {
@@ -23,6 +80,43 @@ export async function loadRestaurantDescriptionFromUrl(value: string): Promise<R
   }
 
   if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return null;
+  }
+
+  return (await loadRestaurantDescriptionPage(url.toString(), url.origin))?.result ?? null;
+}
+
+export function extractRestaurantDescriptionFromHtml(html: string): string | null {
+  const candidates: RestaurantDescriptionCandidate[] = [
+    ...extractStructuredTextCandidates(html).map((text) => ({ text, priority: 40 })),
+    ...extractMetaDescriptionCandidates(html).map((text) => ({ text, priority: 10 }))
+  ]
+    .map((candidate) => ({
+      ...candidate,
+      text: cleanRestaurantText(candidate.text)
+    }))
+    .filter((candidate) => candidate.text.length > 0)
+    .filter((candidate) => isAllowedRestaurantDescription(candidate.text));
+  const uniqueCandidates = dedupeCandidatesByNormalizedText(candidates);
+
+  return uniqueCandidates
+    .sort((a, b) => scoreRestaurantDescriptionCandidate(b) - scoreRestaurantDescriptionCandidate(a))[0]
+    ?.text ?? null;
+}
+
+async function loadRestaurantDescriptionPage(
+  value: string,
+  officialOrigin: string
+): Promise<{ result: RestaurantDescriptionResult | null; linkedUrls: string[] } | null> {
+  let url: URL;
+
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== "http:" && url.protocol !== "https:" || url.origin !== officialOrigin) {
     return null;
   }
 
@@ -45,31 +139,54 @@ export async function loadRestaurantDescriptionFromUrl(value: string): Promise<R
       return null;
     }
 
-    const text = extractRestaurantDescriptionFromHtml(await response.text());
+    const html = await response.text();
+    const sourceUrl = response.url || url.toString();
+    const text = extractRestaurantDescriptionFromHtml(html);
 
-    return text
-      ? {
-          text,
-          source: "official_website",
-          sourceUrl: response.url || url.toString()
-        }
-      : null;
+    return {
+      result: text
+        ? {
+            text,
+            source: "official_website",
+            sourceUrl
+          }
+        : null,
+      linkedUrls: extractOfficialDescriptionLinks(html, sourceUrl, officialOrigin)
+    };
   } catch {
     return null;
   }
 }
 
-export function extractRestaurantDescriptionFromHtml(html: string): string | null {
-  const candidates = [
-    ...extractMetaDescriptionCandidates(html),
-    ...extractStructuredTextCandidates(html)
-  ]
-    .map(cleanRestaurantText)
-    .filter(Boolean)
-    .filter(isAllowedRestaurantDescription);
-  const uniqueCandidates = dedupeByNormalizedText(candidates);
+function buildOfficialDescriptionUrlQueue(inputUrl: URL) {
+  const urls: string[] = [];
+  const addUrl = (value: string) => {
+    try {
+      const url = new URL(value, inputUrl.origin);
 
-  return uniqueCandidates[0] ?? null;
+      if (url.origin !== inputUrl.origin || url.protocol !== "http:" && url.protocol !== "https:") {
+        return;
+      }
+
+      url.hash = "";
+
+      const normalized = url.toString();
+
+      if (!urls.includes(normalized)) {
+        urls.push(normalized);
+      }
+    } catch {
+      // Ignore malformed official candidates.
+    }
+  };
+
+  addUrl(inputUrl.toString());
+
+  for (const path of OFFICIAL_DESCRIPTION_PATHS) {
+    addUrl(path);
+  }
+
+  return urls;
 }
 
 function extractMetaDescriptionCandidates(html: string) {
@@ -131,6 +248,91 @@ function extractStructuredTextCandidates(html: string) {
   return candidates;
 }
 
+function extractOfficialDescriptionLinks(html: string, baseUrl: string, officialOrigin: string) {
+  const urls: string[] = [];
+  const linkPattern = /<a\b[^>]*href\s*=\s*(["'])([\s\S]*?)\1[^>]*>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkPattern.exec(html)) !== null && urls.length < MAX_OFFICIAL_DESCRIPTION_PAGES) {
+    const href = decodeHtmlEntities(match[2] ?? "").trim();
+
+    if (!href || /^(?:#|mailto:|tel:|javascript:)/i.test(href)) {
+      continue;
+    }
+
+    try {
+      const url = new URL(href, baseUrl);
+
+      if (url.origin !== officialOrigin || url.protocol !== "http:" && url.protocol !== "https:") {
+        continue;
+      }
+
+      url.hash = "";
+
+      const label = cleanRestaurantText(htmlToText(match[3] ?? ""));
+      const linkText = `${url.pathname} ${url.search} ${label}`;
+
+      if (!isLikelyOfficialDescriptionLink(linkText)) {
+        continue;
+      }
+
+      const normalized = url.toString();
+
+      if (!urls.includes(normalized)) {
+        urls.push(normalized);
+      }
+    } catch {
+      // Ignore malformed links on the official page.
+    }
+  }
+
+  return urls;
+}
+
+function isLikelyOfficialDescriptionLink(value: string) {
+  const normalized = normalizeForMatching(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (hasAnyTerm(normalized, [
+    "attachment",
+    "comment",
+    "datenschutz",
+    "feed",
+    "gallery",
+    "impressum",
+    "kontakt",
+    "legal",
+    "privacy",
+    "reservation",
+    "reservierung",
+    "wp content",
+    "wp json"
+  ])) {
+    return false;
+  }
+
+  return hasAnyTerm(normalized, [
+    "about",
+    "about us",
+    "chi siamo",
+    "cucina",
+    "filosofia",
+    "geschichte",
+    "home",
+    "homepage",
+    "philosophy",
+    "restaurant",
+    "restaurant homepage",
+    "ristorante",
+    "storia",
+    "ueber uns",
+    "uber uns"
+  ]);
+}
+
 function htmlToText(value: string) {
   return decodeHtmlEntities(value)
     .replace(/<\s*br\b[^>]*\/?>/gi, " ")
@@ -143,10 +345,13 @@ function getAttribute(tag: string, attributeName: string) {
 }
 
 function cleanRestaurantText(value: string) {
-  return decodeHtmlEntities(value)
+  const cleaned = decodeHtmlEntities(value)
     .replace(/\u00a0/g, " ")
+    .replace(/\b(?:prenota|chiama|book now|reserve|reservieren)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+  return selectRestaurantDescriptionSentences(removeLeadingHeadline(cleaned));
 }
 
 function decodeHtmlEntities(value: string) {
@@ -204,14 +409,11 @@ function isAllowedRestaurantDescription(value: string) {
     "impressum",
     "kontakt",
     "liefer",
-    "menu",
-    "menue",
     "navigation",
     "oeffnungszeiten",
     "opening hours",
     "privacy",
     "reserv",
-    "speisekarte",
     "warenkorb"
   ])) {
     return false;
@@ -220,31 +422,123 @@ function isAllowedRestaurantDescription(value: string) {
   return hasAnyTerm(normalized, [
     "cucina",
     "cuisine",
+    "familiare",
     "family",
     "familie",
     "historic",
+    "storico",
     "kueche",
     "located",
+    "materie prime",
     "mediterran",
     "mediterranean",
     "osteria",
+    "piatti",
     "restaurant",
     "ristorante",
+    "sapori",
     "situato",
+    "tradizione",
     "tradition",
     "trattoria"
   ]);
+}
+
+function scoreRestaurantDescriptionCandidate(candidate: RestaurantDescriptionCandidate) {
+  const normalized = normalizeForMatching(candidate.text);
+  const wordCount = normalized.split(" ").filter(Boolean).length;
+  const sentenceCount = countSentences(candidate.text);
+  let score = candidate.priority + Math.min(wordCount, 90);
+
+  if (sentenceCount >= 2) {
+    score += 30;
+  }
+
+  if (hasAnyTerm(normalized, ["cucina", "kueche", "tradizione", "tradition", "storico", "mediterran", "materie prime"])) {
+    score += 20;
+  }
+
+  return score;
+}
+
+function removeLeadingHeadline(value: string) {
+  return value
+    .replace(/^[^\p{Ll}]{20,}\s+(?=\p{Lu}\p{Ll})/u, "")
+    .replace(/^[A-Z0-9\s'"&.,:-]{20,}\s+(?=Il Ristorante\b)/, "")
+    .replace(/^[A-Z0-9\s'"&.,:-]{20,}\s+(?=Il Pozzetto\b)/, "")
+    .replace(/^[A-Z0-9\s'"&.,:-]{20,}\s+(?=Das Il Pozzetto\b)/, "")
+    .replace(/^[A-Z0-9\s'"&.,:-]{20,}\s+(?=Das Restaurant\b)/, "")
+    .replace(/^[A-Z0-9\s'"&.,:-]{20,}\s+(?=The Restaurant\b)/, "")
+    .trim();
+}
+
+function selectRestaurantDescriptionSentences(value: string) {
+  const sentences = value
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (sentences.length < 2) {
+    return value;
+  }
+
+  const selected = sentences
+    .filter((sentence) => !isRestaurantDescriptionSentenceNoise(sentence))
+    .slice(0, 3);
+
+  return selected.length >= 2 ? selected.join(" ") : value;
+}
+
+function isRestaurantDescriptionSentenceNoise(value: string) {
+  const normalized = normalizeForMatching(value);
+
+  return hasAnyTerm(normalized, [
+    "gruppe",
+    "gruppen",
+    "gruppi",
+    "menu",
+    "menue",
+    "menu particolari",
+    "prezzo",
+    "preis",
+    "qualita prezzo",
+    "qualitaet preis",
+    "request",
+    "richieste",
+    "senza eguali",
+    "soddisfare",
+    "speisekarte",
+    "service",
+    "servizio"
+  ]);
+}
+
+function countSentences(value: string) {
+  return value
+    .split(/[.!?]+/)
+    .map((part) => part.trim())
+    .filter((part) => part.split(/\s+/).filter(Boolean).length >= 4)
+    .length;
 }
 
 function hasAnyTerm(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
 }
 
-function dedupeByNormalizedText(values: string[]) {
+function pickBestRestaurantDescriptionResult(results: RestaurantDescriptionResult[]) {
+  return results
+    .filter((result) => isAllowedRestaurantDescription(result.text))
+    .sort((a, b) =>
+      scoreRestaurantDescriptionCandidate({ text: b.text, priority: 0 }) -
+      scoreRestaurantDescriptionCandidate({ text: a.text, priority: 0 })
+    )[0] ?? null;
+}
+
+function dedupeCandidatesByNormalizedText(values: RestaurantDescriptionCandidate[]) {
   const seen = new Set<string>();
 
   return values.filter((value) => {
-    const key = normalizeForMatching(value);
+    const key = normalizeForMatching(value.text);
 
     if (!key || seen.has(key)) {
       return false;

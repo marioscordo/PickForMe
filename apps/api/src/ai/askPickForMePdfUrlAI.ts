@@ -17,6 +17,14 @@ const PdfAiResponseSchema = z.object({
   recommendations: z.array(RecommendationSchema).max(3)
 });
 
+const LocalizedRecommendationTextSchema = z.object({
+  recommendations: z.array(z.object({
+    rank: z.number(),
+    translatedName: z.string(),
+    reason: z.string()
+  })).max(3)
+});
+
 type PdfAiRecommendation = z.infer<typeof RecommendationSchema>;
 
 type ProfileInput = Partial<UserProfile>;
@@ -25,6 +33,7 @@ type AskPickForMePdfUrlAIInput = {
   pdfUrl: string;
   profile?: ProfileInput;
   situation?: string;
+  userLocale?: string;
 };
 
 export async function askPickForMePdfUrlAI(input: AskPickForMePdfUrlAIInput) {
@@ -49,7 +58,8 @@ export async function askPickForMePdfUrlAI(input: AskPickForMePdfUrlAIInput) {
             type: "input_text",
             text: buildPdfPrompt({
               profile,
-              situation: input.situation
+              situation: input.situation,
+              userLocale: input.userLocale
             })
           },
           {
@@ -64,15 +74,28 @@ export async function askPickForMePdfUrlAI(input: AskPickForMePdfUrlAIInput) {
   const outputText = stripJsonFence(response.output_text ?? "");
   const parsedJson = JSON.parse(outputText);
   const parsed = PdfAiResponseSchema.parse(parsedJson);
-  const profileSafe = validateAgainstProfile(parsed, profile);
+  const localized = await localizePdfRecommendationTexts({
+    client,
+    recommendations: parsed.recommendations,
+    userLocale: input.userLocale
+  });
+  const profileSafe = validateAgainstProfile({ recommendations: localized }, profile);
 
   return toAnalyzeDataParts(profileSafe.recommendations);
 }
 
-function buildPdfPrompt(input: { profile: ProfileInput; situation?: string }) {
+function buildPdfPrompt(input: { profile: ProfileInput; situation?: string; userLocale?: string }) {
+  const targetLocale = normalizeTargetLocale(input.userLocale);
+  const targetLanguage = getLanguageNameForLocale(targetLocale);
+
   return [
     "Du bist PickForMe, ein persoenlicher Restaurant-Assistent.",
     "Lies die beigefuegte Restaurant-Speisekarte aus dem PDF.",
+    `Sprache fuer nutzerseitige Ausgaben: ${targetLanguage} (${targetLocale}).`,
+    "Originalgerichtstitel bleiben exakt in der Sprache der Speisekarte.",
+    "translatedName muss eine direkte Uebersetzung des Originalgerichttitels in die Sprache fuer nutzerseitige Ausgaben sein.",
+    "reason muss vollstaendig in der Sprache fuer nutzerseitige Ausgaben geschrieben sein.",
+    "descriptionOriginal und evidence bleiben Originalbelege aus der Speisekarte.",
     "Wichtig: Das PDF kann bildbasiert sein. Nutze sichtbare Inhalte der PDF-Seiten.",
     "Empfiehl bis zu 3 echte und sichere Gerichte aus der Speisekarte.",
     "Erfinde nichts.",
@@ -104,15 +127,245 @@ function buildPdfPrompt(input: { profile: ProfileInput; situation?: string }) {
     "    {",
     '      "rank": 1,',
     '      "nameOriginal": "exakter Gerichtname aus der Speisekarte",',
-    '      "translatedName": "kurze deutsche Uebersetzung oder Kurzbeschreibung fuer deutschsprachige Nutzer",',
+    '      "translatedName": "direkte Uebersetzung des Originalgerichttitels in der Sprache fuer nutzerseitige Ausgaben",',
     '      "priceRaw": "Preis falls sichtbar",',
     '      "descriptionOriginal": "Originalbeschreibung falls sichtbar",',
-    '      "reason": "kurze persoenliche Begruendung",',
+    '      "reason": "kurze persoenliche Begruendung in der Sprache fuer nutzerseitige Ausgaben",',
     '      "evidence": "kurzer sichtbarer Originalbeleg aus der Speisekarte"',
     "    }",
     "  ]",
     "}"
   ].join("\n");
+}
+
+function normalizeTargetLocale(value: string | undefined) {
+  const locale = value?.trim();
+
+  return locale ? locale.slice(0, 40) : "de-DE";
+}
+
+function getLanguageNameForLocale(locale: string) {
+  const languageCode = locale.toLowerCase().split(/[-_]/)[0];
+
+  switch (languageCode) {
+    case "de":
+      return "German";
+    case "en":
+      return "English";
+    case "es":
+      return "Spanish";
+    case "fr":
+      return "French";
+    case "it":
+      return "Italian";
+    case "nl":
+      return "Dutch";
+    case "pl":
+      return "Polish";
+    case "pt":
+      return "Portuguese";
+    default:
+      return locale;
+  }
+}
+
+async function localizePdfRecommendationTexts({
+  client,
+  recommendations,
+  userLocale
+}: {
+  client: OpenAI;
+  recommendations: PdfAiRecommendation[];
+  userLocale?: string;
+}): Promise<PdfAiRecommendation[]> {
+  if (recommendations.length === 0) {
+    return recommendations;
+  }
+
+  const targetLocale = normalizeTargetLocale(userLocale);
+  const targetLanguage = getLanguageNameForLocale(targetLocale);
+
+  for (const strictRetry of [false, true]) {
+    try {
+      return await requestLocalizedPdfRecommendationTexts({
+        client,
+        recommendations,
+        targetLocale,
+        targetLanguage,
+        strictRetry
+      });
+    } catch {
+    }
+  }
+
+  return buildDisplaySafeRecommendations(recommendations, targetLocale);
+}
+
+async function requestLocalizedPdfRecommendationTexts({
+  client,
+  recommendations,
+  targetLocale,
+  targetLanguage,
+  strictRetry
+}: {
+  client: OpenAI;
+  recommendations: PdfAiRecommendation[];
+  targetLocale: string;
+  targetLanguage: string;
+  strictRetry: boolean;
+}): Promise<PdfAiRecommendation[]> {
+  try {
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "Translate recommendation display fields for the PickForMe app.",
+            `Target language: ${targetLanguage}.`,
+            `Target locale: ${targetLocale}.`,
+            "",
+            "Rules:",
+            "- Translate only translatedName and reason.",
+            "- translatedName must be a direct translation of nameOriginal into the target language.",
+            "- Keep rank unchanged.",
+            "- Do not translate or change nameOriginal.",
+            "- Do not add facts.",
+            "- Do not add dishes, prices, ingredients, atmosphere, ratings, or recommendations.",
+            "- Do not invent anything.",
+            "- Do not use English unless the target language is English.",
+            strictRetry
+              ? "- The previous output was rejected. Rewrite every translatedName and reason in the target language now."
+              : "",
+            "- Return only valid JSON."
+          ].filter(Boolean).join("\n")
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            recommendations: recommendations.map((item) => ({
+              rank: item.rank,
+              nameOriginal: item.nameOriginal,
+              translatedName: item.translatedName,
+              reason: item.reason
+            }))
+          })
+        }
+      ]
+    });
+    const outputText = stripJsonFence(completion.choices[0]?.message?.content ?? "");
+    const parsedJson = JSON.parse(outputText);
+    const parsed = LocalizedRecommendationTextSchema.parse(parsedJson);
+
+    const localizedRecommendations = recommendations.map((item, index) => {
+      const localized = parsed.recommendations[index];
+
+      return {
+        ...item,
+        translatedName: localized?.translatedName.trim() ?? "",
+        reason: localized?.reason.trim() ?? ""
+      };
+    });
+
+    assertLocalizedRecommendationTexts(localizedRecommendations, targetLocale);
+
+    return localizedRecommendations;
+  } catch {
+    throw new Error("PDF_LOCALIZATION_FAILED");
+  }
+}
+
+function assertLocalizedRecommendationTexts(
+  recommendations: PdfAiRecommendation[],
+  targetLocale: string
+) {
+  const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
+
+  if (targetLanguageCode === "en") {
+    return;
+  }
+
+  const leakedEnglish = recommendations.some((item) =>
+    hasLikelyEnglishDisplayText(item.translatedName) ||
+    hasLikelyEnglishDisplayText(item.reason)
+  );
+
+  if (leakedEnglish) {
+    throw new Error("PDF_LOCALIZATION_FAILED");
+  }
+}
+
+function buildDisplaySafeRecommendations(
+  recommendations: PdfAiRecommendation[],
+  targetLocale: string
+) {
+  return recommendations.map((item) => ({
+    ...item,
+    translatedName: getDisplaySafeText(item.translatedName, targetLocale),
+    reason: getDisplaySafeText(item.reason, targetLocale)
+  }));
+}
+
+function getDisplaySafeText(value: string, targetLocale: string) {
+  const trimmed = value.trim();
+  const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
+
+  if (targetLanguageCode === "en") {
+    return trimmed;
+  }
+
+  return hasLikelyEnglishDisplayText(trimmed) ? "" : trimmed;
+}
+
+function hasLikelyEnglishDisplayText(value: string) {
+  const normalized = ` ${value.toLowerCase().replace(/[^a-z]+/g, " ")} `;
+
+  if (!normalized.trim()) {
+    return false;
+  }
+
+  return [
+    " a ",
+    " an ",
+    " and ",
+    " appetite ",
+    " baked ",
+    " beef ",
+    " because ",
+    " braised ",
+    " chicken ",
+    " choice ",
+    " course ",
+    " danish ",
+    " dish ",
+    " fillet ",
+    " fish ",
+    " for ",
+    " fried ",
+    " fresh ",
+    " good ",
+    " grilled ",
+    " hearty ",
+    " main ",
+    " mixed ",
+    " pork ",
+    " prawns ",
+    " recommendation ",
+    " recommended ",
+    " roasted ",
+    " safe ",
+    " salmon ",
+    " served ",
+    " shrimp ",
+    " sirloin ",
+    " strong ",
+    " tenderloin ",
+    " the ",
+    " today ",
+    " tuna ",
+    " with "
+  ].some((term) => normalized.includes(term));
 }
 
 function validateAgainstProfile(

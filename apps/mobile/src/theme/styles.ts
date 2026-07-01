@@ -53,7 +53,7 @@ export const styles = StyleSheet.create({
 
   heroTitle: {
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "900",
     marginBottom: 6
   },
@@ -74,7 +74,7 @@ export const styles = StyleSheet.create({
   },
 
   h2: {
-    fontSize: 25,
+    fontSize: 20,
     fontWeight: "900",
     color: colors.text,
     marginBottom: 12,
@@ -82,7 +82,7 @@ export const styles = StyleSheet.create({
   },
 
   h3: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "900",
     color: colors.text,
     marginBottom: 8
@@ -190,7 +190,7 @@ export const styles = StyleSheet.create({
   },
 
   profileSectionTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "900",
     color: colors.text,
     marginBottom: 6
@@ -225,7 +225,7 @@ export const styles = StyleSheet.create({
   errorTitle: {
     color: "#9A3412",
     fontWeight: "900",
-    fontSize: 16,
+    fontSize: 14,
     marginBottom: 6
   },
 
@@ -252,10 +252,10 @@ export const styles = StyleSheet.create({
   },
 
   resultName: {
-    fontSize: 21,
+    fontSize: 17,
     fontWeight: "900",
     color: colors.text,
-    lineHeight: 27
+    lineHeight: 23
   },
 
   resultMeta: {
