@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "categories": {
+    "antipasti": {
+      "dishRole": "starter",
+      "mealType": "unknown",
+      "substanceLevel": "medium",
+      "isMainCourseCandidate": false,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "dessert": {
+      "dishRole": "dessert",
+      "mealType": "dessert",
+      "substanceLevel": "light",
+      "isMainCourseCandidate": false,
+      "isLightDishCandidate": false,
+      "confidence": 0.9
+    },
+    "dolci": {
+      "dishRole": "dessert",
+      "mealType": "dessert",
+      "substanceLevel": "light",
+      "isMainCourseCandidate": false,
+      "isLightDishCandidate": false,
+      "confidence": 0.9
+    },
+    "fisch": {
+      "dishRole": "main",
+      "mealType": "fish",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.9
+    },
+    "fleischgerichte": {
+      "dishRole": "main",
+      "mealType": "meat",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.9
+    },
+    "gnocchi": {
+      "dishRole": "main",
+      "mealType": "pasta",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "hauptgerichte": {
+      "dishRole": "main",
+      "mealType": "unknown",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "insalate": {
+      "dishRole": "main",
+      "mealType": "salad",
+      "substanceLevel": "light",
+      "isMainCourseCandidate": false,
+      "isLightDishCandidate": true,
+      "confidence": 0.9
+    },
+    "kindergerichte": {
+      "dishRole": "main",
+      "mealType": "unknown",
+      "substanceLevel": "medium",
+      "isMainCourseCandidate": false,
+      "isLightDishCandidate": false,
+      "confidence": 0.7
+    },
+    "le nostre pizza": {
+      "dishRole": "main",
+      "mealType": "pizza",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.9
+    },
+    "nudeln": {
+      "dishRole": "main",
+      "mealType": "pasta",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "pasta": {
+      "dishRole": "main",
+      "mealType": "pasta",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "penne": {
+      "dishRole": "main",
+      "mealType": "pasta",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "pesce": {
+      "dishRole": "main",
+      "mealType": "fish",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.9
+    },
+    "pizza": {
+      "dishRole": "main",
+      "mealType": "pizza",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.9
+    },
+    "pizzabrotchen": {
+      "dishRole": "side",
+      "mealType": "pizza",
+      "substanceLevel": "medium",
+      "isMainCourseCandidate": false,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "pizzen": {
+      "dishRole": "main",
+      "mealType": "pizza",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.9
+    },
+    "rind": {
+      "dishRole": "main",
+      "mealType": "meat",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.9
+    },
+    "rigatoni": {
+      "dishRole": "main",
+      "mealType": "pasta",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "salate": {
+      "dishRole": "main",
+      "mealType": "salad",
+      "substanceLevel": "light",
+      "isMainCourseCandidate": false,
+      "isLightDishCandidate": true,
+      "confidence": 0.9
+    },
+    "spaghetti": {
+      "dishRole": "main",
+      "mealType": "pasta",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "suppen": {
+      "dishRole": "starter",
+      "mealType": "unknown",
+      "substanceLevel": "light",
+      "isMainCourseCandidate": false,
+      "isLightDishCandidate": true,
+      "confidence": 0.8
+    },
+    "tagliatelle": {
+      "dishRole": "main",
+      "mealType": "pasta",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "tortellini": {
+      "dishRole": "main",
+      "mealType": "pasta",
+      "substanceLevel": "substantial",
+      "isMainCourseCandidate": true,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    },
+    "vorspeisen": {
+      "dishRole": "starter",
+      "mealType": "unknown",
+      "substanceLevel": "medium",
+      "isMainCourseCandidate": false,
+      "isLightDishCandidate": false,
+      "confidence": 0.8
+    }
+  }
+}

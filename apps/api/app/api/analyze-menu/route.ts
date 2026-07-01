@@ -7,7 +7,11 @@ import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
-import { extractHtmlMenuFromUrl, htmlMenuExtractionToMenuText } from "../../../src/menu/extraction/extractHtmlMenu";
+import {
+  extractHtmlMenuFromUrl,
+  htmlMenuExtractionToDishes,
+  htmlMenuExtractionToMenuText
+} from "../../../src/menu/extraction/extractHtmlMenu";
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import { findLinkedMenuImageUrls, looksLikeImageUrl } from "../../../src/menu/findLinkedMenuImageUrls";
 import { loadMenuTextFromMenury, looksLikeMenuryUrl } from "../../../src/menu/loadMenuTextFromMenury";
@@ -290,6 +294,9 @@ export async function POST(request: Request) {
         ? htmlMenuExtractionToMenuText(htmlMenuExtraction)
         : htmlMenuExtraction.fragments.join("\n")
       : null;
+    const htmlMenuDishes = htmlMenuExtraction?.items.length
+      ? htmlMenuExtractionToDishes(htmlMenuExtraction)
+      : null;
 
     let effectiveMenuText: string;
 
@@ -377,7 +384,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const dishes = parseMenu(effectiveMenuText);
+    const dishes = htmlMenuDishes ?? parseMenu(effectiveMenuText);
 
     if (dishes.length === 0 && looksLikeUrl(rawMenuText) && process.env.PICKFORME_AI_ENABLED === "true") {
       const imageUrls = await findLinkedMenuImageUrls(rawMenuText);

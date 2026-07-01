@@ -3,6 +3,13 @@ import type {
   MenuExtractionItem,
   MenuExtractionResult
 } from "./types";
+import htmlCategoryTaxonomy from "./htmlCategoryTaxonomy.json";
+import type {
+  Dish,
+  DishRole,
+  MealType,
+  SubstanceLevel
+} from "../../types/menu";
 
 type PendingHtmlDish = {
   title: string;
@@ -11,29 +18,20 @@ type PendingHtmlDish = {
   category?: string;
 };
 
+type HtmlCategoryClassification = {
+  dishRole: DishRole;
+  mealType: MealType;
+  substanceLevel: SubstanceLevel;
+  isMainCourseCandidate: boolean;
+  isLightDishCandidate: boolean;
+  confidence: number;
+};
+
 const PRICE_SCAN_PATTERN = /(?:\u20ac\s*)?\d{1,3}(?:[.,]\d{2})(?:\s*(?:\u20ac|eur|euro))?/gi;
 const PRICE_LINE_PATTERN = /^(?:\u20ac\s*)?\d{1,3}(?:[.,]\d{2})(?:\s*(?:\u20ac|eur|euro))?$/i;
 const CURRENCY_ONLY_PATTERN = /^(?:\u20ac|eur|euro)$/i;
-
-const CATEGORY_TERMS = new Set([
-  "antipasti",
-  "dessert",
-  "dolci",
-  "fisch",
-  "fleischgerichte",
-  "hauptgerichte",
-  "insalate",
-  "kindergerichte",
-  "le nostre pizza",
-  "pasta",
-  "pesce",
-  "pizza",
-  "pizzen",
-  "rind",
-  "salate",
-  "suppen",
-  "vorspeisen"
-]);
+const CATEGORY_CLASSIFICATIONS = htmlCategoryTaxonomy.categories as Record<string, HtmlCategoryClassification>;
+const CATEGORY_TERMS = new Set(Object.keys(CATEGORY_CLASSIFICATIONS));
 
 export async function extractHtmlMenuFromUrl(value: string): Promise<MenuExtractionResult | null> {
   let url: URL;
@@ -111,13 +109,16 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
     }
 
     const description = cleanDescription(pending.descriptionParts.join(" "));
+    const classification = classifyHtmlMenuCategory(pending.category);
 
     items.push({
       title: pending.title,
       description: description || undefined,
       price: normalizePrice(price),
       category: pending.category,
+      sourceCategory: pending.category,
       sourceFormat: "html",
+      ...classification,
       confidence: 0.9,
       sourceText: [...pending.sourceParts, priceLine].join(" ").replace(/\s+/g, " ").trim()
     });
@@ -164,12 +165,16 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
         }
 
         if (isSafeDishTitle(title)) {
+          const classification = classifyHtmlMenuCategory(currentCategory);
+
           items.push({
             title,
             description,
             price: normalizePrice(inlinePrice.raw),
             category: currentCategory,
+            sourceCategory: currentCategory,
             sourceFormat: "html",
+            ...classification,
             confidence: 0.85,
             sourceText: line
           });
@@ -246,6 +251,25 @@ export function htmlMenuExtractionToMenuText(result: MenuExtractionResult): stri
       item.price
     ].filter(Boolean).join(" - "))
     .join("\n");
+}
+
+export function htmlMenuExtractionToDishes(result: MenuExtractionResult): Dish[] {
+  return result.items.map((item, index) => ({
+    id: `dish_${String(index + 1).padStart(3, "0")}`,
+    nameOriginal: item.title,
+    descriptionOriginal: item.description,
+    price: parsePrice(item.price),
+    category: item.sourceCategory ?? item.category,
+    sourceFormat: item.sourceFormat,
+    sourceCategory: item.sourceCategory ?? item.category,
+    dishRole: item.dishRole,
+    mealType: item.mealType,
+    substanceLevel: item.substanceLevel,
+    isMainCourseCandidate: item.isMainCourseCandidate,
+    isLightDishCandidate: item.isLightDishCandidate,
+    classificationConfidence: item.classificationConfidence,
+    sourceLine: item.sourceText
+  }));
 }
 
 function htmlToLines(html: string): string[] {
@@ -364,6 +388,18 @@ function normalizePrice(value: string) {
   return /(?:\u20ac|eur|euro)/i.test(cleaned) ? cleaned : `${cleaned} \u20ac`;
 }
 
+function parsePrice(value: string | undefined) {
+  const match = value?.match(/\d{1,3}(?:[.,]\d{2})?/);
+
+  if (!match?.[0]) {
+    return undefined;
+  }
+
+  const parsed = Number(match[0].replace(",", "."));
+
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function isZeroPrice(value: string) {
   const match = value.match(/\d{1,3}(?:[.,]\d{2})/);
   const parsed = match ? Number(match[0].replace(",", ".")) : Number.NaN;
@@ -459,6 +495,29 @@ function isSafeDishTitle(title: string) {
   }
 
   return !isNoiseLine(title) && !PRICE_LINE_PATTERN.test(title) && !CURRENCY_ONLY_PATTERN.test(title);
+}
+
+function classifyHtmlMenuCategory(category: string | undefined) {
+  const key = normalizeForMatching(category ?? "");
+  const classification = CATEGORY_CLASSIFICATIONS[key];
+
+  return classification
+    ? {
+        dishRole: classification.dishRole,
+        mealType: classification.mealType,
+        substanceLevel: classification.substanceLevel,
+        isMainCourseCandidate: classification.isMainCourseCandidate,
+        isLightDishCandidate: classification.isLightDishCandidate,
+        classificationConfidence: classification.confidence
+      }
+    : {
+        dishRole: "unknown" as const,
+        mealType: "unknown" as const,
+        substanceLevel: "unknown" as const,
+        isMainCourseCandidate: false,
+        isLightDishCandidate: false,
+        classificationConfidence: 0
+      };
 }
 
 function dedupeItems(items: MenuExtractionItem[]) {
