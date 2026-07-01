@@ -185,3 +185,33 @@ Folgende Produktentscheidungen sind verbindlich:
 - Harter Grundsatz:
   Das Restaurant erzählt seine Geschichte.
   PickForMe erzählt seine Empfehlung.
+
+## 15. Verbindliche Content-Guidelines
+
+### Guideline 1 - Content Separation
+
+Statische Texte dürfen nicht im Code hinterlegt werden.
+
+Alle Texte müssen aus einer zentralen, dynamischen Content-Quelle stammen, zum Beispiel CMS, JSON, Datenbank oder KI-generiert.
+
+Der Code enthält ausschließlich Struktur, Logik und Datenmodelle.
+
+### Guideline 2 - Rule Independence
+
+Regeln dürfen nicht auf Textinhalten basieren.
+
+Jede Regel muss auf klar definierten, strukturierten Datenfeldern operieren, zum Beispiel Kategorien, Tags, Attribute oder numerische Werte.
+
+### Guideline 3 - Language Independence
+
+Die App muss vollständig sprachunabhängig sein.
+
+Texte werden dynamisch generiert oder aus einer Übersetzungsquelle bezogen.
+
+Der Code enthält keine sprachspezifischen Strings.
+
+### Guideline 4 - Dynamic Personalization
+
+Personalisierte Texte, zum Beispiel Hero-Texte, werden dynamisch erzeugt, basierend auf strukturierten Restaurantdaten und Nutzerprofilen.
+
+Sie werden niemals als statische Vorlagen im Code hinterlegt.
