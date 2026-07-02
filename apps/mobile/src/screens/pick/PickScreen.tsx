@@ -13,7 +13,15 @@ import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
 import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Situation } from "../../types/profile";
 
-export function PickScreen() {
+type PickScreenProps = {
+  resetSignal?: number;
+  onResultVisibleChange?: (visible: boolean) => void;
+};
+
+export function PickScreen({
+  resetSignal = 0,
+  onResultVisibleChange
+}: PickScreenProps) {
   const content = useMobileContent();
   const loadingSteps = content.pick.loadingSteps;
   const [menuText, setMenuText] = useState("");
@@ -22,6 +30,16 @@ export function PickScreen() {
   const analyze = useAnalyzeMenu();
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
   const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
+
+  useEffect(() => {
+    onResultVisibleChange?.(Boolean(analyze.result));
+  }, [analyze.result, onResultVisibleChange]);
+
+  useEffect(() => {
+    if (resetSignal === 0) return;
+    analyze.reset();
+    setShowQrScanner(false);
+  }, [resetSignal]);
 
   useEffect(() => {
     if (!analyze.loading) {
