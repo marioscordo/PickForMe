@@ -6,7 +6,7 @@ const defaultDevEmail = "dev@pickforme.local";
 
 export const env = {
   apiUrl,
-  devMode: localApiUrl || (explicitDevMode ? explicitDevMode === "true" : defaultDevMode),
+  devMode: explicitDevMode ? explicitDevMode === "true" : localApiUrl || defaultDevMode,
   devEmail: process.env.EXPO_PUBLIC_PICKFORME_DEV_EMAIL ?? defaultDevEmail,
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://example.supabase.co",
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder"
