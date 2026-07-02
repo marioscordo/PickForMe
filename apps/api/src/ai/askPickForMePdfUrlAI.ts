@@ -6,7 +6,7 @@ import { blockReasonForRecommendation, buildProfilePromptLines } from "../profil
 const RecommendationSchema = z.object({
   rank: z.number(),
   nameOriginal: z.string().min(1),
-  translatedName: z.string().min(1),
+  translatedName: z.string().optional().default(""),
   priceRaw: z.string().optional(),
   descriptionOriginal: z.string().optional(),
   reason: z.string().min(1),
@@ -20,8 +20,8 @@ const PdfAiResponseSchema = z.object({
 const LocalizedRecommendationTextSchema = z.object({
   recommendations: z.array(z.object({
     rank: z.number(),
-    translatedName: z.string().min(1),
-    reason: z.string().min(1)
+    translatedName: z.string().optional().default(""),
+    reason: z.string().optional().default("")
   })).max(3)
 });
 
@@ -74,13 +74,7 @@ export async function askPickForMePdfUrlAI(input: AskPickForMePdfUrlAIInput) {
   const outputText = stripJsonFence(response.output_text ?? "");
   const parsedJson = JSON.parse(outputText);
   const parsed = PdfAiResponseSchema.parse(parsedJson);
-  const localized = await localizePdfRecommendationTexts({
-    client,
-    recommendations: parsed.recommendations,
-    userLocale: input.userLocale
-  });
-  assertLocalizedRecommendationTexts(localized, normalizeTargetLocale(input.userLocale));
-  const profileSafe = validateAgainstProfile({ recommendations: localized }, profile);
+  const profileSafe = validateAgainstProfile(parsed, profile);
 
   return toAnalyzeDataParts(profileSafe.recommendations);
 }
@@ -248,13 +242,21 @@ async function requestLocalizedPdfRecommendationTexts({
             `Target language: ${targetLanguage}.`,
             `Target locale: ${targetLocale}.`,
             "",
+            "Context:",
+            "- Every item is a restaurant dish.",
+            "- nameOriginal is the exact original dish name from the menu.",
+            "- translatedName is the user-facing dish display in the target language.",
+            "- descriptionOriginal and evidence are menu context for avoiding mistranslation.",
+            "",
             "Rules:",
             "- Translate only translatedName and reason.",
-            "- translatedName must be a direct translation of nameOriginal into the target language.",
-            "- Derive translatedName from nameOriginal, not from a prior translation.",
+            "- translatedName must be derived from nameOriginal as a restaurant dish.",
+            "- Use descriptionOriginal and evidence only to disambiguate the dish safely.",
+            "- Culinary proper names may remain, but add a concise target-language explanation when the safe menu context supports it.",
+            "- Translate preparation methods, regional or style markers, side dishes, and connector words into the target language even when a culinary proper name remains.",
+            "- Do not return translatedName identical to nameOriginal unless no safe translation or explanation is possible.",
             "- Keep rank unchanged.",
             "- Do not translate or change nameOriginal.",
-            "- Use descriptionOriginal and evidence only to avoid mistranslation.",
             "- Preserve factual elements exactly: animal/protein, cooking method, side dish, and preparation style.",
             "- Never replace one animal/protein with another.",
             "- If a culinary term is uncertain, keep the original term instead of guessing.",
@@ -353,12 +355,31 @@ function buildDisplaySafeRecommendations(
 ) {
   return recommendations.map((item) => ({
     ...item,
-    translatedName: getDisplaySafeText(item, item.translatedName, targetLocale),
-    reason: getDisplaySafeText(item, item.reason, targetLocale)
+    translatedName: getDisplaySafeTranslation(item, item.translatedName, targetLocale),
+    reason: getDisplaySafeReason(item, item.reason, targetLocale)
   }));
 }
 
-function getDisplaySafeText(item: PdfAiRecommendation, value: string, targetLocale: string) {
+function getDisplaySafeTranslation(item: PdfAiRecommendation, value: string, targetLocale: string) {
+  const trimmed = value.trim();
+  const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
+
+  if (targetLanguageCode === "en") {
+    return trimmed || item.nameOriginal;
+  }
+
+  if (
+    trimmed.length === 0 ||
+    hasLikelyEnglishDisplayText(trimmed) ||
+    hasLikelyLambBeefTranslationConflict(item, trimmed)
+  ) {
+    return item.nameOriginal;
+  }
+
+  return trimmed;
+}
+
+function getDisplaySafeReason(item: PdfAiRecommendation, value: string, targetLocale: string) {
   const trimmed = value.trim();
   const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
 
@@ -541,7 +562,7 @@ function toAnalyzeDataParts(recommendations: PdfAiRecommendation[]) {
       dishId: dishes[index]!.id,
       rank: item.rank,
       reason: item.reason,
-      translatedName: item.translatedName,
+      translatedName: item.translatedName.trim() || item.nameOriginal,
 
     }))
   };

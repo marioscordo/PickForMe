@@ -32,7 +32,7 @@ type RawObject = Record<string, unknown>;
 
 export async function extractMenuFactsFromTextAI(
   menuText: string,
-  options: { signal?: AbortSignal } = {}
+  options: { signal?: AbortSignal; userLocale?: string } = {}
 ): Promise<MenuFacts> {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -50,7 +50,7 @@ export async function extractMenuFactsFromTextAI(
       messages: [
         {
           role: "system",
-          content: buildSystemPrompt()
+          content: buildSystemPrompt(options.userLocale)
         },
         {
           role: "user",
@@ -80,17 +80,26 @@ export async function extractMenuFactsFromTextAI(
   return validateMenuFacts(rawFacts, menuText);
 }
 
-function buildSystemPrompt() {
+function buildSystemPrompt(userLocale?: string) {
+  const targetLocale = normalizeTargetLocale(userLocale);
+  const targetLanguage = getLanguageNameForLocale(targetLocale);
+
   return [
     "Du extrahierst reine Speisekarten-Fakten fuer PickForMe.",
     "Du gibst keine Empfehlung, kein Ranking und keinen Concierge-Text aus.",
     "Nutze ausschliesslich Fakten aus dem geladenen Speisekartentext.",
     "Nutze keine externen Restaurantinformationen und keine Vermutungen.",
     "Erfinde keine Namen, Preise, Zutaten, Beschreibungen oder Bestellbarkeit.",
+    `Sprache fuer nutzerseitige Gerichtsanzeigen: ${targetLanguage} (${targetLocale}).`,
     "nameOriginal muss ein exakt sichtbarer Originalname aus dem Text sein.",
     "MenuUnit titleOriginal muss ein exakt sichtbarer Originaltitel, Abschnittstitel oder klar sichtbarer Menue-Titel aus dem Text sein.",
     "Erzeuge keine generischen frei erfundenen MenuUnit-Titel wie Degustationsmenue, wenn dieser Begriff nicht sichtbar ist.",
-    "translatedName ist nur eine nuechterne deutsche Uebersetzung oder Kurzbeschreibung, kein Marketingtext.",
+    "Alle items und menuUnits sind Speisekartenfakten; behandle nameOriginal, titleOriginal, descriptionOriginal und evidence als Gerichtskontext.",
+    "translatedName ist nur eine nuechterne nutzerseitige Gerichtsanzeige in der Sprache fuer nutzerseitige Gerichtsanzeigen, kein Marketingtext.",
+    "Leite translatedName aus dem sichtbaren Originalnamen ab und nutze descriptionOriginal oder evidence nur, um eine Fehluebersetzung zu vermeiden.",
+    "Kulinarische Eigennamen duerfen stehen bleiben, muessen aber in der Zielsprache knapp erklaert werden, wenn der sichere Gerichtskontext das erlaubt.",
+    "Uebersetze Zubereitungsart, Herkunfts- oder Stilangaben, Beilagen und verbindende Woerter in die Zielsprache, auch wenn der kulinarische Eigenname stehen bleibt.",
+    "translatedName darf nur identisch mit nameOriginal oder titleOriginal sein, wenn keine sichere Uebersetzung oder Erklaerung moeglich ist.",
     "descriptionOriginal muss aus sichtbarem Speisekartentext stammen.",
     "descriptionOriginal darf nicht uebersetzt, zusammengefasst, bewertet, interpretiert oder frei ergaenzt werden.",
     "priceRaw muss den Preis exakt roh aus dem Text uebernehmen, inklusive Waehrung oder Symbol, wenn sichtbar.",
@@ -118,7 +127,7 @@ function buildSystemPrompt() {
     '      "id": "item_001",',
     '      "itemType": "dish | course | drink | unknown",',
     '      "nameOriginal": "exakter sichtbarer Originalname",',
-    '      "translatedName": "nuechterne deutsche Uebersetzung oder Kurzbeschreibung",',
+    '      "translatedName": "nuechterne nutzerseitige Gerichtsanzeige in der Sprache fuer nutzerseitige Gerichtsanzeigen",',
     '      "descriptionOriginal": "Originalbeschreibung falls sichtbar",',
     '      "priceRaw": "exakter Rohpreis falls sichtbar",',
     '      "orderability": "standalone | part_of_menu | unclear",',
@@ -131,7 +140,7 @@ function buildSystemPrompt() {
     '      "id": "unit_001",',
     '      "itemType": "whole_menu | sharing_menu",',
     '      "titleOriginal": "exakter sichtbarer Menue- oder Abschnittstitel",',
-    '      "translatedName": "nuechterne deutsche Uebersetzung oder Kurzbeschreibung",',
+    '      "translatedName": "nuechterne nutzerseitige Gerichtsanzeige in der Sprache fuer nutzerseitige Gerichtsanzeigen",',
     '      "descriptionOriginal": "Originalbeschreibung oder Struktur falls sichtbar",',
     '      "priceRaw": "exakter Gesamtpreis falls sichtbar",',
     '      "includedItemIds": ["item_001"],',
@@ -141,6 +150,37 @@ function buildSystemPrompt() {
     "  ]",
     "}"
   ].join("\n");
+}
+
+function normalizeTargetLocale(value: string | undefined) {
+  const locale = value?.trim();
+
+  return locale ? locale.slice(0, 40) : "de-DE";
+}
+
+function getLanguageNameForLocale(locale: string) {
+  const languageCode = locale.toLowerCase().split(/[-_]/)[0];
+
+  switch (languageCode) {
+    case "de":
+      return "German";
+    case "en":
+      return "English";
+    case "es":
+      return "Spanish";
+    case "fr":
+      return "French";
+    case "it":
+      return "Italian";
+    case "nl":
+      return "Dutch";
+    case "pl":
+      return "Polish";
+    case "pt":
+      return "Portuguese";
+    default:
+      return locale;
+  }
 }
 
 function buildUserPrompt(menuText: string) {

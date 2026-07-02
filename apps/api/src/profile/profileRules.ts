@@ -78,6 +78,7 @@ export function buildProfilePromptLines(profile: ProfileInput = {}, situation?: 
   return [
     "Nutzerprofil:",
     `Name: ${profile.displayName || "Gast"}`,
+    `Ausgabesprache nur fuer nutzerseitige Texte, kein Auswahlkriterium: ${profile.outputLocale || "de-DE"}`,
     `Ernaehrungsstil: ${profile.dietStyle || "normal"}`,
     `Aktive starke Vorlieben: ${listOrNone(primaryLikes)}`,
     `Aktive weitere Vorlieben: ${listOrNone(secondaryLikes)}`,

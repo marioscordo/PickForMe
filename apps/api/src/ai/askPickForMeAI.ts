@@ -49,12 +49,14 @@ export async function askPickForMeAI({
   menuText,
   profile,
   situation,
-  signal
+  signal,
+  userLocale
 }: {
   menuText: string;
   profile: UserProfile;
   situation: Situation;
   signal?: AbortSignal;
+  userLocale?: string;
 }): Promise<TextAiAnalyzeResult> {
   if (process.env.PICKFORME_AI_ENABLED !== "true") {
     throw new Error("PickForMe AI ist nicht aktiviert.");
@@ -64,7 +66,7 @@ export async function askPickForMeAI({
     throw new Error("OPENAI_API_KEY fehlt.");
   }
 
-  const menuFacts = await extractMenuFactsFromTextAI(menuText, { signal });
+  const menuFacts = await extractMenuFactsFromTextAI(menuText, { signal, userLocale });
   const conciergeMenuFacts = buildConciergeMenuFacts(menuFacts, profile);
   const conciergeRecommendation = await askConciergeRecommendationAI({
     menuFacts: conciergeMenuFacts,
@@ -227,7 +229,7 @@ function toAnalyzeDataParts(selectedRecommendations: SelectedRecommendation[]): 
     rank: selected.rank,
     reason: selected.reason,
     facts: selected.facts,
-    translatedName: getTranslatedName(selected.fact) ?? ""
+    translatedName: getTranslatedName(selected.fact) ?? getOriginalName(selected.fact)
   }));
 
   return {

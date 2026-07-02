@@ -6,7 +6,7 @@ import { blockReasonForRecommendation, buildProfilePromptLines } from "../profil
 const RecommendationSchema = z.object({
   rank: z.number(),
   nameOriginal: z.string().min(1),
-  translatedName: z.string().min(1),
+  translatedName: z.string().optional().default(""),
   priceRaw: z.string().optional(),
   descriptionOriginal: z.string().optional(),
   reason: z.string().min(1),
@@ -25,6 +25,7 @@ type AskPickForMeImageUrlsAIInput = {
   imageUrls: string[];
   profile?: ProfileInput;
   situation?: string;
+  userLocale?: string;
 };
 
 export async function askPickForMeImageUrlsAI(input: AskPickForMeImageUrlsAIInput) {
@@ -58,7 +59,8 @@ export async function askPickForMeImageUrlsAI(input: AskPickForMeImageUrlsAIInpu
             type: "input_text",
             text: buildImagePrompt({
               profile,
-              situation: input.situation
+              situation: input.situation,
+              userLocale: input.userLocale
             })
           },
           ...imageUrls.map((imageUrl) => ({
@@ -79,11 +81,24 @@ export async function askPickForMeImageUrlsAI(input: AskPickForMeImageUrlsAIInpu
   return toAnalyzeDataParts(profileSafe.recommendations);
 }
 
-function buildImagePrompt(input: { profile: ProfileInput; situation?: string }) {
+function buildImagePrompt(input: { profile: ProfileInput; situation?: string; userLocale?: string }) {
+  const targetLocale = normalizeTargetLocale(input.userLocale);
+  const targetLanguage = getLanguageNameForLocale(targetLocale);
+
   return [
     "Du bist PickForMe, ein persoenlicher Restaurant-Assistent.",
     "Lies die beigefuegten Restaurant-Speisekartenbilder.",
     "Die Bilder koennen mehrere Seiten oder Kategorien einer Speisekarte zeigen.",
+    `Sprache fuer nutzerseitige Ausgaben: ${targetLanguage} (${targetLocale}).`,
+    "Originalgerichtstitel bleiben exakt in der Sprache der Speisekarte.",
+    "Alle Empfehlungen sind Restaurantgerichte; behandle nameOriginal, descriptionOriginal und evidence als Gerichtskontext.",
+    "translatedName ist die nutzerseitige Gerichtsanzeige in der Sprache fuer nutzerseitige Ausgaben.",
+    "Leite translatedName aus dem Originalgerichtstitel ab und nutze descriptionOriginal oder evidence nur, um eine Fehluebersetzung zu vermeiden.",
+    "Kulinarische Eigennamen duerfen stehen bleiben, muessen aber in der Zielsprache knapp erklaert werden, wenn der sichere Gerichtskontext das erlaubt.",
+    "Uebersetze Zubereitungsart, Herkunfts- oder Stilangaben, Beilagen und verbindende Woerter in die Zielsprache, auch wenn der kulinarische Eigenname stehen bleibt.",
+    "translatedName darf nur identisch mit nameOriginal sein, wenn keine sichere Uebersetzung oder Erklaerung moeglich ist.",
+    "reason muss vollstaendig in der Sprache fuer nutzerseitige Ausgaben geschrieben sein.",
+    "descriptionOriginal und evidence bleiben Originalbelege aus der Speisekarte.",
     "Empfiehl bis zu 3 echte und sichere Gerichte aus den sichtbaren Speisekartenbildern.",
     "Erfinde nichts.",
     "Aendere keine Gerichtsnamen.",
@@ -114,15 +129,46 @@ function buildImagePrompt(input: { profile: ProfileInput; situation?: string }) 
     "    {",
     '      "rank": 1,',
     '      "nameOriginal": "exakter Gerichtname aus der Speisekarte",',
-    '      "translatedName": "kurze deutsche Uebersetzung oder Kurzbeschreibung fuer deutschsprachige Nutzer",',
+    '      "translatedName": "nutzerseitige Gerichtsanzeige in der Sprache fuer nutzerseitige Ausgaben",',
     '      "priceRaw": "Preis falls sichtbar",',
     '      "descriptionOriginal": "Originalbeschreibung falls sichtbar",',
-    '      "reason": "kurze persoenliche Begruendung",',
+    '      "reason": "kurze persoenliche Begruendung in der Sprache fuer nutzerseitige Ausgaben",',
     '      "evidence": "kurzer sichtbarer Originalbeleg aus der Speisekarte"',
     "    }",
     "  ]",
     "}"
   ].join("\n");
+}
+
+function normalizeTargetLocale(value: string | undefined) {
+  const locale = value?.trim();
+
+  return locale ? locale.slice(0, 40) : "de-DE";
+}
+
+function getLanguageNameForLocale(locale: string) {
+  const languageCode = locale.toLowerCase().split(/[-_]/)[0];
+
+  switch (languageCode) {
+    case "de":
+      return "German";
+    case "en":
+      return "English";
+    case "es":
+      return "Spanish";
+    case "fr":
+      return "French";
+    case "it":
+      return "Italian";
+    case "nl":
+      return "Dutch";
+    case "pl":
+      return "Polish";
+    case "pt":
+      return "Portuguese";
+    default:
+      return locale;
+  }
 }
 
 function validateAgainstProfile(
@@ -167,7 +213,7 @@ function toAnalyzeDataParts(recommendations: ImageAiRecommendation[]) {
       dishId: dishes[index]!.id,
       rank: item.rank,
       reason: item.reason,
-      translatedName: item.translatedName
+      translatedName: item.translatedName.trim() || item.nameOriginal
     }))
   };
 }

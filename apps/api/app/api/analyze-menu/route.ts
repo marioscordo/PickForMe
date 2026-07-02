@@ -4,6 +4,7 @@ import { requireUser } from "../../../src/auth/requireUser";
 import { askPickForMeAI } from "../../../src/ai/askPickForMeAI";
 import { askPickForMePdfUrlAI } from "../../../src/ai/askPickForMePdfUrlAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
+import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
@@ -107,15 +108,14 @@ export async function POST(request: Request) {
       }
 
       try {
-        const aiResult = await withTimeout(
-          askPdfWithShortRateLimitRetry({
+        const aiResult = await askPdfWithShortRateLimitRetry(
+          {
             pdfUrl: pdfMenuUrl,
             profile: body.profile,
             situation: body.situation,
             userLocale: outputLocale
-          }),
-          45000,
-          "PDF_AI_TIMEOUT"
+          },
+          45000
         );
 
         if (aiResult.recommendations.length === 0) {
@@ -135,12 +135,18 @@ export async function POST(request: Request) {
           })
         });
 
+        const recommendations = await localizeRecommendationsForPayload({
+          dishes: aiResult.dishes,
+          recommendations: aiResult.recommendations,
+          userLocale: outputLocale
+        });
+
         return NextResponse.json({
           ok: true,
           data: {
             mode: "ai_pdf",
             dishes: aiResult.dishes,
-            recommendations: aiResult.recommendations,
+            recommendations,
             conciergeHero,
             ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
           }
@@ -148,12 +154,7 @@ export async function POST(request: Request) {
       } catch (pdfAiError) {
         const message = pdfAiError instanceof Error ? pdfAiError.message : "";
 
-        if (
-          message.includes("429") ||
-          message.includes("Rate limit") ||
-          message.includes("rate limit") ||
-          message.includes("TPM")
-        ) {
+        if (isRateLimitError(pdfAiError)) {
           throw new AppError(
             429,
             "AI_RATE_LIMIT",
@@ -209,7 +210,8 @@ export async function POST(request: Request) {
           askPickForMeImageUrlsAI({
             imageUrls: [directImageUrl],
             profile: body.profile,
-            situation: body.situation
+            situation: body.situation,
+            userLocale: outputLocale
           }),
           45000,
           "IMAGE_AI_TIMEOUT"
@@ -232,12 +234,18 @@ export async function POST(request: Request) {
           })
         });
 
+        const recommendations = await localizeRecommendationsForPayload({
+          dishes: aiResult.dishes,
+          recommendations: aiResult.recommendations,
+          userLocale: outputLocale
+        });
+
         return NextResponse.json({
           ok: true,
           data: {
             mode: "ai_image",
             dishes: aiResult.dishes,
-            recommendations: aiResult.recommendations,
+            recommendations,
             conciergeHero,
             ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
           }
@@ -330,7 +338,8 @@ export async function POST(request: Request) {
             menuText: effectiveMenuText,
             profile: body.profile,
             situation: body.situation,
-            signal
+            signal,
+            userLocale: outputLocale
           }),
           30000,
           "TEXT_AI_TIMEOUT"
@@ -348,12 +357,18 @@ export async function POST(request: Request) {
             })
           });
 
+          const recommendations = await localizeRecommendationsForPayload({
+            dishes: aiResult.dishes,
+            recommendations: aiResult.recommendations,
+            userLocale: outputLocale
+          });
+
           return NextResponse.json({
             ok: true,
             data: {
               mode: "ai",
               dishes: aiResult.dishes,
-              recommendations: aiResult.recommendations,
+              recommendations,
               conciergeHero,
               recommendationMode: aiResult.recommendationMode,
               menuType: aiResult.menuType,
@@ -404,7 +419,8 @@ export async function POST(request: Request) {
             askPickForMeImageUrlsAI({
               imageUrls,
               profile: body.profile,
-              situation: body.situation
+              situation: body.situation,
+              userLocale: outputLocale
             }),
             45000,
             "IMAGE_AI_TIMEOUT"
@@ -427,12 +443,18 @@ export async function POST(request: Request) {
             })
           });
 
+          const recommendations = await localizeRecommendationsForPayload({
+            dishes: aiResult.dishes,
+            recommendations: aiResult.recommendations,
+            userLocale: outputLocale
+          });
+
           return NextResponse.json({
             ok: true,
             data: {
               mode: "ai_image",
               dishes: aiResult.dishes,
-              recommendations: aiResult.recommendations,
+              recommendations,
               conciergeHero,
               ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
             }
@@ -534,12 +556,18 @@ export async function POST(request: Request) {
       );
     }
 
+    const localizedRecommendations = await localizeRecommendationsForPayload({
+      dishes,
+      recommendations,
+      userLocale: outputLocale
+    });
+
     return NextResponse.json({
       ok: true,
       data: {
         mode: "fallback",
         dishes,
-        recommendations,
+        recommendations: localizedRecommendations,
         conciergeHero: await buildConciergeHeroFromOfficialWebsiteText({
             officialWebsiteText: restaurantDescription?.text,
             restaurantUrl: officialRestaurantUrl,
@@ -557,6 +585,16 @@ export async function POST(request: Request) {
   }
 }
 
+
+async function localizeRecommendationsForPayload(
+  input: Parameters<typeof localizeRecommendationDisplayTexts>[0]
+) {
+  try {
+    return await localizeRecommendationDisplayTexts(input);
+  } catch (error) {
+    return input.recommendations;
+  }
+}
 
 function buildRestaurantDescriptionPayload(restaurantDescription: LocalizedRestaurantDescriptionResult | null) {
   if (!restaurantDescription) {
@@ -1215,9 +1253,12 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorCode: strin
   });
 }
 
-async function askPdfWithShortRateLimitRetry(input: Parameters<typeof askPickForMePdfUrlAI>[0]) {
+async function askPdfWithShortRateLimitRetry(
+  input: Parameters<typeof askPickForMePdfUrlAI>[0],
+  timeoutMs: number
+) {
   try {
-    return await askPickForMePdfUrlAI(input);
+    return await withTimeout(askPickForMePdfUrlAI(input), timeoutMs, "PDF_AI_TIMEOUT");
   } catch (error) {
     if (!isRateLimitError(error)) {
       throw error;
@@ -1230,7 +1271,7 @@ async function askPdfWithShortRateLimitRetry(input: Parameters<typeof askPickFor
     }
 
     await sleep(retryDelayMs);
-    return askPickForMePdfUrlAI(input);
+    return withTimeout(askPickForMePdfUrlAI(input), timeoutMs, "PDF_AI_TIMEOUT");
   }
 }
 
