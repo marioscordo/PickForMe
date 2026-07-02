@@ -20,8 +20,8 @@ const PdfAiResponseSchema = z.object({
 const LocalizedRecommendationTextSchema = z.object({
   recommendations: z.array(z.object({
     rank: z.number(),
-    translatedName: z.string(),
-    reason: z.string()
+    translatedName: z.string().min(1),
+    reason: z.string().min(1)
   })).max(3)
 });
 
@@ -79,6 +79,7 @@ export async function askPickForMePdfUrlAI(input: AskPickForMePdfUrlAIInput) {
     recommendations: parsed.recommendations,
     userLocale: input.userLocale
   });
+  assertLocalizedRecommendationTexts(localized, normalizeTargetLocale(input.userLocale));
   const profileSafe = validateAgainstProfile({ recommendations: localized }, profile);
 
   return toAnalyzeDataParts(profileSafe.recommendations);
@@ -194,7 +195,28 @@ async function localizePdfRecommendationTexts({
         targetLanguage,
         strictRetry
       });
-    } catch {
+    } catch (error) {
+      const retryDelayMs = getShortRateLimitRetryDelayMs(error);
+
+      if (retryDelayMs === undefined) {
+        continue;
+      }
+
+      await sleep(retryDelayMs);
+
+      try {
+        return await requestLocalizedPdfRecommendationTexts({
+          client,
+          recommendations,
+          targetLocale,
+          targetLanguage,
+          strictRetry
+        });
+      } catch (retryError) {
+        if (isRateLimitError(retryError)) {
+          throw retryError;
+        }
+      }
     }
   }
 
@@ -229,12 +251,14 @@ async function requestLocalizedPdfRecommendationTexts({
             "Rules:",
             "- Translate only translatedName and reason.",
             "- translatedName must be a direct translation of nameOriginal into the target language.",
+            "- Derive translatedName from nameOriginal, not from a prior translation.",
             "- Keep rank unchanged.",
             "- Do not translate or change nameOriginal.",
             "- Use descriptionOriginal and evidence only to avoid mistranslation.",
             "- Preserve factual elements exactly: animal/protein, cooking method, side dish, and preparation style.",
             "- Never replace one animal/protein with another.",
             "- If a culinary term is uncertain, keep the original term instead of guessing.",
+            "- Do not keep English explanations such as finger-burning style; write them in the target language or keep the original culinary term.",
             "- Do not add facts.",
             "- Do not add dishes, prices, ingredients, atmosphere, ratings, or recommendations.",
             "- Do not invent anything.",
@@ -251,7 +275,6 @@ async function requestLocalizedPdfRecommendationTexts({
             recommendations: recommendations.map((item) => ({
               rank: item.rank,
               nameOriginal: item.nameOriginal,
-              translatedName: item.translatedName,
               descriptionOriginal: item.descriptionOriginal,
               reason: item.reason,
               evidence: item.evidence
@@ -277,7 +300,11 @@ async function requestLocalizedPdfRecommendationTexts({
     assertLocalizedRecommendationTexts(localizedRecommendations, targetLocale);
 
     return localizedRecommendations;
-  } catch {
+  } catch (error) {
+    if (isRateLimitError(error)) {
+      throw error;
+    }
+
     throw new Error("PDF_LOCALIZATION_FAILED");
   }
 }
@@ -292,12 +319,30 @@ function assertLocalizedRecommendationTexts(
     return;
   }
 
+  const emptyDisplayText = recommendations.some((item) =>
+    item.translatedName.trim().length === 0 ||
+    item.reason.trim().length === 0
+  );
+
+  if (emptyDisplayText) {
+    throw new Error("PDF_LOCALIZATION_FAILED");
+  }
+
   const leakedEnglish = recommendations.some((item) =>
     hasLikelyEnglishDisplayText(item.translatedName) ||
     hasLikelyEnglishDisplayText(item.reason)
   );
 
   if (leakedEnglish) {
+    throw new Error("PDF_LOCALIZATION_FAILED");
+  }
+
+  const unsafeProteinTranslation = recommendations.some((item) =>
+    hasLikelyLambBeefTranslationConflict(item, item.translatedName) ||
+    hasLikelyLambBeefTranslationConflict(item, item.reason)
+  );
+
+  if (unsafeProteinTranslation) {
     throw new Error("PDF_LOCALIZATION_FAILED");
   }
 }
@@ -308,12 +353,12 @@ function buildDisplaySafeRecommendations(
 ) {
   return recommendations.map((item) => ({
     ...item,
-    translatedName: getDisplaySafeText(item.translatedName, targetLocale),
-    reason: getDisplaySafeText(item.reason, targetLocale)
+    translatedName: getDisplaySafeText(item, item.translatedName, targetLocale),
+    reason: getDisplaySafeText(item, item.reason, targetLocale)
   }));
 }
 
-function getDisplaySafeText(value: string, targetLocale: string) {
+function getDisplaySafeText(item: PdfAiRecommendation, value: string, targetLocale: string) {
   const trimmed = value.trim();
   const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
 
@@ -321,7 +366,7 @@ function getDisplaySafeText(value: string, targetLocale: string) {
     return trimmed;
   }
 
-  return hasLikelyEnglishDisplayText(trimmed) ? "" : trimmed;
+  return hasLikelyEnglishDisplayText(trimmed) || hasLikelyLambBeefTranslationConflict(item, trimmed) ? "" : trimmed;
 }
 
 function hasLikelyEnglishDisplayText(value: string) {
@@ -338,6 +383,7 @@ function hasLikelyEnglishDisplayText(value: string) {
     " appetite ",
     " baked ",
     " beef ",
+    " burning ",
     " because ",
     " braised ",
     " chicken ",
@@ -366,12 +412,91 @@ function hasLikelyEnglishDisplayText(value: string) {
     " shrimp ",
     " sirloin ",
     " strong ",
+    " style ",
     " tenderloin ",
     " the ",
     " today ",
     " tuna ",
     " with "
   ].some((term) => normalized.includes(term));
+}
+
+function hasLikelyLambBeefTranslationConflict(item: PdfAiRecommendation, value: string) {
+  const source = normalizeTranslationCheckText([
+    item.nameOriginal,
+    item.descriptionOriginal,
+    item.evidence
+  ].filter(Boolean).join(" "));
+  const output = normalizeTranslationCheckText(value);
+  const sourceIsLamb = includesAny(source, ["abbacchio", "agnello", "lamb", "lamm"]);
+
+  return sourceIsLamb && includesAny(output, ["rind", "beef"]);
+}
+
+function normalizeTranslationCheckText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zäöüß]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function includesAny(value: string, terms: string[]) {
+  return terms.some((term) => value.includes(term));
+}
+
+function getShortRateLimitRetryDelayMs(error: unknown) {
+  if (!isRateLimitError(error)) {
+    return undefined;
+  }
+
+  const retryDelayMs = getRetryAfterDelayMs(error) ?? 1000;
+
+  return retryDelayMs <= 3000 ? retryDelayMs : undefined;
+}
+
+function isRateLimitError(error: unknown) {
+  const status = typeof error === "object" && error !== null && "status" in error
+    ? (error as { status?: unknown }).status
+    : undefined;
+  const message = error instanceof Error ? error.message : "";
+
+  return status === 429 ||
+    message.includes("429") ||
+    message.includes("Rate limit") ||
+    message.includes("rate limit") ||
+    message.includes("TPM");
+}
+
+function getRetryAfterDelayMs(error: unknown) {
+  const headers = typeof error === "object" && error !== null && "headers" in error
+    ? (error as { headers?: unknown }).headers
+    : undefined;
+
+  if (!headers || typeof (headers as { get?: unknown }).get !== "function") {
+    return undefined;
+  }
+
+  const getHeader = (name: string) => (headers as { get: (name: string) => string | null }).get(name);
+  const retryAfterMs = Number(getHeader("retry-after-ms"));
+
+  if (Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+    return retryAfterMs;
+  }
+
+  const retryAfterSeconds = Number(getHeader("retry-after"));
+
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return retryAfterSeconds * 1000;
+  }
+
+  return undefined;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function validateAgainstProfile(

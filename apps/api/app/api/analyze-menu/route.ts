@@ -161,10 +161,17 @@ export async function POST(request: Request) {
           );
         }
 
+        if (message.includes("PDF_LOCALIZATION_FAILED")) {
+          throw new AppError(
+            422,
+            "ANALYSIS_NOT_SAFE",
+            "Ich konnte diese PDF-Speisekarte nicht sicher auswerten."
+          );
+        }
+
         if (
           message.includes("PDF_AI_TIMEOUT") ||
-          message.includes("TEXT_AI_TIMEOUT") ||
-          message.includes("PDF_LOCALIZATION_FAILED")
+          message.includes("TEXT_AI_TIMEOUT")
         ) {
           return NextResponse.json({
             ok: true,
