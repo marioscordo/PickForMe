@@ -6,7 +6,7 @@ const defaultProfile: UserProfile = {
   displayName: "Mario",
   primaryLikes: ["Fleisch", "Fisch", "Große Portionen"],
   secondaryLikes: ["Pasta", "Salat", "Scharf"],
-  dislikes: ["Keine Innereien", "Kein Grätenfisch"],
+  dislikes: ["Keine Innereien", "Kein Grätenfisch", "Kein Lamm"],
   intolerances: [],
   dietStyle: "normal",
   outputLocale: DEFAULT_OUTPUT_LOCALE,

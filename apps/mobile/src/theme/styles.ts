@@ -165,9 +165,40 @@ export const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF"
   },
 
+  profileChip: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    minHeight: 42,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+
   chipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary
+  },
+
+  profileChipActive: {
+    backgroundColor: "#E8F3F1",
+    borderColor: "#8FB9B4"
+  },
+
+  chipIcon: {
+    alignItems: "center",
+    backgroundColor: "#EEF7F3",
+    borderRadius: 999,
+    height: 26,
+    justifyContent: "center",
+    width: 26
+  },
+
+  chipIconActive: {
+    backgroundColor: "#D7ECE8"
+  },
+
+  chipIconText: {
+    fontSize: 13
   },
 
   chipText: {
@@ -178,6 +209,18 @@ export const styles = StyleSheet.create({
 
   chipTextActive: {
     color: "#FFFFFF"
+  },
+
+  profileChipTextActive: {
+    color: colors.text
+  },
+
+  profileEditorSurface: {
+    marginBottom: 14
+  },
+
+  profileDetailSurface: {
+    marginBottom: 14
   },
 
   profileSection: {
@@ -205,6 +248,102 @@ export const styles = StyleSheet.create({
 
   profileSubBlock: {
     marginTop: 16
+  },
+
+  profileDetailBlock: {
+    marginBottom: 18
+  },
+
+  profilePromptBlock: {
+    marginBottom: 4,
+    marginTop: 6
+  },
+
+  profileSettingsList: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    marginBottom: 18,
+    overflow: "hidden"
+  },
+
+  profileMenuRow: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 72,
+    paddingHorizontal: 14,
+    paddingVertical: 12
+  },
+
+  profileMenuIcon: {
+    alignItems: "center",
+    backgroundColor: "#E8F3F1",
+    borderRadius: 16,
+    height: 42,
+    justifyContent: "center",
+    width: 42
+  },
+
+  profileMenuIconText: {
+    fontSize: 18
+  },
+
+  profileMenuTextBlock: {
+    flex: 1
+  },
+
+  profileMenuTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "900"
+  },
+
+  profileMenuDetail: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 3
+  },
+
+  profileMenuChevron: {
+    color: colors.muted,
+    fontSize: 28,
+    fontWeight: "700"
+  },
+
+  profileNav: {
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 16
+  },
+
+  profileNavButton: {
+    backgroundColor: "#8FB9B4",
+    borderColor: "#8FB9B4",
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 15
+  },
+
+  profileNavButtonActive: {
+    backgroundColor: "#7EA9B8",
+    borderColor: "#7EA9B8"
+  },
+
+  profileNavButtonText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "900"
+  },
+
+  profileNavButtonTextActive: {
+    color: "#FFFFFF"
   },
 
   error: {

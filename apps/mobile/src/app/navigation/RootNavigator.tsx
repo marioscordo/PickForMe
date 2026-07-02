@@ -2,13 +2,27 @@
 import { View } from "react-native";
 import { LoginScreen } from "../../screens/auth/LoginScreen";
 import { PickScreen } from "../../screens/pick/PickScreen";
-import { ProfileScreen } from "../../screens/profile/ProfileScreen";
+import { ProfileScreen, type ProfileSection } from "../../screens/profile/ProfileScreen";
 import type { AuthState } from "../../types/auth";
 import { styles } from "../../theme/styles";
 import { BottomTabs } from "./PickTabs";
 
 export function RootNavigator({ auth }: { auth: AuthState }) {
   const [activeTab, setActiveTab] = useState<"pick" | "profile">("pick");
+  const [activeProfileSection, setActiveProfileSection] = useState<ProfileSection | null>(null);
+
+  const visibleActiveTab = activeTab === "profile" && activeProfileSection ? null : activeTab;
+
+  function handleTabPress(tab: "pick" | "profile") {
+    if (tab === "pick") {
+      setActiveProfileSection(null);
+      setActiveTab("pick");
+      return;
+    }
+
+    setActiveProfileSection(null);
+    setActiveTab("profile");
+  }
 
   if (auth.status === "anonymous") {
     return <LoginScreen />;
@@ -19,10 +33,10 @@ export function RootNavigator({ auth }: { auth: AuthState }) {
       {activeTab === "pick" ? (
         <PickScreen />
       ) : (
-        <ProfileScreen onGoToMenu={() => setActiveTab("pick")} />
+        <ProfileScreen activeSection={activeProfileSection} setActiveSection={setActiveProfileSection} />
       )}
 
-      <BottomTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+      <BottomTabs activeTab={visibleActiveTab} setActiveTab={handleTabPress} />
     </View>
   );
 }

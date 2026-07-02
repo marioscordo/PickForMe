@@ -92,10 +92,15 @@
   },
   "profileScreen": {
     "title": "Profil",
+    "chevron": "›",
+    "activeStatus": "{count} aktiv",
+    "emptyStatus": "keine Angabe",
+    "generalIcon": "⚙️",
+    "generalButton": "Allgemein",
+    "preferencesButton": "Meine Vorlieben",
+    "exclusionsButton": "Meine Ausschlüsse",
+    "intolerancesButton": "Allergien und Unverträglichkeiten",
     "subtitle": "PickForMe merkt sich, was Dir wichtig ist - ohne Fragebogen.",
-    "readyTitle": "Bereit für die Speisekarte?",
-    "readySubtitle": "Dein Profil wirkt sofort bei der nächsten Empfehlung.",
-    "goToMenu": "Zur Speisekarte",
     "signOut": "Abmelden"
   },
   "outputLocale": {
@@ -138,44 +143,48 @@
     "deleteIntoleranceMessage": "„{value}“ wird dauerhaft aus deiner Allergien-/Unverträglichkeiten-Liste entfernt.",
     "deleteExceptionTitle": "Ausnahme löschen?",
     "deleteExceptionMessage": "„{value}“ wird dauerhaft aus deiner Ausnahmen-Liste entfernt.",
+    "preferenceValueIcon": "👍",
+    "exclusionValueIcon": "👎",
+    "intoleranceValueIcon": "🚫",
+    "exceptionValueIcon": "✓",
     "preferenceOptions": [
       {
-        "label": "🍗 Ich esse Fleisch",
+        "label": "Fleisch",
         "value": "Fleisch",
         "kind": "like"
       },
       {
-        "label": "🐟 Ich esse Fisch",
+        "label": "Fisch",
         "value": "Fisch",
         "kind": "like"
       },
       {
-        "label": "🥗 Ich esse vegetarisch",
+        "label": "vegetarisch",
         "value": "vegetarisch",
         "kind": "diet"
       },
       {
-        "label": "🌱 Ich esse vegan",
+        "label": "vegan",
         "value": "vegan",
         "kind": "diet"
       },
       {
-        "label": "🌶️ Ich mag es scharf",
+        "label": "Scharf",
         "value": "Scharf",
         "kind": "like"
       },
       {
-        "label": "🍝 Ich mag große Portionen",
+        "label": "Große Portionen",
         "value": "Große Portionen",
         "kind": "like"
       },
       {
-        "label": "💸 Ich bevorzuge günstige Gerichte",
+        "label": "Günstig",
         "value": "Günstig",
         "kind": "like"
       },
       {
-        "label": "💪 Ich esse proteinreich",
+        "label": "Proteinreich",
         "value": "Proteinreich",
         "kind": "like"
       }
@@ -189,16 +198,46 @@
       "vegan"
     ],
     "quickExclusions": [
-      "🐷 Kein Schweinefleisch",
-      "🍷 Kein Alkohol im Essen",
-      "🥩 Kein Rindfleisch",
-      "🐑 Kein Lamm",
-      "🦐 Keine Meeresfrüchte",
-      "🍄 Keine Pilze",
-      "🌿 Kein Koriander",
-      "🚫 Keine Innereien",
-      "🐟 Kein Grätenfisch",
-      "🚫 Keine Leber"
+      {
+        "label": "Schweinefleisch",
+        "value": "Kein Schweinefleisch"
+      },
+      {
+        "label": "Alkohol im Essen",
+        "value": "Kein Alkohol im Essen"
+      },
+      {
+        "label": "Rindfleisch",
+        "value": "Kein Rindfleisch"
+      },
+      {
+        "label": "Lamm",
+        "value": "Kein Lamm"
+      },
+      {
+        "label": "Meeresfrüchte",
+        "value": "Keine Meeresfrüchte"
+      },
+      {
+        "label": "Pilze",
+        "value": "Keine Pilze"
+      },
+      {
+        "label": "Koriander",
+        "value": "Kein Koriander"
+      },
+      {
+        "label": "Innereien",
+        "value": "Keine Innereien"
+      },
+      {
+        "label": "Grätenfisch",
+        "value": "Kein Grätenfisch"
+      },
+      {
+        "label": "Leber",
+        "value": "Keine Leber"
+      }
     ],
     "quickExceptions": [
       "Muscheln in Weißweinsoße",
@@ -207,20 +246,35 @@
       "Fisch ohne Gräten"
     ],
     "allergyOptions": [
-      "⚠️ Laktose",
-      "⚠️ Gluten",
-      "⚠️ Nüsse",
-      "⚠️ Ei",
-      "⚠️ Soja",
-      "⚠️ Sellerie",
-      "⚠️ Fructose"
-    ],
-    "customPreferencePrefix": "✨",
-    "customExclusionPrefix": "🚫",
-    "customIntolerancePrefix": "⚠️",
-    "exceptionPrefix": "✅",
-    "deletePrefix": "✕",
-    "addPrefix": "➕"
+      {
+        "label": "Laktose",
+        "value": "Laktose"
+      },
+      {
+        "label": "Gluten",
+        "value": "Gluten"
+      },
+      {
+        "label": "Nüsse",
+        "value": "Nüsse"
+      },
+      {
+        "label": "Ei",
+        "value": "Ei"
+      },
+      {
+        "label": "Soja",
+        "value": "Soja"
+      },
+      {
+        "label": "Sellerie",
+        "value": "Sellerie"
+      },
+      {
+        "label": "Fructose",
+        "value": "Fructose"
+      }
+    ]
   },
   "analysisErrors": {
     "unsafeProfile": "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",

@@ -7,7 +7,7 @@ export function BottomTabs({
   activeTab,
   setActiveTab
 }: {
-  activeTab: "pick" | "profile";
+  activeTab: "pick" | "profile" | null;
   setActiveTab: (tab: "pick" | "profile") => void;
 }) {
   const content = useMobileContent();

@@ -12,19 +12,28 @@ type PreferenceOption = {
   kind: "like" | "diet";
 };
 
+type ValueOption = string | {
+  label: string;
+  value: string;
+};
+
+export type ProfileEditorSection = "preferences" | "exclusions" | "intolerances";
+
 export function ProfileEditor({
   profile,
-  setProfile
+  setProfile,
+  section
 }: {
   profile: UserProfile;
   setProfile: (profile: UserProfile) => void;
+  section: ProfileEditorSection;
 }) {
   const content = useMobileContent();
   const editor = content.profileEditor;
   const preferenceOptions = editor.preferenceOptions as PreferenceOption[];
-  const quickExclusions = editor.quickExclusions;
+  const quickExclusions = editor.quickExclusions as ValueOption[];
   const quickExceptions = editor.quickExceptions;
-  const allergyOptions = editor.allergyOptions;
+  const allergyOptions = editor.allergyOptions as ValueOption[];
   const normalDietPreferenceValues = editor.normalDietPreferenceValues;
   const exclusiveDietPreferenceValues = editor.exclusiveDietPreferenceValues;
 
@@ -46,8 +55,8 @@ export function ProfileEditor({
   const hiddenExceptions = profile.hiddenExceptions ?? [];
 
   const quickPreferenceValues = preferenceOptions.map((option) => option.value);
-  const quickExclusionValues = quickExclusions.map((label) => chipValue(label));
-  const quickIntoleranceValues = allergyOptions.map((label) => chipValue(label));
+  const quickExclusionValues = quickExclusions.map((option) => optionValue(option));
+  const quickIntoleranceValues = allergyOptions.map((option) => optionValue(option));
 
   const visiblePreferenceOptions = preferenceOptions.filter(
     (option) => !includesValue(hiddenPreferences, option.value)
@@ -59,7 +68,7 @@ export function ProfileEditor({
   ]).filter((value) => !includesValue(hiddenPreferences, value));
 
   const visibleQuickExclusions = quickExclusions.filter(
-    (label) => !includesValue(hiddenExclusions, chipValue(label))
+    (option) => !includesValue(hiddenExclusions, optionValue(option))
   );
 
   const visibleCustomExclusionValues = uniqueValues([
@@ -68,7 +77,7 @@ export function ProfileEditor({
   ]).filter((value) => !includesValue(hiddenExclusions, value));
 
   const visibleAllergyOptions = allergyOptions.filter(
-    (label) => !includesValue(hiddenIntolerances, chipValue(label))
+    (option) => !includesValue(hiddenIntolerances, optionValue(option))
   );
 
   const visibleCustomIntoleranceValues = uniqueValues([
@@ -291,11 +300,9 @@ export function ProfileEditor({
   }
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.h2}>{editor.introTitle}</Text>
-      <Text style={styles.subtitle}>{editor.introSubtitle}</Text>
-
-      <View style={styles.profileSection}>
+    <View style={styles.profileEditorSurface}>
+      {section === "preferences" ? (
+        <View style={styles.profileDetailBlock}>
         <Text style={styles.profileSectionTitle}>{editor.preferencesTitle}</Text>
         <Text style={styles.profileSectionHint}>{editor.preferencesHint}</Text>
 
@@ -310,6 +317,7 @@ export function ProfileEditor({
               <Chip
                 key={option.value}
                 label={option.label}
+                icon={editor.preferenceValueIcon}
                 active={active}
                 onPress={() => {
                   if (option.kind === "diet") {
@@ -325,7 +333,8 @@ export function ProfileEditor({
           {visibleCustomPreferenceValues.map((value) => (
             <Chip
               key={value}
-              label={withPrefix(editor.customPreferencePrefix, value)}
+              label={value}
+              icon={editor.preferenceValueIcon}
               active={profile.primaryLikes.includes(value)}
               onPress={() => toggleLike(value)}
             />
@@ -345,7 +354,7 @@ export function ProfileEditor({
 
           <Pressable style={styles.ghostButton} onPress={addCustomPreference}>
             <Text style={styles.ghostButtonText}>
-              {withPrefix(editor.addPrefix, editor.addPreferenceButton)}
+              {labelWithIcon(editor.addPreferenceButton, editor.preferenceValueIcon)}
             </Text>
           </Pressable>
         </View>
@@ -355,29 +364,32 @@ export function ProfileEditor({
             <Text style={styles.label}>{editor.deleteActivePreferencesLabel}</Text>
             <View style={styles.chipRow}>
               {profile.dietStyle !== "normal" ? (
-                <Chip label={withPrefix(editor.deletePrefix, profile.dietStyle)} active onPress={deleteDietStyle} />
+                <Chip label={profile.dietStyle} icon={editor.preferenceValueIcon} active onPress={deleteDietStyle} />
               ) : null}
 
               {profile.primaryLikes.map((value) => (
-                <Chip key={value} label={withPrefix(editor.deletePrefix, value)} active onPress={() => deletePreference(value)} />
+                <Chip key={value} label={value} icon={editor.preferenceValueIcon} active onPress={() => deletePreference(value)} />
               ))}
             </View>
           </View>
         ) : null}
-      </View>
+        </View>
+      ) : null}
 
-      <View style={styles.profileSection}>
+      {section === "exclusions" ? (
+        <View style={styles.profileDetailBlock}>
         <Text style={styles.profileSectionTitle}>{editor.exclusionsTitle}</Text>
         <Text style={styles.profileSectionHint}>{editor.exclusionsHint}</Text>
 
         <View style={styles.chipRow}>
-          {visibleQuickExclusions.map((label) => {
-            const value = chipValue(label);
+          {visibleQuickExclusions.map((option) => {
+            const value = optionValue(option);
 
             return (
               <Chip
                 key={value}
-                label={label}
+                label={optionLabel(option)}
+                icon={editor.exclusionValueIcon}
                 active={profile.dislikes.includes(value)}
                 onPress={() => toggleDislike(value)}
               />
@@ -387,7 +399,8 @@ export function ProfileEditor({
           {visibleCustomExclusionValues.map((value) => (
             <Chip
               key={value}
-              label={withPrefix(editor.customExclusionPrefix, value)}
+              label={value}
+              icon={editor.exclusionValueIcon}
               active={profile.dislikes.includes(value)}
               onPress={() => toggleDislike(value)}
             />
@@ -407,7 +420,7 @@ export function ProfileEditor({
 
           <Pressable style={styles.ghostButton} onPress={addCustomExclusion}>
             <Text style={styles.ghostButtonText}>
-              {withPrefix(editor.addPrefix, editor.addExclusionButton)}
+              {labelWithIcon(editor.addExclusionButton, editor.exclusionValueIcon)}
             </Text>
           </Pressable>
         </View>
@@ -417,7 +430,7 @@ export function ProfileEditor({
             <Text style={styles.label}>{editor.deleteActiveExclusionsLabel}</Text>
             <View style={styles.chipRow}>
               {profile.dislikes.map((value) => (
-                <Chip key={value} label={withPrefix(editor.deletePrefix, value)} active onPress={() => deleteExclusion(value)} />
+                <Chip key={value} label={value} icon={editor.exclusionValueIcon} active onPress={() => deleteExclusion(value)} />
               ))}
             </View>
           </View>
@@ -433,7 +446,8 @@ export function ProfileEditor({
             {visibleQuickExceptions.map((value) => (
               <Chip
                 key={value}
-                label={withPrefix(editor.exceptionPrefix, value)}
+                label={value}
+                icon={editor.exceptionValueIcon}
                 active={exceptions.includes(value)}
                 onPress={() => toggleException(value)}
               />
@@ -442,7 +456,8 @@ export function ProfileEditor({
             {visibleCustomExceptionValues.map((value) => (
               <Chip
                 key={value}
-                label={withPrefix(editor.exceptionPrefix, value)}
+                label={value}
+                icon={editor.exceptionValueIcon}
                 active={exceptions.includes(value)}
                 onPress={() => toggleException(value)}
               />
@@ -460,7 +475,7 @@ export function ProfileEditor({
 
           <Pressable style={styles.ghostButton} onPress={addCustomException}>
             <Text style={styles.ghostButtonText}>
-              {withPrefix(editor.addPrefix, editor.addExceptionButton)}
+              {labelWithIcon(editor.addExceptionButton, editor.exceptionValueIcon)}
             </Text>
           </Pressable>
 
@@ -469,15 +484,17 @@ export function ProfileEditor({
               <Text style={styles.label}>{editor.deleteActiveExceptionsLabel}</Text>
               <View style={styles.chipRow}>
                 {exceptions.map((value) => (
-                  <Chip key={value} label={withPrefix(editor.deletePrefix, value)} active onPress={() => deleteException(value)} />
+                  <Chip key={value} label={value} icon={editor.exceptionValueIcon} active onPress={() => deleteException(value)} />
                 ))}
               </View>
             </View>
           ) : null}
         </View>
-      </View>
+        </View>
+      ) : null}
 
-      <View style={styles.profileSection}>
+      {section === "intolerances" ? (
+        <View style={styles.profileDetailBlock}>
         <Text style={styles.profileSectionTitle}>{editor.intolerancesTitle}</Text>
         <Text style={styles.profileSectionHint}>{editor.intolerancesHint}</Text>
 
@@ -486,13 +503,14 @@ export function ProfileEditor({
         </Text>
 
         <View style={styles.chipRow}>
-          {visibleAllergyOptions.map((label) => {
-            const value = chipValue(label);
+          {visibleAllergyOptions.map((option) => {
+            const value = optionValue(option);
 
             return (
               <Chip
                 key={value}
-                label={label}
+                label={optionLabel(option)}
+                icon={editor.intoleranceValueIcon}
                 active={profile.intolerances.includes(value)}
                 onPress={() => toggleIntolerance(value)}
               />
@@ -502,7 +520,8 @@ export function ProfileEditor({
           {visibleCustomIntoleranceValues.map((value) => (
             <Chip
               key={value}
-              label={withPrefix(editor.customIntolerancePrefix, value)}
+              label={value}
+              icon={editor.intoleranceValueIcon}
               active={profile.intolerances.includes(value)}
               onPress={() => toggleIntolerance(value)}
             />
@@ -522,7 +541,7 @@ export function ProfileEditor({
 
           <Pressable style={styles.ghostButton} onPress={addCustomIntolerance}>
             <Text style={styles.ghostButtonText}>
-              {withPrefix(editor.addPrefix, editor.addIntoleranceButton)}
+              {labelWithIcon(editor.addIntoleranceButton, editor.intoleranceValueIcon)}
             </Text>
           </Pressable>
         </View>
@@ -532,22 +551,27 @@ export function ProfileEditor({
             <Text style={styles.label}>{editor.deleteActiveIntolerancesLabel}</Text>
             <View style={styles.chipRow}>
               {profile.intolerances.map((value) => (
-                <Chip key={value} label={withPrefix(editor.deletePrefix, value)} active onPress={() => deleteIntolerance(value)} />
+                <Chip key={value} label={value} icon={editor.intoleranceValueIcon} active onPress={() => deleteIntolerance(value)} />
               ))}
             </View>
           </View>
         ) : null}
-      </View>
+        </View>
+      ) : null}
     </View>
   );
 }
 
-function withPrefix(prefix: string, value: string) {
-  return `${prefix} ${value}`;
+function optionLabel(option: ValueOption) {
+  return typeof option === "string" ? option : option.label;
 }
 
-function chipValue(label: string) {
-  return label.replace(/^.+? /, "");
+function optionValue(option: ValueOption) {
+  return typeof option === "string" ? option : option.value;
+}
+
+function labelWithIcon(value: string, icon: string) {
+  return `${icon} ${value}`.trim();
 }
 
 function toggleValue(values: string[], value: string) {
