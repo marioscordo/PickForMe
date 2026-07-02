@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { OUTPUT_LOCALES, resolveOutputLocale } from "../../config/outputLocales";
+import { useMobileContent } from "../../content/useMobileContent";
 import { colors } from "../../theme/styles";
 
 type OutputLocaleFieldProps = {
@@ -9,6 +10,7 @@ type OutputLocaleFieldProps = {
 };
 
 export function OutputLocaleField({ value, onChange }: OutputLocaleFieldProps) {
+  const content = useMobileContent();
   const [open, setOpen] = useState(false);
   const selectedLocale = resolveOutputLocale(value);
   const options = useMemo(
@@ -28,20 +30,20 @@ export function OutputLocaleField({ value, onChange }: OutputLocaleFieldProps) {
 
   return (
     <View style={local.field}>
-      <Text style={local.label}>Ausgabesprache</Text>
+      <Text style={local.label}>{content.outputLocale.label}</Text>
       <Pressable
         accessibilityRole="button"
         style={local.select}
         onPress={() => setOpen(true)}
       >
         <Text style={local.selectText}>{selectedLabel}</Text>
-        <Text style={local.chevron}>⌄</Text>
+        <Text style={local.chevron}>{content.outputLocale.chevron}</Text>
       </Pressable>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={local.backdrop} onPress={() => setOpen(false)}>
           <View style={local.menu}>
-            <Text style={local.menuTitle}>Ausgabesprache</Text>
+            <Text style={local.menuTitle}>{content.outputLocale.menuTitle}</Text>
             {options.map((option) => {
               const active = option.locale === selectedLocale;
 

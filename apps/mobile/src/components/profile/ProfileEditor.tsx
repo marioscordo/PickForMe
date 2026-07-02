@@ -1,50 +1,16 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Alert, Pressable, Text, TextInput, View } from "react-native";
-import { Chip } from "../ui/Chip";
+import { formatContent } from "../../content/mobileContent";
+import { useMobileContent } from "../../content/useMobileContent";
 import { styles } from "../../theme/styles";
 import type { UserProfile } from "../../types/profile";
+import { Chip } from "../ui/Chip";
 
-const PREFERENCE_OPTIONS = [
-  { label: "🍗 Ich esse Fleisch", value: "Fleisch", kind: "like" },
-  { label: "🐟 Ich esse Fisch", value: "Fisch", kind: "like" },
-  { label: "🥗 Ich esse vegetarisch", value: "vegetarisch", kind: "diet" },
-  { label: "🌱 Ich esse vegan", value: "vegan", kind: "diet" },
-  { label: "🌶️ Ich mag es scharf", value: "Scharf", kind: "like" },
-  { label: "🍝 Ich mag große Portionen", value: "Große Portionen", kind: "like" },
-  { label: "💸 Ich bevorzuge günstige Gerichte", value: "Günstig", kind: "like" },
-  { label: "💪 Ich esse proteinreich", value: "Proteinreich", kind: "like" }
-] as const;
-
-const QUICK_EXCLUSIONS = [
-  "🐷 Kein Schweinefleisch",
-  "🍷 Kein Alkohol im Essen",
-  "🥩 Kein Rindfleisch",
-  "🐑 Kein Lamm",
-  "🦐 Keine Meeresfrüchte",
-  "🍄 Keine Pilze",
-  "🌿 Kein Koriander",
-  "🚫 Keine Innereien",
-  "🐟 Kein Grätenfisch",
-  "🚫 Keine Leber"
-];
-
-const QUICK_EXCEPTIONS = [
-  "Muscheln in Weißweinsoße",
-  "Muscheln in Tomatensoße",
-  "Garnelen als Vorspeise",
-  "Fisch ohne Gräten"
-];
-
-const ALLERGY_OPTIONS = [
-  "⚠️ Laktose",
-  "⚠️ Gluten",
-  "⚠️ Nüsse",
-  "⚠️ Ei",
-  "⚠️ Soja",
-  "⚠️ Sellerie",
-  "⚠️ Fructose"
-];
-
+type PreferenceOption = {
+  label: string;
+  value: string;
+  kind: "like" | "diet";
+};
 
 export function ProfileEditor({
   profile,
@@ -53,6 +19,15 @@ export function ProfileEditor({
   profile: UserProfile;
   setProfile: (profile: UserProfile) => void;
 }) {
+  const content = useMobileContent();
+  const editor = content.profileEditor;
+  const preferenceOptions = editor.preferenceOptions as PreferenceOption[];
+  const quickExclusions = editor.quickExclusions;
+  const quickExceptions = editor.quickExceptions;
+  const allergyOptions = editor.allergyOptions;
+  const normalDietPreferenceValues = editor.normalDietPreferenceValues;
+  const exclusiveDietPreferenceValues = editor.exclusiveDietPreferenceValues;
+
   const [customPreference, setCustomPreference] = useState("");
   const [customExclusion, setCustomExclusion] = useState("");
   const [customException, setCustomException] = useState("");
@@ -70,11 +45,11 @@ export function ProfileEditor({
   const hiddenIntolerances = profile.hiddenIntolerances ?? [];
   const hiddenExceptions = profile.hiddenExceptions ?? [];
 
-  const quickPreferenceValues = PREFERENCE_OPTIONS.map((option) => option.value);
-  const quickExclusionValues = QUICK_EXCLUSIONS.map((label) => chipValue(label));
-  const quickIntoleranceValues = ALLERGY_OPTIONS.map((label) => chipValue(label));
+  const quickPreferenceValues = preferenceOptions.map((option) => option.value);
+  const quickExclusionValues = quickExclusions.map((label) => chipValue(label));
+  const quickIntoleranceValues = allergyOptions.map((label) => chipValue(label));
 
-  const visiblePreferenceOptions = PREFERENCE_OPTIONS.filter(
+  const visiblePreferenceOptions = preferenceOptions.filter(
     (option) => !includesValue(hiddenPreferences, option.value)
   );
 
@@ -83,7 +58,7 @@ export function ProfileEditor({
     ...profile.primaryLikes.filter((value) => !includesValue(quickPreferenceValues, value))
   ]).filter((value) => !includesValue(hiddenPreferences, value));
 
-  const visibleQuickExclusions = QUICK_EXCLUSIONS.filter(
+  const visibleQuickExclusions = quickExclusions.filter(
     (label) => !includesValue(hiddenExclusions, chipValue(label))
   );
 
@@ -92,7 +67,7 @@ export function ProfileEditor({
     ...profile.dislikes.filter((value) => !includesValue(quickExclusionValues, value))
   ]).filter((value) => !includesValue(hiddenExclusions, value));
 
-  const visibleAllergyOptions = ALLERGY_OPTIONS.filter(
+  const visibleAllergyOptions = allergyOptions.filter(
     (label) => !includesValue(hiddenIntolerances, chipValue(label))
   );
 
@@ -101,13 +76,13 @@ export function ProfileEditor({
     ...profile.intolerances.filter((value) => !includesValue(quickIntoleranceValues, value))
   ]).filter((value) => !includesValue(hiddenIntolerances, value));
 
-  const visibleQuickExceptions = QUICK_EXCEPTIONS.filter(
+  const visibleQuickExceptions = quickExceptions.filter(
     (value) => !includesValue(hiddenExceptions, value)
   );
 
   const visibleCustomExceptionValues = uniqueValues([
     ...customExceptions,
-    ...exceptions.filter((value) => !includesValue(QUICK_EXCEPTIONS, value))
+    ...exceptions.filter((value) => !includesValue(quickExceptions, value))
   ]).filter((value) => !includesValue(hiddenExceptions, value));
 
   function updateProfile(patch: Partial<UserProfile>) {
@@ -119,19 +94,19 @@ export function ProfileEditor({
 
   function confirmDelete(title: string, message: string, onDelete: () => void) {
     Alert.alert(title, message, [
-      { text: "Abbrechen", style: "cancel" },
-      { text: "Löschen", style: "destructive", onPress: onDelete }
+      { text: content.common.cancel, style: "cancel" },
+      { text: content.common.delete, style: "destructive", onPress: onDelete }
     ]);
   }
 
   function toggleLike(value: string) {
     const primaryLikes = toggleValue(profile.primaryLikes, value);
-    const dietStyle = value === "Fleisch" || value === "Fisch" ? "normal" : profile.dietStyle;
+    const switchesToNormalDiet = includesValue(normalDietPreferenceValues, value);
+    const dietStyle = switchesToNormalDiet ? "normal" : profile.dietStyle;
 
-    const cleanedPrimaryLikes =
-      value === "Fleisch" || value === "Fisch"
-        ? primaryLikes.filter((item) => item !== "vegan" && item !== "vegetarisch")
-        : primaryLikes;
+    const cleanedPrimaryLikes = switchesToNormalDiet
+      ? primaryLikes.filter((item) => !includesValue(exclusiveDietPreferenceValues, item))
+      : primaryLikes;
 
     updateProfile({
       primaryLikes: cleanedPrimaryLikes,
@@ -158,10 +133,9 @@ export function ProfileEditor({
   }
 
   function setDietStyle(dietStyle: UserProfile["dietStyle"]) {
-    const primaryLikes =
-      dietStyle === "vegetarisch" || dietStyle === "vegan"
-        ? profile.primaryLikes.filter((item) => item !== "Fleisch" && item !== "Fisch")
-        : profile.primaryLikes;
+    const primaryLikes = includesValue(exclusiveDietPreferenceValues, dietStyle)
+      ? profile.primaryLikes.filter((item) => !includesValue(normalDietPreferenceValues, item))
+      : profile.primaryLikes;
 
     updateProfile({ dietStyle, primaryLikes });
   }
@@ -174,8 +148,8 @@ export function ProfileEditor({
     }
 
     confirmDelete(
-      "Vorliebe löschen?",
-      `„${value}“ wird dauerhaft aus deiner Vorlieben-Liste entfernt.`,
+      editor.deletePreferenceTitle,
+      formatContent(editor.deletePreferenceMessage, { value }),
       () =>
         updateProfile({
           dietStyle: "normal",
@@ -188,8 +162,8 @@ export function ProfileEditor({
     const isQuick = includesValue(quickPreferenceValues, value);
 
     confirmDelete(
-      "Vorliebe löschen?",
-      `„${value}“ wird dauerhaft aus deiner Vorlieben-Liste entfernt.`,
+      editor.deletePreferenceTitle,
+      formatContent(editor.deletePreferenceMessage, { value }),
       () =>
         updateProfile({
           primaryLikes: removeValue(profile.primaryLikes, value),
@@ -227,8 +201,8 @@ export function ProfileEditor({
     const isQuick = includesValue(quickExclusionValues, value);
 
     confirmDelete(
-      "Ausschluss löschen?",
-      `„${value}“ wird dauerhaft aus deiner Ausschluss-Liste entfernt.`,
+      editor.deleteExclusionTitle,
+      formatContent(editor.deleteExclusionMessage, { value }),
       () =>
         updateProfile({
           dislikes: removeValue(profile.dislikes, value),
@@ -266,8 +240,8 @@ export function ProfileEditor({
     const isQuick = includesValue(quickIntoleranceValues, value);
 
     confirmDelete(
-      "Unverträglichkeit löschen?",
-      `„${value}“ wird dauerhaft aus deiner Allergien-/Unverträglichkeiten-Liste entfernt.`,
+      editor.deleteIntoleranceTitle,
+      formatContent(editor.deleteIntoleranceMessage, { value }),
       () =>
         updateProfile({
           intolerances: removeValue(profile.intolerances, value),
@@ -290,7 +264,7 @@ export function ProfileEditor({
       return;
     }
 
-    const isQuick = includesValue(QUICK_EXCEPTIONS, value);
+    const isQuick = includesValue(quickExceptions, value);
 
     updateProfile({
       exceptions: addUnique(exceptions, value),
@@ -302,11 +276,11 @@ export function ProfileEditor({
   }
 
   function deleteException(value: string) {
-    const isQuick = includesValue(QUICK_EXCEPTIONS, value);
+    const isQuick = includesValue(quickExceptions, value);
 
     confirmDelete(
-      "Ausnahme löschen?",
-      `„${value}“ wird dauerhaft aus deiner Ausnahmen-Liste entfernt.`,
+      editor.deleteExceptionTitle,
+      formatContent(editor.deleteExceptionMessage, { value }),
       () =>
         updateProfile({
           exceptions: removeValue(exceptions, value),
@@ -318,12 +292,12 @@ export function ProfileEditor({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.h2}>Sag mir kurz, worauf ich achten soll 😊</Text>
-      <Text style={styles.subtitle}>Alles freiwillig. PickForMe nutzt es sofort für bessere Empfehlungen.</Text>
+      <Text style={styles.h2}>{editor.introTitle}</Text>
+      <Text style={styles.subtitle}>{editor.introSubtitle}</Text>
 
       <View style={styles.profileSection}>
-        <Text style={styles.profileSectionTitle}>Meine Vorlieben</Text>
-        <Text style={styles.profileSectionHint}>Was PickForMe bei Empfehlungen bevorzugen soll.</Text>
+        <Text style={styles.profileSectionTitle}>{editor.preferencesTitle}</Text>
+        <Text style={styles.profileSectionHint}>{editor.preferencesHint}</Text>
 
         <View style={styles.chipRow}>
           {visiblePreferenceOptions.map((option) => {
@@ -339,7 +313,7 @@ export function ProfileEditor({
                 active={active}
                 onPress={() => {
                   if (option.kind === "diet") {
-                    setDietStyle(option.value);
+                    setDietStyle(option.value as UserProfile["dietStyle"]);
                   } else {
                     toggleLike(option.value);
                   }
@@ -351,7 +325,7 @@ export function ProfileEditor({
           {visibleCustomPreferenceValues.map((value) => (
             <Chip
               key={value}
-              label={`✨ ${value}`}
+              label={withPrefix(editor.customPreferencePrefix, value)}
               active={profile.primaryLikes.includes(value)}
               onPress={() => toggleLike(value)}
             />
@@ -359,31 +333,33 @@ export function ProfileEditor({
         </View>
 
         <View style={styles.profileSubBlock}>
-          <Text style={styles.label}>Vorliebe hinzufügen</Text>
+          <Text style={styles.label}>{editor.addPreferenceLabel}</Text>
           <TextInput
             style={styles.input}
             value={customPreference}
             onChangeText={setCustomPreference}
-            placeholder="z. B. Steak, Sushi, proteinreich ..."
+            placeholder={editor.addPreferencePlaceholder}
             returnKeyType="done"
             onSubmitEditing={addCustomPreference}
           />
 
           <Pressable style={styles.ghostButton} onPress={addCustomPreference}>
-            <Text style={styles.ghostButtonText}>➕ Vorliebe hinzufügen</Text>
+            <Text style={styles.ghostButtonText}>
+              {withPrefix(editor.addPrefix, editor.addPreferenceButton)}
+            </Text>
           </Pressable>
         </View>
 
         {profile.primaryLikes.length > 0 || profile.dietStyle !== "normal" ? (
           <View style={styles.profileSubBlock}>
-            <Text style={styles.label}>Aktive Vorlieben löschen</Text>
+            <Text style={styles.label}>{editor.deleteActivePreferencesLabel}</Text>
             <View style={styles.chipRow}>
               {profile.dietStyle !== "normal" ? (
-                <Chip label={`✕ ${profile.dietStyle}`} active onPress={deleteDietStyle} />
+                <Chip label={withPrefix(editor.deletePrefix, profile.dietStyle)} active onPress={deleteDietStyle} />
               ) : null}
 
               {profile.primaryLikes.map((value) => (
-                <Chip key={value} label={`✕ ${value}`} active onPress={() => deletePreference(value)} />
+                <Chip key={value} label={withPrefix(editor.deletePrefix, value)} active onPress={() => deletePreference(value)} />
               ))}
             </View>
           </View>
@@ -391,8 +367,8 @@ export function ProfileEditor({
       </View>
 
       <View style={styles.profileSection}>
-        <Text style={styles.profileSectionTitle}>Meine Ausschlüsse 🚫</Text>
-        <Text style={styles.profileSectionHint}>Was PickForMe nicht empfehlen darf.</Text>
+        <Text style={styles.profileSectionTitle}>{editor.exclusionsTitle}</Text>
+        <Text style={styles.profileSectionHint}>{editor.exclusionsHint}</Text>
 
         <View style={styles.chipRow}>
           {visibleQuickExclusions.map((label) => {
@@ -411,7 +387,7 @@ export function ProfileEditor({
           {visibleCustomExclusionValues.map((value) => (
             <Chip
               key={value}
-              label={`🚫 ${value}`}
+              label={withPrefix(editor.customExclusionPrefix, value)}
               active={profile.dislikes.includes(value)}
               onPress={() => toggleDislike(value)}
             />
@@ -419,43 +395,45 @@ export function ProfileEditor({
         </View>
 
         <View style={styles.profileSubBlock}>
-          <Text style={styles.label}>Ausschluss hinzufügen</Text>
+          <Text style={styles.label}>{editor.addExclusionLabel}</Text>
           <TextInput
             style={styles.input}
             value={customExclusion}
             onChangeText={setCustomExclusion}
-            placeholder="z. B. Knoblauch, Kümmel, Lamm ..."
+            placeholder={editor.addExclusionPlaceholder}
             returnKeyType="done"
             onSubmitEditing={addCustomExclusion}
           />
 
           <Pressable style={styles.ghostButton} onPress={addCustomExclusion}>
-            <Text style={styles.ghostButtonText}>➕ Ausschluss hinzufügen</Text>
+            <Text style={styles.ghostButtonText}>
+              {withPrefix(editor.addPrefix, editor.addExclusionButton)}
+            </Text>
           </Pressable>
         </View>
 
         {profile.dislikes.length > 0 ? (
           <View style={styles.profileSubBlock}>
-            <Text style={styles.label}>Aktive Ausschlüsse löschen</Text>
+            <Text style={styles.label}>{editor.deleteActiveExclusionsLabel}</Text>
             <View style={styles.chipRow}>
               {profile.dislikes.map((value) => (
-                <Chip key={value} label={`✕ ${value}`} active onPress={() => deleteExclusion(value)} />
+                <Chip key={value} label={withPrefix(editor.deletePrefix, value)} active onPress={() => deleteExclusion(value)} />
               ))}
             </View>
           </View>
         ) : null}
 
         <View style={styles.profileSubBlock}>
-          <Text style={styles.label}>Ausnahmen</Text>
+          <Text style={styles.label}>{editor.exceptionsLabel}</Text>
           <Text style={styles.profileSectionHint}>
-            Wenn ein Ausschluss zu grob ist: Was darf trotzdem empfohlen werden?
+            {editor.exceptionsHint}
           </Text>
 
           <View style={styles.chipRow}>
             {visibleQuickExceptions.map((value) => (
               <Chip
                 key={value}
-                label={`✅ ${value}`}
+                label={withPrefix(editor.exceptionPrefix, value)}
                 active={exceptions.includes(value)}
                 onPress={() => toggleException(value)}
               />
@@ -464,7 +442,7 @@ export function ProfileEditor({
             {visibleCustomExceptionValues.map((value) => (
               <Chip
                 key={value}
-                label={`✅ ${value}`}
+                label={withPrefix(editor.exceptionPrefix, value)}
                 active={exceptions.includes(value)}
                 onPress={() => toggleException(value)}
               />
@@ -475,21 +453,23 @@ export function ProfileEditor({
             style={styles.input}
             value={customException}
             onChangeText={setCustomException}
-            placeholder="z. B. Muscheln in Tomatensoße ..."
+            placeholder={editor.addExceptionPlaceholder}
             returnKeyType="done"
             onSubmitEditing={addCustomException}
           />
 
           <Pressable style={styles.ghostButton} onPress={addCustomException}>
-            <Text style={styles.ghostButtonText}>➕ Ausnahme hinzufügen</Text>
+            <Text style={styles.ghostButtonText}>
+              {withPrefix(editor.addPrefix, editor.addExceptionButton)}
+            </Text>
           </Pressable>
 
           {exceptions.length > 0 ? (
             <View style={styles.profileSubBlock}>
-              <Text style={styles.label}>Aktive Ausnahmen löschen</Text>
+              <Text style={styles.label}>{editor.deleteActiveExceptionsLabel}</Text>
               <View style={styles.chipRow}>
                 {exceptions.map((value) => (
-                  <Chip key={value} label={`✕ ${value}`} active onPress={() => deleteException(value)} />
+                  <Chip key={value} label={withPrefix(editor.deletePrefix, value)} active onPress={() => deleteException(value)} />
                 ))}
               </View>
             </View>
@@ -498,12 +478,11 @@ export function ProfileEditor({
       </View>
 
       <View style={styles.profileSection}>
-        <Text style={styles.profileSectionTitle}>Allergien & Unverträglichkeiten ⚠️</Text>
-        <Text style={styles.profileSectionHint}>Diese Zutaten werden besonders streng berücksichtigt.</Text>
+        <Text style={styles.profileSectionTitle}>{editor.intolerancesTitle}</Text>
+        <Text style={styles.profileSectionHint}>{editor.intolerancesHint}</Text>
 
         <Text style={styles.profileSectionHint}>
-          Deine Sicherheit geht vor: PickForMe hilft dir bei der Auswahl – aber du entscheidest.
-          Bitte prüfe jedes Gericht selbst, wenn Allergien oder Unverträglichkeiten bestehen.
+          {editor.safetyHint}
         </Text>
 
         <View style={styles.chipRow}>
@@ -523,7 +502,7 @@ export function ProfileEditor({
           {visibleCustomIntoleranceValues.map((value) => (
             <Chip
               key={value}
-              label={`⚠️ ${value}`}
+              label={withPrefix(editor.customIntolerancePrefix, value)}
               active={profile.intolerances.includes(value)}
               onPress={() => toggleIntolerance(value)}
             />
@@ -531,27 +510,29 @@ export function ProfileEditor({
         </View>
 
         <View style={styles.profileSubBlock}>
-          <Text style={styles.label}>Unverträglichkeit hinzufügen</Text>
+          <Text style={styles.label}>{editor.addIntoleranceLabel}</Text>
           <TextInput
             style={styles.input}
             value={customIntolerance}
             onChangeText={setCustomIntolerance}
-            placeholder="z. B. Histamin, Zwiebeln, Fructose ..."
+            placeholder={editor.addIntolerancePlaceholder}
             returnKeyType="done"
             onSubmitEditing={addCustomIntolerance}
           />
 
           <Pressable style={styles.ghostButton} onPress={addCustomIntolerance}>
-            <Text style={styles.ghostButtonText}>➕ Unverträglichkeit hinzufügen</Text>
+            <Text style={styles.ghostButtonText}>
+              {withPrefix(editor.addPrefix, editor.addIntoleranceButton)}
+            </Text>
           </Pressable>
         </View>
 
         {profile.intolerances.length > 0 ? (
           <View style={styles.profileSubBlock}>
-            <Text style={styles.label}>Aktive Unverträglichkeiten löschen</Text>
+            <Text style={styles.label}>{editor.deleteActiveIntolerancesLabel}</Text>
             <View style={styles.chipRow}>
               {profile.intolerances.map((value) => (
-                <Chip key={value} label={`✕ ${value}`} active onPress={() => deleteIntolerance(value)} />
+                <Chip key={value} label={withPrefix(editor.deletePrefix, value)} active onPress={() => deleteIntolerance(value)} />
               ))}
             </View>
           </View>
@@ -559,6 +540,10 @@ export function ProfileEditor({
       </View>
     </View>
   );
+}
+
+function withPrefix(prefix: string, value: string) {
+  return `${prefix} ${value}`;
 }
 
 function chipValue(label: string) {
@@ -590,5 +575,3 @@ function uniqueValues(values: string[]) {
     return includesValue(result, value) ? result : [...result, value];
   }, []);
 }
-
-

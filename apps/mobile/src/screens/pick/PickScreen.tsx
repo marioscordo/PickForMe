@@ -5,18 +5,14 @@ import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
 import { RecommendationCard } from "../../components/pick/RecommendationCard";
 import { SituationSelector } from "../../components/pick/SituationSelector";
+import { useMobileContent } from "../../content/useMobileContent";
 import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
 import { styles } from "../../theme/styles";
 import type { Situation } from "../../types/profile";
 
-const LOADING_STEPS = [
-  "Speisekarte wird gelesen ...",
-  "Gerichte werden erkannt ...",
-  "Dein Profil wird beruecksichtigt ...",
-  "PickForMe waehlt passende Empfehlungen ..."
-];
-
 export function PickScreen() {
+  const content = useMobileContent();
+  const loadingSteps = content.pick.loadingSteps;
   const [menuText, setMenuText] = useState("");
   const [situation, setSituation] = useState<Situation>("richtig_hunger");
   const [showQrScanner, setShowQrScanner] = useState(false);
@@ -32,12 +28,12 @@ export function PickScreen() {
 
     const timer = setInterval(() => {
       setLoadingStepIndex((current) =>
-        Math.min(current + 1, LOADING_STEPS.length - 1)
+        Math.min(current + 1, loadingSteps.length - 1)
       );
     }, 7000);
 
     return () => clearInterval(timer);
-  }, [analyze.loading]);
+  }, [analyze.loading, loadingSteps.length]);
 
   function normalizeMenuUrl(value: string) {
     const trimmed = value.trim();
@@ -71,7 +67,7 @@ export function PickScreen() {
         {lastAnalyzedMenuUrl ? (
           <View style={local.openMenuSection}>
             <Pressable style={local.openMenuButton} onPress={openAnalyzedMenu}>
-              <Text style={local.openMenuButtonText}>Speisekarte öffnen</Text>
+              <Text style={local.openMenuButtonText}>{content.pick.openMenu}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -82,10 +78,8 @@ export function PickScreen() {
   return (
     <Screen>
       <View style={local.hero}>
-        <Text style={local.title}>Was passt heute?</Text>
-        <Text style={local.subtitle}>
-          {"Speisekarte rein. PickForMe kennt Dein Profil."}
-        </Text>
+        <Text style={local.title}>{content.pick.heroTitle}</Text>
+        <Text style={local.subtitle}>{content.pick.heroSubtitle}</Text>
       </View>
 
       <View style={local.quickRow}>
@@ -94,7 +88,7 @@ export function PickScreen() {
           onPress={() => setShowQrScanner(false)}
         >
           <Text style={[local.quickButtonText, !showQrScanner && local.quickButtonTextActive]}>
-            {"Einfügen"}
+            {content.pick.pasteTab}
           </Text>
         </Pressable>
 
@@ -103,7 +97,7 @@ export function PickScreen() {
           onPress={() => setShowQrScanner(true)}
         >
           <Text style={[local.quickButtonText, showQrScanner && local.quickButtonTextActive]}>
-            {"QR-Code"}
+            {content.pick.qrTab}
           </Text>
         </Pressable>
       </View>
@@ -121,16 +115,16 @@ export function PickScreen() {
       <MenuInputCard menuText={menuText} setMenuText={setMenuText} />
 
       <View style={local.moodCard}>
-        <Text style={local.moodTitle}>Heute passt am besten:</Text>
+        <Text style={local.moodTitle}>{content.pick.moodTitle}</Text>
         <SituationSelector situation={situation} setSituation={setSituation} />
       </View>
 
       {analyze.loading ? (
         <View style={local.loadingCard}>
-          <Text style={local.loadingTitle}>PickForMe arbeitet fuer Dich</Text>
-          <Text style={local.loadingText}>{LOADING_STEPS[loadingStepIndex]}</Text>
+          <Text style={local.loadingTitle}>{content.pick.loadingTitle}</Text>
+          <Text style={local.loadingText}>{loadingSteps[loadingStepIndex]}</Text>
           <View style={local.loadingDots}>
-            {LOADING_STEPS.map((_, index) => (
+            {loadingSteps.map((_, index) => (
               <View
                 key={index}
                 style={[
@@ -145,7 +139,7 @@ export function PickScreen() {
 
       {analyze.error ? (
         <View style={local.errorCard}>
-          <Text style={local.errorTitle}>Speisekarte nicht sicher ausgewertet</Text>
+          <Text style={local.errorTitle}>{content.pick.errorTitle}</Text>
           <Text style={local.errorText}>{analyze.error}</Text>
         </View>
       ) : null}
@@ -156,7 +150,7 @@ export function PickScreen() {
         disabled={analyze.loading}
       >
         <Text style={local.mainButtonText}>
-          {analyze.loading ? "Analyse läuft ..." : "Passende Gerichte finden"}
+          {analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}
         </Text>
       </Pressable>
     </Screen>
@@ -343,6 +337,5 @@ const local = StyleSheet.create({
   }
 
 });
-
 
 

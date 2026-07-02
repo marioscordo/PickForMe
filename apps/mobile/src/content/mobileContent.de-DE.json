@@ -1,0 +1,219 @@
+{
+  "common": {
+    "cancel": "Abbrechen",
+    "delete": "Löschen"
+  },
+  "navigation": {
+    "menu": "Speisekarte",
+    "profile": "Profil"
+  },
+  "pick": {
+    "heroTitle": "Was passt heute?",
+    "heroSubtitle": "Speisekarte rein. PickForMe kennt Dein Profil.",
+    "pasteTab": "Einfügen",
+    "qrTab": "QR-Code",
+    "moodTitle": "Heute passt am besten:",
+    "loadingTitle": "PickForMe arbeitet für Dich",
+    "loadingSteps": [
+      "Speisekarte wird gelesen ...",
+      "Gerichte werden erkannt ...",
+      "Dein Profil wird berücksichtigt ...",
+      "PickForMe wählt passende Empfehlungen ..."
+    ],
+    "errorTitle": "Speisekarte nicht sicher ausgewertet",
+    "mainButtonIdle": "Passende Gerichte finden",
+    "mainButtonLoading": "Analyse läuft ...",
+    "openMenu": "Speisekarte öffnen"
+  },
+  "menuInput": {
+    "kicker": "Speisekarte",
+    "title": "Einfügen",
+    "hint": "Link, PDF-Adresse oder Text einfügen.",
+    "placeholder": "Speisekarte oder Link hier einfügen..."
+  },
+  "qrScanner": {
+    "title": "QR-Code scannen",
+    "preparing": "Kamera wird vorbereitet...",
+    "permissionText": "PickForMe benötigt die Kamera, um QR-Codes von Speisekarten zu scannen.",
+    "allowCamera": "Kamera erlauben",
+    "instruction": "Richte die Kamera auf den QR-Code der Speisekarte.",
+    "close": "Scanner schließen"
+  },
+  "situations": [
+    {
+      "value": "richtig_hunger",
+      "label": "😋 Richtig Hunger"
+    },
+    {
+      "value": "leicht",
+      "label": "🤏 Etwas Leichtes"
+    },
+    {
+      "value": "neues_probieren",
+      "label": "🧪 Etwas Neues probieren"
+    },
+    {
+      "value": "sicher",
+      "label": "🛡️ Auf Nummer sicher gehen"
+    }
+  ],
+  "recommendation": {
+    "restaurantTitle": "Über das Restaurant",
+    "fallbackTitle": "Das passt heute zu Dir",
+    "fallbackText": "PickForMe ordnet die sicher erkannten Gerichte für Deine aktuelle Situation ein.",
+    "unsafeKicker": "Speisekarte nicht sicher ausgewertet",
+    "unsafeTitle": "Keine sichere Empfehlung",
+    "unsafeText": "Ich konnte daraus keine sicheren Empfehlungen erzeugen.",
+    "resetButton": "Neue Speisekarte prüfen",
+    "fallbackDishName": "Gericht",
+    "acceptButton": "Das nehme ich",
+    "ratingTitle": "Wie gut passt diese Empfehlung?",
+    "savedText": "Gespeichert: {rating} von 5 Sternen für Dein persönliches Ranking."
+  },
+  "profileScreen": {
+    "title": "Profil",
+    "subtitle": "PickForMe merkt sich, was Dir wichtig ist - ohne Fragebogen.",
+    "readyTitle": "Bereit für die Speisekarte?",
+    "readySubtitle": "Dein Profil wirkt sofort bei der nächsten Empfehlung.",
+    "goToMenu": "Zur Speisekarte",
+    "signOut": "Abmelden"
+  },
+  "outputLocale": {
+    "label": "Ausgabesprache",
+    "menuTitle": "Ausgabesprache",
+    "chevron": "⌄"
+  },
+  "profileEditor": {
+    "introTitle": "Sag mir kurz, worauf ich achten soll",
+    "introSubtitle": "Alles freiwillig. PickForMe nutzt es sofort für bessere Empfehlungen.",
+    "preferencesTitle": "Meine Vorlieben",
+    "preferencesHint": "Was PickForMe bei Empfehlungen bevorzugen soll.",
+    "addPreferenceLabel": "Vorliebe hinzufügen",
+    "addPreferencePlaceholder": "z. B. Steak, Sushi, proteinreich ...",
+    "addPreferenceButton": "Vorliebe hinzufügen",
+    "deleteActivePreferencesLabel": "Aktive Vorlieben löschen",
+    "exclusionsTitle": "Meine Ausschlüsse",
+    "exclusionsHint": "Was PickForMe nicht empfehlen darf.",
+    "addExclusionLabel": "Ausschluss hinzufügen",
+    "addExclusionPlaceholder": "z. B. Knoblauch, Kümmel, Lamm ...",
+    "addExclusionButton": "Ausschluss hinzufügen",
+    "deleteActiveExclusionsLabel": "Aktive Ausschlüsse löschen",
+    "exceptionsLabel": "Ausnahmen",
+    "exceptionsHint": "Wenn ein Ausschluss zu grob ist: Was darf trotzdem empfohlen werden?",
+    "addExceptionPlaceholder": "z. B. Muscheln in Tomatensoße ...",
+    "addExceptionButton": "Ausnahme hinzufügen",
+    "deleteActiveExceptionsLabel": "Aktive Ausnahmen löschen",
+    "intolerancesTitle": "Allergien & Unverträglichkeiten",
+    "intolerancesHint": "Diese Zutaten werden besonders streng berücksichtigt.",
+    "safetyHint": "Deine Sicherheit geht vor: PickForMe hilft dir bei der Auswahl - aber du entscheidest. Bitte prüfe jedes Gericht selbst, wenn Allergien oder Unverträglichkeiten bestehen.",
+    "addIntoleranceLabel": "Unverträglichkeit hinzufügen",
+    "addIntolerancePlaceholder": "z. B. Histamin, Zwiebeln, Fructose ...",
+    "addIntoleranceButton": "Unverträglichkeit hinzufügen",
+    "deleteActiveIntolerancesLabel": "Aktive Unverträglichkeiten löschen",
+    "deletePreferenceTitle": "Vorliebe löschen?",
+    "deletePreferenceMessage": "„{value}“ wird dauerhaft aus deiner Vorlieben-Liste entfernt.",
+    "deleteExclusionTitle": "Ausschluss löschen?",
+    "deleteExclusionMessage": "„{value}“ wird dauerhaft aus deiner Ausschluss-Liste entfernt.",
+    "deleteIntoleranceTitle": "Unverträglichkeit löschen?",
+    "deleteIntoleranceMessage": "„{value}“ wird dauerhaft aus deiner Allergien-/Unverträglichkeiten-Liste entfernt.",
+    "deleteExceptionTitle": "Ausnahme löschen?",
+    "deleteExceptionMessage": "„{value}“ wird dauerhaft aus deiner Ausnahmen-Liste entfernt.",
+    "preferenceOptions": [
+      {
+        "label": "🍗 Ich esse Fleisch",
+        "value": "Fleisch",
+        "kind": "like"
+      },
+      {
+        "label": "🐟 Ich esse Fisch",
+        "value": "Fisch",
+        "kind": "like"
+      },
+      {
+        "label": "🥗 Ich esse vegetarisch",
+        "value": "vegetarisch",
+        "kind": "diet"
+      },
+      {
+        "label": "🌱 Ich esse vegan",
+        "value": "vegan",
+        "kind": "diet"
+      },
+      {
+        "label": "🌶️ Ich mag es scharf",
+        "value": "Scharf",
+        "kind": "like"
+      },
+      {
+        "label": "🍝 Ich mag große Portionen",
+        "value": "Große Portionen",
+        "kind": "like"
+      },
+      {
+        "label": "💸 Ich bevorzuge günstige Gerichte",
+        "value": "Günstig",
+        "kind": "like"
+      },
+      {
+        "label": "💪 Ich esse proteinreich",
+        "value": "Proteinreich",
+        "kind": "like"
+      }
+    ],
+    "normalDietPreferenceValues": [
+      "Fleisch",
+      "Fisch"
+    ],
+    "exclusiveDietPreferenceValues": [
+      "vegetarisch",
+      "vegan"
+    ],
+    "quickExclusions": [
+      "🐷 Kein Schweinefleisch",
+      "🍷 Kein Alkohol im Essen",
+      "🥩 Kein Rindfleisch",
+      "🐑 Kein Lamm",
+      "🦐 Keine Meeresfrüchte",
+      "🍄 Keine Pilze",
+      "🌿 Kein Koriander",
+      "🚫 Keine Innereien",
+      "🐟 Kein Grätenfisch",
+      "🚫 Keine Leber"
+    ],
+    "quickExceptions": [
+      "Muscheln in Weißweinsoße",
+      "Muscheln in Tomatensoße",
+      "Garnelen als Vorspeise",
+      "Fisch ohne Gräten"
+    ],
+    "allergyOptions": [
+      "⚠️ Laktose",
+      "⚠️ Gluten",
+      "⚠️ Nüsse",
+      "⚠️ Ei",
+      "⚠️ Soja",
+      "⚠️ Sellerie",
+      "⚠️ Fructose"
+    ],
+    "customPreferencePrefix": "✨",
+    "customExclusionPrefix": "🚫",
+    "customIntolerancePrefix": "⚠️",
+    "exceptionPrefix": "✅",
+    "deletePrefix": "✕",
+    "addPrefix": "➕"
+  },
+  "analysisErrors": {
+    "unsafeProfile": "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
+    "generic": "Ich konnte diese Speisekarte nicht sicher auswerten.",
+    "auth": "Deine Sitzung ist nicht aktiv. Bitte melde Dich erneut an oder lade die App neu.",
+    "devAuth": "Der lokale Testzugang ist nicht aktiv. Bitte starte App und API neu.",
+    "apiConnection": "Ich konnte die API gerade nicht erreichen. Bitte prüfe, ob der lokale Server läuft.",
+    "dynamicMenuUnsupported": "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein.",
+    "menuUrlLoadFailed": "Diese Speisekarte konnte nicht geladen werden. Bitte prüfe den Link oder nutze eine PDF-Speisekarte.",
+    "aiRateLimit": "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal.",
+    "menuTooShort": "Bitte füge eine Speisekarte ein oder scanne einen QR-Code.",
+    "sourceKindUnsupported": "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.",
+    "pdfAiDisabled": "PDF-Speisekarten benötigen den KI-Modus.",
+    "noDishesFound": "Ich konnte in dieser Eingabe noch keine Gerichte erkennen."
+  }
+}

@@ -1,6 +1,7 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { useMobileContent } from "../../content/useMobileContent";
 import { styles } from "../../theme/styles";
 
 export function QrMenuScanner({
@@ -10,14 +11,15 @@ export function QrMenuScanner({
   onUrlScanned: (url: string) => void;
   onClose: () => void;
 }) {
+  const content = useMobileContent();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
   if (!permission) {
     return (
       <View style={styles.card}>
-        <Text style={styles.h2}>QR-Code scannen</Text>
-        <Text style={styles.hint}>Kamera wird vorbereitet...</Text>
+        <Text style={styles.h2}>{content.qrScanner.title}</Text>
+        <Text style={styles.hint}>{content.qrScanner.preparing}</Text>
       </View>
     );
   }
@@ -25,17 +27,17 @@ export function QrMenuScanner({
   if (!permission.granted) {
     return (
       <View style={styles.card}>
-        <Text style={styles.h2}>QR-Code scannen</Text>
+        <Text style={styles.h2}>{content.qrScanner.title}</Text>
         <Text style={styles.hint}>
-          PickForMe benötigt die Kamera, um QR-Codes von Speisekarten zu scannen.
+          {content.qrScanner.permissionText}
         </Text>
 
         <Pressable style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Kamera erlauben</Text>
+          <Text style={styles.buttonText}>{content.qrScanner.allowCamera}</Text>
         </Pressable>
 
         <Pressable style={styles.ghostButton} onPress={onClose}>
-          <Text style={styles.ghostButtonText}>Abbrechen</Text>
+          <Text style={styles.ghostButtonText}>{content.common.cancel}</Text>
         </Pressable>
       </View>
     );
@@ -43,9 +45,9 @@ export function QrMenuScanner({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.h2}>QR-Code scannen</Text>
+      <Text style={styles.h2}>{content.qrScanner.title}</Text>
       <Text style={styles.hint}>
-        Richte die Kamera auf den QR-Code der Speisekarte.
+        {content.qrScanner.instruction}
       </Text>
 
       <View style={styles.qrCameraBox}>
@@ -72,7 +74,7 @@ export function QrMenuScanner({
           onClose();
         }}
       >
-        <Text style={styles.ghostButtonText}>Scanner schließen</Text>
+        <Text style={styles.ghostButtonText}>{content.qrScanner.close}</Text>
       </Pressable>
     </View>
   );

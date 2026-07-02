@@ -1,85 +1,72 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { analyzeMenu } from "../api/pickformeApi";
-import { PickForMeApiError } from "../api/apiClient";
 import { useProfile } from "../app/providers/ProfileProvider";
-import type { AnalyzeData } from "../types/recommendations";
+import { PickForMeApiError } from "../api/apiClient";
+import { analyzeMenu } from "../api/pickformeApi";
+import { getMobileContent, type MobileContent } from "../content/mobileContent";
 import type { Situation } from "../types/profile";
+import type { AnalyzeData } from "../types/recommendations";
 
-const UNSAFE_PROFILE_MESSAGE =
-  "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.";
-
-const GENERIC_ANALYSIS_MESSAGE =
-  "Ich konnte diese Speisekarte nicht sicher auswerten.";
-
-const AUTH_MESSAGE =
-  "Deine Sitzung ist nicht aktiv. Bitte melde Dich erneut an oder lade die App neu.";
-
-const DEV_AUTH_MESSAGE =
-  "Der lokale Testzugang ist nicht aktiv. Bitte starte App und API neu.";
-
-const API_CONNECTION_MESSAGE =
-  "Ich konnte die API gerade nicht erreichen. Bitte prüfe, ob der lokale Server läuft.";
-
-function getAnalyzeMenuErrorMessage(error: unknown): string {
+function getAnalyzeMenuErrorMessage(error: unknown, content: MobileContent): string {
   if (!(error instanceof PickForMeApiError)) {
     if (error instanceof Error && error.message.includes("nicht eingeloggt")) {
-      return AUTH_MESSAGE;
+      return content.analysisErrors.auth;
     }
 
     if (error instanceof TypeError) {
-      return API_CONNECTION_MESSAGE;
+      return content.analysisErrors.apiConnection;
     }
 
-    return GENERIC_ANALYSIS_MESSAGE;
+    return content.analysisErrors.generic;
   }
 
   switch (error.code) {
     case "AUTH_REQUIRED":
     case "SESSION_INVALID":
-      return AUTH_MESSAGE;
+      return content.analysisErrors.auth;
 
     case "DEV_AUTH_DISABLED":
     case "DEV_USER_NOT_ALLOWED":
-      return DEV_AUTH_MESSAGE;
+      return content.analysisErrors.devAuth;
 
     case "DYNAMIC_MENU_UNSUPPORTED":
-      return "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein.";
+      return content.analysisErrors.dynamicMenuUnsupported;
 
     case "MENU_URL_LOAD_FAILED":
-      return "Diese Speisekarte konnte nicht geladen werden. Bitte prüfe den Link oder nutze eine PDF-Speisekarte.";
+      return content.analysisErrors.menuUrlLoadFailed;
 
     case "AI_RATE_LIMIT":
-      return "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal.";
+      return content.analysisErrors.aiRateLimit;
 
     case "MENU_TOO_SHORT":
-      return "Bitte füge eine Speisekarte ein oder scanne einen QR-Code.";
+      return content.analysisErrors.menuTooShort;
 
     case "SOURCE_KIND_UNSUPPORTED":
-      return "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.";
+      return content.analysisErrors.sourceKindUnsupported;
 
     case "PDF_AI_DISABLED":
-      return "PDF-Speisekarten benötigen den KI-Modus.";
+      return content.analysisErrors.pdfAiDisabled;
 
     case "NO_DISHES_FOUND":
-      return "Ich konnte in dieser Eingabe noch keine Gerichte erkennen.";
+      return content.analysisErrors.noDishesFound;
 
     case "NO_SAFE_RECOMMENDATIONS":
-      return UNSAFE_PROFILE_MESSAGE;
+      return content.analysisErrors.unsafeProfile;
 
     case "ANALYSIS_NOT_SAFE":
-      return GENERIC_ANALYSIS_MESSAGE;
+      return content.analysisErrors.generic;
 
     default:
       if (error.message.includes("Profilregeln")) {
-        return UNSAFE_PROFILE_MESSAGE;
+        return content.analysisErrors.unsafeProfile;
       }
 
-      return GENERIC_ANALYSIS_MESSAGE;
+      return content.analysisErrors.generic;
   }
 }
 
 export function useAnalyzeMenu() {
   const { profile } = useProfile();
+  const content = useMemo(() => getMobileContent(profile.outputLocale), [profile.outputLocale]);
   const [result, setResult] = useState<AnalyzeData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -128,7 +115,7 @@ export function useAnalyzeMenu() {
     setResult(null);
 
     if (menuText.trim().length < 20) {
-      setError("Bitte zuerst eine Speisekarte einfügen.");
+      setError(content.analysisErrors.menuTooShort);
       return;
     }
 
@@ -161,7 +148,7 @@ export function useAnalyzeMenu() {
         return;
       }
 
-      setError(getAnalyzeMenuErrorMessage(e));
+      setError(getAnalyzeMenuErrorMessage(e, content));
     } finally {
       if (requestIdRef.current === requestId) {
         abortControllerRef.current = null;

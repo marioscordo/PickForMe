@@ -5,6 +5,7 @@
     "baseUrl": ".",
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
+    "resolveJsonModule": true,
     "skipLibCheck": true
   },
   "include": [

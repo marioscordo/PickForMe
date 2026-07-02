@@ -1,5 +1,6 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
+import { useMobileContent } from "../../content/useMobileContent";
 import { styles } from "../../theme/styles";
 
 export function BottomTabs({
@@ -9,6 +10,8 @@ export function BottomTabs({
   activeTab: "pick" | "profile";
   setActiveTab: (tab: "pick" | "profile") => void;
 }) {
+  const content = useMobileContent();
+
   return (
     <View style={styles.tabBar}>
       <Pressable
@@ -16,7 +19,7 @@ export function BottomTabs({
         onPress={() => setActiveTab("pick")}
       >
         <Text style={[styles.tabButtonText, activeTab === "pick" && styles.tabButtonTextActive]}>
-          Speisekarte
+          {content.navigation.menu}
         </Text>
       </Pressable>
 
@@ -25,7 +28,7 @@ export function BottomTabs({
         onPress={() => setActiveTab("profile")}
       >
         <Text style={[styles.tabButtonText, activeTab === "profile" && styles.tabButtonTextActive]}>
-          Profil
+          {content.navigation.profile}
         </Text>
       </Pressable>
     </View>

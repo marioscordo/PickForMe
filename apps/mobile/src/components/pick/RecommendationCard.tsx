@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useProfile } from "../../app/providers/ProfileProvider";
+import { formatContent } from "../../content/mobileContent";
+import { useMobileContent } from "../../content/useMobileContent";
 import type { Dish } from "../../types/menu";
 import type { AnalyzeData, Recommendation } from "../../types/recommendations";
 
@@ -23,19 +25,7 @@ function buildDisplayTranslation(originalName: string, translatedName?: string) 
     return cleaned;
   }
 
-  const fallback = originalName
-    .replace(/\bHimali\b/gi, "Himalaya")
-    .replace(/\bChicken\b/gi, "H\u00fchnchen")
-    .replace(/\bBeef\b/gi, "Rindfleisch")
-    .replace(/\bLamb\b/gi, "Lamm")
-    .replace(/\bPork\b/gi, "Schwein")
-    .replace(/\bFish\b/gi, "Fisch")
-    .replace(/\bSalmon\b/gi, "Lachs")
-    .replace(/\bTuna\b/gi, "Thunfisch")
-    .replace(/\bShrimp\b/gi, "Garnelen")
-    .replace(/\bPrawns\b/gi, "Garnelen");
-
-  return fallback.toLowerCase() !== originalName.toLowerCase() ? fallback : "";
+  return "";
 }
 
 export function RecommendationCard({
@@ -45,6 +35,7 @@ export function RecommendationCard({
   result: AnalyzeData;
   onReset: () => void;
 }) {
+  const content = useMobileContent();
   const { profile, setProfile } = useProfile();
   const [selectedDishId, setSelectedDishId] = useState<string | null>(null);
 
@@ -54,10 +45,8 @@ export function RecommendationCard({
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
   const restaurantDescription = result.restaurantDescription?.trim() ?? "";
-  const fallbackHeroText =
-    "PickForMe ordnet die sicher erkannten Gerichte f\u00fcr Deine aktuelle Situation ein.";
-  const topBoxTitle = restaurantDescription ? "\u00dcber das Restaurant" : "Das passt heute zu Dir";
-  const topBoxText = restaurantDescription || fallbackHeroText;
+  const topBoxTitle = restaurantDescription ? content.recommendation.restaurantTitle : content.recommendation.fallbackTitle;
+  const topBoxText = restaurantDescription || content.recommendation.fallbackText;
   const topBox = (
     <View style={local.hero}>
       <Text style={local.title}>{topBoxTitle}</Text>
@@ -78,15 +67,15 @@ export function RecommendationCard({
         {topBox}
 
         <View style={local.hero}>
-          <Text style={local.kicker}>Speisekarte nicht sicher ausgewertet</Text>
-          <Text style={local.title}>Keine sichere Empfehlung</Text>
+          <Text style={local.kicker}>{content.recommendation.unsafeKicker}</Text>
+          <Text style={local.title}>{content.recommendation.unsafeTitle}</Text>
           <Text style={local.subtitle}>
-            {"Ich konnte daraus keine sicheren Empfehlungen erzeugen."}
+            {content.recommendation.unsafeText}
           </Text>
         </View>
 
         <Pressable style={local.resetButton} onPress={onReset}>
-          <Text style={local.resetButtonText}>Neue Speisekarte prüfen</Text>
+          <Text style={local.resetButtonText}>{content.recommendation.resetButton}</Text>
         </Pressable>
       </>
     );
@@ -124,11 +113,11 @@ export function RecommendationCard({
             price?: number;
           };
 
-          const originalName = dishData.nameOriginal ?? dishData.name ?? "Gericht";
+          const originalName = dishData.nameOriginal ?? dishData.name ?? content.recommendation.fallbackDishName;
           const translatedName = buildDisplayTranslation(originalName, rec.translatedName);
           const showTranslation = translatedName.length > 0;
 
-          const priceText = typeof dishData.price === "number" ? `${dishData.price.toFixed(2).replace(".", ",")} \u20ac` : "";
+          const priceText = typeof dishData.price === "number" ? `${dishData.price.toFixed(2).replace(".", ",")} €` : "";
           const existingFeedback = feedbackByName.get(originalName.toLowerCase());
           const isSelected = selectedDishId === dish.id || Boolean(existingFeedback);
 
@@ -154,12 +143,12 @@ export function RecommendationCard({
                 ) : null}
 
                 <Pressable style={local.acceptButton} onPress={() => setSelectedDishId(dish.id)}>
-                  <Text style={local.acceptButtonText}>Das nehme ich</Text>
+                  <Text style={local.acceptButtonText}>{content.recommendation.acceptButton}</Text>
                 </Pressable>
 
                 {isSelected ? (
                   <View style={local.ratingBox}>
-                    <Text style={local.ratingTitle}>Wie gut passt diese Empfehlung?</Text>
+                    <Text style={local.ratingTitle}>{content.recommendation.ratingTitle}</Text>
 
                     <View style={local.starRow}>
                       {[1, 2, 3, 4, 5].map((star) => {
@@ -173,7 +162,7 @@ export function RecommendationCard({
                             }
                           >
                             <Text style={[local.star, active && local.starActive]}>
-                              {active ? "\u2605" : "\u2606"}
+                              {active ? "★" : "☆"}
                             </Text>
                           </Pressable>
                         );
@@ -182,7 +171,7 @@ export function RecommendationCard({
 
                     {existingFeedback ? (
                       <Text style={local.savedText}>
-                        {`Gespeichert: ${existingFeedback.rating} von 5 Sternen f\u00fcr Dein pers\u00f6nliches Ranking.`}
+                        {formatContent(content.recommendation.savedText, { rating: existingFeedback.rating })}
                       </Text>
                     ) : null}
                   </View>
@@ -194,7 +183,7 @@ export function RecommendationCard({
       </View>
 
       <Pressable style={local.resetButton} onPress={onReset}>
-        <Text style={local.resetButtonText}>Neue Speisekarte prüfen</Text>
+        <Text style={local.resetButtonText}>{content.recommendation.resetButton}</Text>
       </Pressable>
     </>
   );

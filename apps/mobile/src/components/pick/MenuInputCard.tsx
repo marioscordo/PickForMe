@@ -1,4 +1,5 @@
-﻿import { StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
+import { useMobileContent } from "../../content/useMobileContent";
 import { styles } from "../../theme/styles";
 
 export function MenuInputCard({
@@ -8,12 +9,14 @@ export function MenuInputCard({
   menuText: string;
   setMenuText: (value: string) => void;
 }) {
+  const content = useMobileContent();
+
   return (
     <View style={[styles.card, local.card]}>
       <View style={local.headerRow}>
         <View>
-          <Text style={local.kicker}>Speisekarte</Text>
-          <Text style={local.title}>Einfügen</Text>
+          <Text style={local.kicker}>{content.menuInput.kicker}</Text>
+          <Text style={local.title}>{content.menuInput.title}</Text>
         </View>
 
         <View style={local.iconBubble}>
@@ -22,7 +25,7 @@ export function MenuInputCard({
       </View>
 
       <Text style={local.hint}>
-        {"Link, PDF-Adresse oder Text einfügen."}
+        {content.menuInput.hint}
       </Text>
 
       <TextInput
@@ -31,7 +34,7 @@ export function MenuInputCard({
         style={local.textArea}
         value={menuText}
         onChangeText={setMenuText}
-        placeholder={"Speisekarte oder Link hier einfügen..."}
+        placeholder={content.menuInput.placeholder}
         placeholderTextColor="#94A3B8"
         textAlignVertical="top"
         autoCapitalize="sentences"
