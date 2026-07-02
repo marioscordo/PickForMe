@@ -12,8 +12,7 @@ export async function requireUser(request: Request): Promise<{ id: string; email
 
     const allowedDevEmails = new Set([
       process.env.PICKFORME_DEV_EMAIL?.trim().toLowerCase(),
-      "dev@pickforme.local",
-      "mario.scordo@t-online.de"
+      "dev@pickforme.local"
     ].filter((value): value is string => Boolean(value)));
 
     if (!localRequest && !allowedDevEmails.has(devEmail)) {
