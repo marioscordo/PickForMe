@@ -374,8 +374,10 @@ export async function POST(request: Request) {
       } catch (aiError) {
         const message = aiError instanceof Error ? aiError.message : "";
 
-        if (message.includes("TEXT_AI_TIMEOUT")) {
-          console.error("PickForMe AI timed out, falling back to local recommendation.", aiError);
+        if (message.includes("TEXT_AI_TIMEOUT") || isRateLimitError(aiError)) {
+          if (process.env.NODE_ENV !== "production") {
+            console.error("PickForMe AI unavailable, falling back to local recommendation.", aiError);
+          }
         } else {
           console.error("PickForMe AI failed.", aiError);
 

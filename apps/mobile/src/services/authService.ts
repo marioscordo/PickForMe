@@ -2,7 +2,7 @@
 import { supabase } from "./supabaseClient";
 
 export async function getAuthHeaders(): Promise<Record<string, string>> {
-  if (env.devMode) {
+  if (env.devMode && env.devEmail) {
     return {
       "x-pickforme-dev-email": env.devEmail
     };

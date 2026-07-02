@@ -9,21 +9,24 @@
       "distribution": "internal",
       "env": {
         "APP_VARIANT": "development",
-        "EXPO_PUBLIC_PICKFORME_API_URL": "http://192.168.178.158:3000"
+        "EXPO_PUBLIC_PICKFORME_API_URL": "http://192.168.178.158:3000",
+        "EXPO_PUBLIC_PICKFORME_DEV_MODE": "true"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
         "APP_VARIANT": "development",
-        "EXPO_PUBLIC_PICKFORME_API_URL": "http://192.168.178.158:3000"
+        "EXPO_PUBLIC_PICKFORME_API_URL": "http://192.168.178.158:3000",
+        "EXPO_PUBLIC_PICKFORME_DEV_MODE": "true"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "APP_VARIANT": "production",
-        "EXPO_PUBLIC_PICKFORME_API_URL": "https://api.pickforme.app"
+        "EXPO_PUBLIC_PICKFORME_API_URL": "https://api.pickforme.app",
+        "EXPO_PUBLIC_PICKFORME_DEV_MODE": "false"
       }
     }
   }

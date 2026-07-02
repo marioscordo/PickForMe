@@ -11,12 +11,37 @@ const UNSAFE_PROFILE_MESSAGE =
 const GENERIC_ANALYSIS_MESSAGE =
   "Ich konnte diese Speisekarte nicht sicher auswerten.";
 
+const AUTH_MESSAGE =
+  "Deine Sitzung ist nicht aktiv. Bitte melde Dich erneut an oder lade die App neu.";
+
+const DEV_AUTH_MESSAGE =
+  "Der lokale Testzugang ist nicht aktiv. Bitte starte App und API neu.";
+
+const API_CONNECTION_MESSAGE =
+  "Ich konnte die API gerade nicht erreichen. Bitte prüfe, ob der lokale Server läuft.";
+
 function getAnalyzeMenuErrorMessage(error: unknown): string {
   if (!(error instanceof PickForMeApiError)) {
+    if (error instanceof Error && error.message.includes("nicht eingeloggt")) {
+      return AUTH_MESSAGE;
+    }
+
+    if (error instanceof TypeError) {
+      return API_CONNECTION_MESSAGE;
+    }
+
     return GENERIC_ANALYSIS_MESSAGE;
   }
 
   switch (error.code) {
+    case "AUTH_REQUIRED":
+    case "SESSION_INVALID":
+      return AUTH_MESSAGE;
+
+    case "DEV_AUTH_DISABLED":
+    case "DEV_USER_NOT_ALLOWED":
+      return DEV_AUTH_MESSAGE;
+
     case "DYNAMIC_MENU_UNSUPPORTED":
       return "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein.";
 
@@ -132,7 +157,7 @@ export function useAnalyzeMenu() {
         return;
       }
 
-      if (e instanceof DOMException && e.name === "AbortError") {
+      if (isAbortError(e)) {
         return;
       }
 
@@ -161,4 +186,11 @@ export function useAnalyzeMenu() {
     run,
     reset
   };
+}
+
+function isAbortError(error: unknown) {
+  return typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError";
 }

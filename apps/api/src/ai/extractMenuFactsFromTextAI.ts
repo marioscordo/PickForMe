@@ -218,15 +218,17 @@ function validateMenuFacts(result: RawMenuFacts, menuText: string): MenuFacts {
     includedItemIds: unit.includedItemIds?.filter((itemId) => knownItemIds.has(itemId))
   }));
 
-  console.log(SUMMARY_LABEL, {
-    stage: "menu_facts_filter",
-    rawItems: result.items.length,
-    validItems: items.length,
-    droppedInvalidItems: result.items.length - items.length,
-    rawMenuUnits: result.menuUnits.length,
-    validMenuUnits: validMenuUnits.length,
-    droppedInvalidMenuUnits: result.menuUnits.length - validMenuUnits.length
-  });
+  if (process.env.NODE_ENV !== "production") {
+    console.log(SUMMARY_LABEL, {
+      stage: "menu_facts_filter",
+      rawItems: result.items.length,
+      validItems: items.length,
+      droppedInvalidItems: result.items.length - items.length,
+      rawMenuUnits: result.menuUnits.length,
+      validMenuUnits: validMenuUnits.length,
+      droppedInvalidMenuUnits: result.menuUnits.length - validMenuUnits.length
+    });
+  }
 
   return {
     menuType: toNonEmptyString(result.menuType),

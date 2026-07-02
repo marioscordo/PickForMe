@@ -231,12 +231,16 @@ async function requestLocalizedPdfRecommendationTexts({
             "- translatedName must be a direct translation of nameOriginal into the target language.",
             "- Keep rank unchanged.",
             "- Do not translate or change nameOriginal.",
+            "- Use descriptionOriginal and evidence only to avoid mistranslation.",
+            "- Preserve factual elements exactly: animal/protein, cooking method, side dish, and preparation style.",
+            "- Never replace one animal/protein with another.",
+            "- If a culinary term is uncertain, keep the original term instead of guessing.",
             "- Do not add facts.",
             "- Do not add dishes, prices, ingredients, atmosphere, ratings, or recommendations.",
             "- Do not invent anything.",
             "- Do not use English unless the target language is English.",
             strictRetry
-              ? "- The previous output was rejected. Rewrite every translatedName and reason in the target language now."
+              ? "- The previous output was rejected. Rewrite every translatedName and reason in the target language now without changing any facts."
               : "",
             "- Return only valid JSON."
           ].filter(Boolean).join("\n")
@@ -248,7 +252,9 @@ async function requestLocalizedPdfRecommendationTexts({
               rank: item.rank,
               nameOriginal: item.nameOriginal,
               translatedName: item.translatedName,
-              reason: item.reason
+              descriptionOriginal: item.descriptionOriginal,
+              reason: item.reason,
+              evidence: item.evidence
             }))
           })
         }

@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { env } from "../../config/env";
@@ -7,14 +7,15 @@ import { styles } from "../../theme/styles";
 
 export function LoginScreen() {
   const auth = useAuth();
-  const [email, setEmail] = useState(env.devEmail);
+  const [email, setEmail] = useState(env.devMode ? env.devEmail : "");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function handleLogin() {
     setError("");
 
     try {
-      await auth.loginDev(email);
+      await auth.signIn(email, password);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Login fehlgeschlagen.");
     }
@@ -27,9 +28,6 @@ export function LoginScreen() {
 
       <View style={styles.card}>
         <Text style={styles.h2}>Einloggen</Text>
-        <Text style={styles.hint}>
-          Lokaler Entwicklungszugang. Der Store-Login wird später sauber über Supabase aktiviert.
-        </Text>
 
         <Text style={styles.label}>E-Mail</Text>
         <TextInput
@@ -39,8 +37,23 @@ export function LoginScreen() {
           style={styles.input}
           value={email}
           onChangeText={setEmail}
-          placeholder={env.devEmail}
+          placeholder="name@example.com"
         />
+
+        {!env.devMode ? (
+          <>
+            <Text style={styles.label}>Passwort</Text>
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Passwort"
+            />
+          </>
+        ) : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 

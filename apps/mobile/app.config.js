@@ -44,7 +44,7 @@ module.exports = {
     },
 
     plugins: [
-      "expo-dev-client",
+      ...(!IS_PROD ? ["expo-dev-client"] : []),
       [
         "expo-camera",
         {

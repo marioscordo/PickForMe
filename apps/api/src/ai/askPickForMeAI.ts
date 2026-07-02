@@ -97,18 +97,20 @@ export async function askPickForMeAI({
     conciergeRecommendation.recommendationMode ?? inferRecommendationMode(selectedRecommendations);
   const conciergeHero = conciergeRecommendation.conciergeHero?.trim();
 
-  console.log(SUMMARY_LABEL, {
-    menuTextLength: menuText.length,
-    items: menuFacts.items.length,
-    menuUnits: menuFacts.menuUnits.length,
-    conciergeItems: conciergeMenuFacts.items.length,
-    conciergeMenuUnits: conciergeMenuFacts.menuUnits.length,
-    selectedRecommendations: selectedRecommendations.length,
-    returnsEmpty: selectedRecommendations.length === 0,
-    hasConciergeHero: Boolean(conciergeHero),
-    recommendationMode,
-    menuTypePresent: Boolean(menuFacts.menuType?.trim())
-  });
+  if (process.env.NODE_ENV !== "production") {
+    console.log(SUMMARY_LABEL, {
+      menuTextLength: menuText.length,
+      items: menuFacts.items.length,
+      menuUnits: menuFacts.menuUnits.length,
+      conciergeItems: conciergeMenuFacts.items.length,
+      conciergeMenuUnits: conciergeMenuFacts.menuUnits.length,
+      selectedRecommendations: selectedRecommendations.length,
+      returnsEmpty: selectedRecommendations.length === 0,
+      hasConciergeHero: Boolean(conciergeHero),
+      recommendationMode,
+      menuTypePresent: Boolean(menuFacts.menuType?.trim())
+    });
+  }
 
   return {
     ...toAnalyzeDataParts(selectedRecommendations),

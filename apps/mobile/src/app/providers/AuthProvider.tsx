@@ -1,40 +1,86 @@
-﻿import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { env } from "../../config/env";
+import { supabase } from "../../services/supabaseClient";
 import type { AuthState } from "../../types/auth";
 
 type AuthContextValue = {
   state: AuthState;
-  loginDev: (email: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>({ status: "anonymous" });
+  const [state, setState] = useState<AuthState>({ status: "loading" });
 
-  async function loginDev(email: string) {
+  useEffect(() => {
+    if (env.devMode) {
+      setState({ status: "anonymous" });
+      return;
+    }
+
+    let active = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (active) {
+        setState(authStateFromSession(data.session));
+      }
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) {
+        setState(authStateFromSession(session));
+      }
+    });
+
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  async function signIn(email: string, password: string) {
     const normalized = email.trim().toLowerCase();
 
-    if (!env.devMode) {
-      throw new Error("Dev-Login ist deaktiviert.");
+    if (env.devMode) {
+      if (!env.devEmail) {
+        throw new Error("Dev-Zugang ist nicht konfiguriert.");
+      }
+
+      if (normalized !== env.devEmail) {
+        throw new Error("Dieser Zugang ist nicht freigeschaltet.");
+      }
+
+      setState({ status: "dev", email: normalized });
+      return;
     }
 
-    if (normalized !== env.devEmail) {
-      throw new Error("Diese lokale V1 ist aktuell nur für Mario freigeschaltet.");
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalized,
+      password
+    });
+
+    if (error) {
+      throw new Error("Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.");
     }
 
-    setState({ status: "dev", email: normalized });
+    setState(authStateFromSession(data.session));
   }
 
   async function signOut() {
+    if (!env.devMode) {
+      await supabase.auth.signOut();
+    }
+
     setState({ status: "anonymous" });
   }
 
   const value = useMemo(
     () => ({
       state,
-      loginDev,
+      signIn,
       signOut
     }),
     [state]
@@ -51,4 +97,16 @@ export function useAuth() {
   }
 
   return value;
+}
+
+function authStateFromSession(session: Session | null): AuthState {
+  if (!session?.user) {
+    return { status: "anonymous" };
+  }
+
+  return {
+    status: "authenticated",
+    userId: session.user.id,
+    email: session.user.email || undefined
+  };
 }

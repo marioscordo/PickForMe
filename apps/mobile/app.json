@@ -5,13 +5,13 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "pickforme",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "de.scordo.pickforme",
-      "supportsTablet": true
+      "bundleIdentifier": "com.marioscordo.pickforme",
+      "supportsTablet": false
     },
     "android": {
-      "package": "de.scordo.pickforme"
+      "package": "com.marioscordo.pickforme"
     },
     "extra": {
       "eas": {
