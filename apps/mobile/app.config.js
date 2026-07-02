@@ -1,5 +1,6 @@
 const APP_VARIANT = process.env.APP_VARIANT || "development";
 const IS_PROD = APP_VARIANT === "production";
+const mobileContent = require("./src/content/mobileContent.de-DE.json");
 
 module.exports = {
   expo: {
@@ -48,7 +49,7 @@ module.exports = {
       [
         "expo-camera",
         {
-          cameraPermission: "PickForMe benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
+          cameraPermission: mobileContent.permissions.camera
         }
       ]
     ],

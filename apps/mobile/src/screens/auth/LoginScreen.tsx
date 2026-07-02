@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { env } from "../../config/env";
+import { useMobileContent } from "../../content/useMobileContent";
 import { Screen } from "../../components/ui/Screen";
 import { styles } from "../../theme/styles";
 
 export function LoginScreen() {
+  const content = useMobileContent();
   const auth = useAuth();
   const [email, setEmail] = useState(env.devMode ? env.devEmail : "");
   const [password, setPassword] = useState("");
@@ -17,19 +19,19 @@ export function LoginScreen() {
     try {
       await auth.signIn(email, password);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Login fehlgeschlagen.");
+      setError(e instanceof Error ? e.message : content.login.genericError);
     }
   }
 
   return (
     <Screen>
-      <Text style={styles.title}>PickForMe {"\u{1F37D}\uFE0F"}</Text>
-      <Text style={styles.subtitle}>Das Restaurant kenne ich nicht. PickForMe kennt mich.</Text>
+      <Text style={styles.title}>{content.login.title}</Text>
+      <Text style={styles.subtitle}>{content.login.subtitle}</Text>
 
       <View style={styles.card}>
-        <Text style={styles.h2}>Einloggen</Text>
+        <Text style={styles.h2}>{content.login.cardTitle}</Text>
 
-        <Text style={styles.label}>E-Mail</Text>
+        <Text style={styles.label}>{content.login.emailLabel}</Text>
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
@@ -37,12 +39,12 @@ export function LoginScreen() {
           style={styles.input}
           value={email}
           onChangeText={setEmail}
-          placeholder="name@example.com"
+          placeholder={content.login.emailPlaceholder}
         />
 
         {!env.devMode ? (
           <>
-            <Text style={styles.label}>Passwort</Text>
+            <Text style={styles.label}>{content.login.passwordLabel}</Text>
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
@@ -50,7 +52,7 @@ export function LoginScreen() {
               style={styles.input}
               value={password}
               onChangeText={setPassword}
-              placeholder="Passwort"
+              placeholder={content.login.passwordPlaceholder}
             />
           </>
         ) : null}
@@ -58,7 +60,7 @@ export function LoginScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Pressable style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Weiter</Text>
+          <Text style={styles.buttonText}>{content.login.continueButton}</Text>
         </Pressable>
       </View>
     </Screen>

@@ -39,6 +39,26 @@
     "instruction": "Richte die Kamera auf den QR-Code der Speisekarte.",
     "close": "Scanner schließen"
   },
+  "permissions": {
+    "camera": "PickForMe benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
+  },
+  "login": {
+    "title": "PickForMe 🍽️",
+    "subtitle": "Das Restaurant kenne ich nicht. PickForMe kennt mich.",
+    "cardTitle": "Einloggen",
+    "emailLabel": "E-Mail",
+    "emailPlaceholder": "name@example.com",
+    "passwordLabel": "Passwort",
+    "passwordPlaceholder": "Passwort",
+    "continueButton": "Weiter",
+    "genericError": "Login fehlgeschlagen."
+  },
+  "authErrors": {
+    "devNotConfigured": "Dev-Zugang ist nicht konfiguriert.",
+    "devNotAllowed": "Dieser Zugang ist nicht freigeschaltet.",
+    "loginFailed": "Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.",
+    "missingProvider": "useAuth muss innerhalb von AuthProvider genutzt werden."
+  },
   "situations": [
     {
       "value": "richtig_hunger",

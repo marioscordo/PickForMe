@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { env } from "../../config/env";
+import { getMobileContent } from "../../content/mobileContent";
 import { supabase } from "../../services/supabaseClient";
 import type { AuthState } from "../../types/auth";
 
@@ -10,6 +11,7 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
 };
 
+const authContent = getMobileContent(undefined).authErrors;
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -46,11 +48,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (env.devMode) {
       if (!env.devEmail) {
-        throw new Error("Dev-Zugang ist nicht konfiguriert.");
+        throw new Error(authContent.devNotConfigured);
       }
 
       if (normalized !== env.devEmail) {
-        throw new Error("Dieser Zugang ist nicht freigeschaltet.");
+        throw new Error(authContent.devNotAllowed);
       }
 
       setState({ status: "dev", email: normalized });
@@ -63,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (error) {
-      throw new Error("Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.");
+      throw new Error(authContent.loginFailed);
     }
 
     setState(authStateFromSession(data.session));
@@ -93,7 +95,7 @@ export function useAuth() {
   const value = useContext(AuthContext);
 
   if (!value) {
-    throw new Error("useAuth muss innerhalb von AuthProvider genutzt werden.");
+    throw new Error(authContent.missingProvider);
   }
 
   return value;
