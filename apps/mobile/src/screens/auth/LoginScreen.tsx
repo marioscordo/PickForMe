@@ -1,10 +1,13 @@
 import React, { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { env } from "../../config/env";
 import { useMobileContent } from "../../content/useMobileContent";
+import { ActionButton } from "../../components/ui/ActionButton";
 import { Screen } from "../../components/ui/Screen";
-import { styles } from "../../theme/styles";
+import { ScreenHeader } from "../../components/ui/ScreenHeader";
+import { Surface } from "../../components/ui/Surface";
+import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
 
 export function LoginScreen() {
   const content = useMobileContent();
@@ -25,44 +28,97 @@ export function LoginScreen() {
 
   return (
     <Screen>
-      <Text style={styles.title}>{content.login.title}</Text>
-      <Text style={styles.subtitle}>{content.login.subtitle}</Text>
+      <ScreenHeader title={content.login.title} subtitle={content.login.subtitle} />
 
-      <View style={styles.card}>
-        <Text style={styles.h2}>{content.login.cardTitle}</Text>
+      <Surface style={local.card}>
+        <Text style={local.cardTitle}>{content.login.cardTitle}</Text>
 
-        <Text style={styles.label}>{content.login.emailLabel}</Text>
+        <Text style={local.label}>{content.login.emailLabel}</Text>
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
-          style={styles.input}
+          style={local.input}
           value={email}
           onChangeText={setEmail}
           placeholder={content.login.emailPlaceholder}
+          placeholderTextColor={semanticColors.textMuted}
         />
 
         {!env.devMode ? (
           <>
-            <Text style={styles.label}>{content.login.passwordLabel}</Text>
+            <Text style={local.label}>{content.login.passwordLabel}</Text>
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
               secureTextEntry
-              style={styles.input}
+              style={local.input}
               value={password}
               onChangeText={setPassword}
               placeholder={content.login.passwordPlaceholder}
+              placeholderTextColor={semanticColors.textMuted}
             />
           </>
         ) : null}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <View style={local.errorCard}>
+            <Text style={local.errorText}>{error}</Text>
+          </View>
+        ) : null}
 
-        <Pressable style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>{content.login.continueButton}</Text>
-        </Pressable>
-      </View>
+        <ActionButton label={content.login.continueButton} variant="accent" onPress={handleLogin} style={local.button} />
+      </Surface>
     </Screen>
   );
 }
+
+const local = StyleSheet.create({
+  card: {
+    padding: spacing.lg
+  },
+  cardTitle: {
+    color: semanticColors.text,
+    fontSize: typography.sectionTitle.fontSize,
+    fontWeight: typography.sectionTitle.fontWeight,
+    lineHeight: typography.sectionTitle.lineHeight,
+    marginBottom: spacing.md
+  },
+  label: {
+    color: semanticColors.text,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    marginBottom: spacing.xs
+  },
+  input: {
+    backgroundColor: semanticColors.surface,
+    borderColor: semanticColors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    color: semanticColors.text,
+    fontSize: 16,
+    marginBottom: spacing.md,
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md
+  },
+  errorCard: {
+    backgroundColor: semanticColors.warningSurface,
+    borderColor: semanticColors.warningBorder,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+    padding: spacing.md
+  },
+  errorText: {
+    color: semanticColors.warningBody,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    lineHeight: typography.body.lineHeight
+  },
+  button: {
+    borderRadius: radius.pill,
+    marginTop: spacing.xs
+  }
+});

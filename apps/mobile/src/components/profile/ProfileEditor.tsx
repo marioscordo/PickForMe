@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Text, TextInput, View } from "react-native";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
 import { styles } from "../../theme/styles";
 import type { UserProfile } from "../../types/profile";
+import { ActionButton } from "../ui/ActionButton";
 import { Chip } from "../ui/Chip";
+import { SectionHeader } from "../ui/SectionHeader";
 
 type PreferenceOption = {
   label: string;
@@ -22,11 +24,13 @@ export type ProfileEditorSection = "preferences" | "exclusions" | "intolerances"
 export function ProfileEditor({
   profile,
   setProfile,
-  section
+  section,
+  hideHeader
 }: {
   profile: UserProfile;
   setProfile: (profile: UserProfile) => void;
   section: ProfileEditorSection;
+  hideHeader?: boolean;
 }) {
   const content = useMobileContent();
   const editor = content.profileEditor;
@@ -303,8 +307,7 @@ export function ProfileEditor({
     <View style={styles.profileEditorSurface}>
       {section === "preferences" ? (
         <View style={styles.profileDetailBlock}>
-        <Text style={styles.profileSectionTitle}>{editor.preferencesTitle}</Text>
-        <Text style={styles.profileSectionHint}>{editor.preferencesHint}</Text>
+        {hideHeader ? null : <SectionHeader title={editor.preferencesTitle} subtitle={editor.preferencesHint} />}
 
         <View style={styles.chipRow}>
           {visiblePreferenceOptions.map((option) => {
@@ -352,11 +355,11 @@ export function ProfileEditor({
             onSubmitEditing={addCustomPreference}
           />
 
-          <Pressable style={styles.ghostButton} onPress={addCustomPreference}>
-            <Text style={styles.ghostButtonText}>
-              {labelWithIcon(editor.addPreferenceButton, editor.preferenceValueIcon)}
-            </Text>
-          </Pressable>
+          <ActionButton
+            label={labelWithIcon(editor.addPreferenceButton, editor.preferenceValueIcon)}
+            variant="secondary"
+            onPress={addCustomPreference}
+          />
         </View>
 
         {profile.primaryLikes.length > 0 || profile.dietStyle !== "normal" ? (
@@ -378,8 +381,7 @@ export function ProfileEditor({
 
       {section === "exclusions" ? (
         <View style={styles.profileDetailBlock}>
-        <Text style={styles.profileSectionTitle}>{editor.exclusionsTitle}</Text>
-        <Text style={styles.profileSectionHint}>{editor.exclusionsHint}</Text>
+        {hideHeader ? null : <SectionHeader title={editor.exclusionsTitle} subtitle={editor.exclusionsHint} />}
 
         <View style={styles.chipRow}>
           {visibleQuickExclusions.map((option) => {
@@ -418,11 +420,11 @@ export function ProfileEditor({
             onSubmitEditing={addCustomExclusion}
           />
 
-          <Pressable style={styles.ghostButton} onPress={addCustomExclusion}>
-            <Text style={styles.ghostButtonText}>
-              {labelWithIcon(editor.addExclusionButton, editor.exclusionValueIcon)}
-            </Text>
-          </Pressable>
+          <ActionButton
+            label={labelWithIcon(editor.addExclusionButton, editor.exclusionValueIcon)}
+            variant="secondary"
+            onPress={addCustomExclusion}
+          />
         </View>
 
         {profile.dislikes.length > 0 ? (
@@ -473,11 +475,11 @@ export function ProfileEditor({
             onSubmitEditing={addCustomException}
           />
 
-          <Pressable style={styles.ghostButton} onPress={addCustomException}>
-            <Text style={styles.ghostButtonText}>
-              {labelWithIcon(editor.addExceptionButton, editor.exceptionValueIcon)}
-            </Text>
-          </Pressable>
+          <ActionButton
+            label={labelWithIcon(editor.addExceptionButton, editor.exceptionValueIcon)}
+            variant="secondary"
+            onPress={addCustomException}
+          />
 
           {exceptions.length > 0 ? (
             <View style={styles.profileSubBlock}>
@@ -495,8 +497,7 @@ export function ProfileEditor({
 
       {section === "intolerances" ? (
         <View style={styles.profileDetailBlock}>
-        <Text style={styles.profileSectionTitle}>{editor.intolerancesTitle}</Text>
-        <Text style={styles.profileSectionHint}>{editor.intolerancesHint}</Text>
+        {hideHeader ? null : <SectionHeader title={editor.intolerancesTitle} subtitle={editor.intolerancesHint} />}
 
         <Text style={styles.profileSectionHint}>
           {editor.safetyHint}
@@ -539,11 +540,11 @@ export function ProfileEditor({
             onSubmitEditing={addCustomIntolerance}
           />
 
-          <Pressable style={styles.ghostButton} onPress={addCustomIntolerance}>
-            <Text style={styles.ghostButtonText}>
-              {labelWithIcon(editor.addIntoleranceButton, editor.intoleranceValueIcon)}
-            </Text>
-          </Pressable>
+          <ActionButton
+            label={labelWithIcon(editor.addIntoleranceButton, editor.intoleranceValueIcon)}
+            variant="secondary"
+            onPress={addCustomIntolerance}
+          />
         </View>
 
         {profile.intolerances.length > 0 ? (

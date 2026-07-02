@@ -5,9 +5,12 @@ import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
 import { RecommendationCard } from "../../components/pick/RecommendationCard";
 import { SituationSelector } from "../../components/pick/SituationSelector";
+import { ActionButton } from "../../components/ui/ActionButton";
+import { ScreenHeader } from "../../components/ui/ScreenHeader";
+import { Surface } from "../../components/ui/Surface";
 import { useMobileContent } from "../../content/useMobileContent";
 import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
-import { styles } from "../../theme/styles";
+import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Situation } from "../../types/profile";
 
 export function PickScreen() {
@@ -66,9 +69,7 @@ export function PickScreen() {
 
         {lastAnalyzedMenuUrl ? (
           <View style={local.openMenuSection}>
-            <Pressable style={local.openMenuButton} onPress={openAnalyzedMenu}>
-              <Text style={local.openMenuButtonText}>{content.pick.openMenu}</Text>
-            </Pressable>
+            <ActionButton label={content.pick.openMenu} variant="secondary" onPress={openAnalyzedMenu} />
           </View>
         ) : null}
       </Screen>
@@ -77,10 +78,7 @@ export function PickScreen() {
 
   return (
     <Screen>
-      <View style={local.hero}>
-        <Text style={local.title}>{content.pick.heroTitle}</Text>
-        <Text style={local.subtitle}>{content.pick.heroSubtitle}</Text>
-      </View>
+      <ScreenHeader title={content.pick.heroTitle} subtitle={content.pick.heroSubtitle} />
 
       <View style={local.quickRow}>
         <Pressable
@@ -114,13 +112,13 @@ export function PickScreen() {
 
       <MenuInputCard menuText={menuText} setMenuText={setMenuText} />
 
-      <View style={local.moodCard}>
+      <Surface style={local.moodCard}>
         <Text style={local.moodTitle}>{content.pick.moodTitle}</Text>
         <SituationSelector situation={situation} setSituation={setSituation} />
-      </View>
+      </Surface>
 
       {analyze.loading ? (
-        <View style={local.loadingCard}>
+        <Surface tone="soft" style={local.feedbackCard}>
           <Text style={local.loadingTitle}>{content.pick.loadingTitle}</Text>
           <Text style={local.loadingText}>{loadingSteps[loadingStepIndex]}</Text>
           <View style={local.loadingDots}>
@@ -134,208 +132,149 @@ export function PickScreen() {
               />
             ))}
           </View>
-        </View>
+        </Surface>
       ) : null}
 
       {analyze.error ? (
-        <View style={local.errorCard}>
+        <View style={local.feedbackErrorCard}>
           <Text style={local.errorTitle}>{content.pick.errorTitle}</Text>
           <Text style={local.errorText}>{analyze.error}</Text>
         </View>
       ) : null}
 
-      <Pressable
-        style={[local.mainButton, analyze.loading && styles.buttonDisabled]}
+      <ActionButton
+        label={analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}
+        variant="accent"
         onPress={handleAnalyze}
         disabled={analyze.loading}
-      >
-        <Text style={local.mainButtonText}>
-          {analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}
-        </Text>
-      </Pressable>
+        style={local.mainButton}
+      />
     </Screen>
   );
 }
 
 const local = StyleSheet.create({
-  hero: {
-    backgroundColor: "#DCEBF7",
-    borderRadius: 26,
-    padding: 18,
-    marginBottom: 12,
-    shadowColor: "#9FB8C9",
-    shadowOpacity: 0.24,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4
-  },
-
-  title: {
-    color: "#132238",
-    fontSize: 28,
-    lineHeight: 31,
-    fontWeight: "900",
-    marginBottom: 6
-  },
-
-  subtitle: {
-    color: "#334155",
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: "800"
-  },
-
   quickRow: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 10
+    gap: spacing.sm,
+    marginBottom: spacing.md
   },
 
   quickButton: {
-    flex: 1,
-    borderRadius: 999,
-    paddingVertical: 12,
     alignItems: "center",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: semanticColors.surface,
+    borderColor: semanticColors.border,
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#CBD5E1"
+    flex: 1,
+    paddingVertical: spacing.md
   },
 
   quickButtonActive: {
-    backgroundColor: "#A7C7C5",
-    borderColor: "#A7C7C5"
+    backgroundColor: semanticColors.accentSoft,
+    borderColor: semanticColors.accent
   },
 
   quickButtonText: {
-    color: "#64748B",
-    fontWeight: "900",
-    fontSize: 16
+    color: semanticColors.textMuted,
+    fontSize: typography.button.fontSize,
+    fontWeight: typography.button.fontWeight,
+    lineHeight: typography.button.lineHeight
   },
 
   quickButtonTextActive: {
-    color: "#102A2A"
+    color: semanticColors.text
   },
 
   moodCard: {
-    backgroundColor: "#EEF7F3",
-    borderColor: "#B7D9CD",
-    borderWidth: 1,
-    borderRadius: 22,
-    padding: 12,
-    marginBottom: 10
+    marginBottom: spacing.md,
+    padding: spacing.md
   },
 
   moodTitle: {
-    color: "#285C55",
-    fontSize: 14,
-    fontWeight: "900",
-    marginBottom: 8
+    color: semanticColors.text,
+    fontSize: typography.sectionTitle.fontSize,
+    fontWeight: typography.sectionTitle.fontWeight,
+    lineHeight: typography.sectionTitle.lineHeight,
+    marginBottom: spacing.md
   },
 
-  loadingCard: {
-    backgroundColor: "#EEF4F8",
-    borderColor: "#C9DCE8",
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 12
+  feedbackCard: {
+    marginBottom: spacing.md,
+    padding: spacing.lg
   },
 
   loadingTitle: {
-    color: "#314A5C",
-    fontWeight: "900",
-    fontSize: 14,
-    marginBottom: 6
+    color: semanticColors.text,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    marginBottom: spacing.xs
   },
 
   loadingText: {
-    color: "#3E5B6F",
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: "800",
-    marginBottom: 10
+    color: semanticColors.textMuted,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    lineHeight: typography.body.lineHeight,
+    marginBottom: spacing.md
   },
 
   loadingDots: {
     flexDirection: "row",
-    gap: 6
+    gap: spacing.xs
   },
 
   loadingDot: {
-    width: 7,
     height: 7,
-    borderRadius: 999,
-    backgroundColor: "#C5D5DF"
+    width: 7,
+    borderRadius: radius.pill,
+    backgroundColor: semanticColors.border
   },
 
   loadingDotActive: {
-    width: 18,
-    backgroundColor: "#7EA9B8"
+    backgroundColor: semanticColors.accentActive,
+    width: 18
   },
-  errorCard: {
-    backgroundColor: "#F8EAF0",
-    borderColor: "#E8B9C8",
+
+  feedbackErrorCard: {
+    backgroundColor: semanticColors.warningSurface,
+    borderColor: semanticColors.warningBorder,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 12
+    marginBottom: spacing.md,
+    padding: spacing.lg
   },
 
   errorTitle: {
-    color: "#7A3146",
-    fontWeight: "900",
-    fontSize: 14,
-    marginBottom: 5
+    color: semanticColors.warningText,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    marginBottom: spacing.xs
   },
 
   errorText: {
-    color: "#6B2D3F",
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: "700"
+    color: semanticColors.warningBody,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    lineHeight: typography.body.lineHeight
   },
 
   mainButton: {
-    backgroundColor: "#8FB9B4",
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 2,
+    borderRadius: radius.pill,
     marginBottom: 20,
-    shadowColor: "#8FB9B4",
+    marginTop: spacing.xxs,
+    shadowColor: semanticColors.accent,
     shadowOpacity: 0.28,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 5
   },
 
-  mainButtonText: {
-    color: "#102A2A",
-    fontSize: 17,
-    fontWeight: "900"
-  },
-
   openMenuSection: {
     marginTop: 12,
     marginBottom: 16
-  },
-
-  openMenuButton: {
-    borderWidth: 1,
-    borderColor: "#C9DCE8",
-    backgroundColor: "#F6FAFC",
-    borderRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    alignItems: "center"
-  },
-
-  openMenuButtonText: {
-    color: "#314A5C",
-    fontWeight: "900",
-    fontSize: 15
   }
 
 });
-
-

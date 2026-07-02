@@ -1,8 +1,7 @@
-import { View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useMobileContent } from "../../content/useMobileContent";
-import { styles } from "../../theme/styles";
+import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Situation } from "../../types/profile";
-import { Chip } from "../ui/Chip";
 
 type SituationOption = {
   value: Situation;
@@ -20,15 +19,56 @@ export function SituationSelector({
   const options = content.situations as SituationOption[];
 
   return (
-    <View style={styles.chipRow}>
-      {options.map((option) => (
-        <Chip
-          key={option.value}
-          label={option.label}
-          active={situation === option.value}
-          onPress={() => setSituation(option.value)}
-        />
-      ))}
+    <View style={local.grid}>
+      {options.map((option) => {
+        const active = situation === option.value;
+
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="button"
+            style={[local.option, active && local.optionActive]}
+            onPress={() => setSituation(option.value)}
+          >
+            <Text style={[local.optionText, active && local.optionTextActive]}>{option.label}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
+
+const local = StyleSheet.create({
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  option: {
+    alignItems: "center",
+    backgroundColor: semanticColors.surface,
+    borderColor: semanticColors.border,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexBasis: "48%",
+    flexGrow: 1,
+    justifyContent: "center",
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  },
+  optionActive: {
+    backgroundColor: semanticColors.accentSoft,
+    borderColor: semanticColors.accent
+  },
+  optionText: {
+    color: semanticColors.textMuted,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    textAlign: "center"
+  },
+  optionTextActive: {
+    color: semanticColors.text
+  }
+});

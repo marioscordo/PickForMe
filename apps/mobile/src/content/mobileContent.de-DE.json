@@ -9,27 +9,27 @@
   },
   "pick": {
     "heroTitle": "Was passt heute?",
-    "heroSubtitle": "Speisekarte rein. PickForMe kennt Dein Profil.",
+    "heroSubtitle": "Zeig mir kurz die Karte. Ich suche Dir etwas, das zu Dir passt.",
     "pasteTab": "Einfügen",
     "qrTab": "QR-Code",
-    "moodTitle": "Heute passt am besten:",
-    "loadingTitle": "PickForMe arbeitet für Dich",
+    "moodTitle": "Wonach ist Dir gerade?",
+    "loadingTitle": "Ich suche Dir etwas Gutes raus",
     "loadingSteps": [
-      "Speisekarte wird gelesen ...",
-      "Gerichte werden erkannt ...",
-      "Dein Profil wird berücksichtigt ...",
-      "PickForMe wählt passende Empfehlungen ..."
+      "Ich lese kurz die Speisekarte ...",
+      "Ich erkenne die Gerichte ...",
+      "Ich gleiche sie mit Deinem Profil ab ...",
+      "Ich wähle passende Empfehlungen ..."
     ],
     "errorTitle": "Speisekarte nicht sicher ausgewertet",
-    "mainButtonIdle": "Passende Gerichte finden",
-    "mainButtonLoading": "Analyse läuft ...",
+    "mainButtonIdle": "Such mir etwas Passendes",
+    "mainButtonLoading": "Ich schaue auf die Karte ...",
     "openMenu": "Speisekarte öffnen"
   },
   "menuInput": {
-    "kicker": "Speisekarte",
+    "kicker": "Schick mir die Speisekarte",
     "title": "Einfügen",
-    "hint": "Link, PDF-Adresse oder Text einfügen.",
-    "placeholder": "Speisekarte oder Link hier einfügen..."
+    "hint": "Link, PDF oder Text. Ich kümmere mich um den Rest.",
+    "placeholder": "Link oder Speisekartentext einfügen..."
   },
   "qrScanner": {
     "title": "QR-Code scannen",
@@ -43,14 +43,14 @@
     "camera": "PickForMe benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
   },
   "login": {
-    "title": "PickForMe 🍽️",
-    "subtitle": "Das Restaurant kenne ich nicht. PickForMe kennt mich.",
-    "cardTitle": "Einloggen",
+    "title": "Willkommen zurück",
+    "subtitle": "Ich kenne Deine Vorlieben. Melde Dich an, dann suche ich Dir wieder etwas Passendes.",
+    "cardTitle": "Dein Zugang",
     "emailLabel": "E-Mail",
     "emailPlaceholder": "name@example.com",
     "passwordLabel": "Passwort",
     "passwordPlaceholder": "Passwort",
-    "continueButton": "Weiter",
+    "continueButton": "Weiter zu PickForMe",
     "genericError": "Login fehlgeschlagen."
   },
   "authErrors": {
@@ -80,15 +80,15 @@
   "recommendation": {
     "restaurantTitle": "Über das Restaurant",
     "fallbackTitle": "Das passt heute zu Dir",
-    "fallbackText": "PickForMe ordnet die sicher erkannten Gerichte für Deine aktuelle Situation ein.",
-    "unsafeKicker": "Speisekarte nicht sicher ausgewertet",
-    "unsafeTitle": "Keine sichere Empfehlung",
-    "unsafeText": "Ich konnte daraus keine sicheren Empfehlungen erzeugen.",
-    "resetButton": "Neue Speisekarte prüfen",
+    "fallbackText": "Ich ordne die erkannten Gerichte für Deinen Moment ein.",
+    "unsafeKicker": "Das ist mir zu unsicher",
+    "unsafeTitle": "Ich kann Dir daraus nichts verlässlich empfehlen",
+    "unsafeText": "Zeig mir bitte eine klarere Speisekarte oder füge den Speisekartentext ein.",
+    "resetButton": "Neue Speisekarte zeigen",
     "fallbackDishName": "Gericht",
     "acceptButton": "Das nehme ich",
-    "ratingTitle": "Wie gut passt diese Empfehlung?",
-    "savedText": "Gespeichert: {rating} von 5 Sternen für Dein persönliches Ranking."
+    "ratingTitle": "Hat das gut gepasst?",
+    "savedText": "Merke ich mir: {rating} von 5 Sternen."
   },
   "profileScreen": {
     "title": "Profil",

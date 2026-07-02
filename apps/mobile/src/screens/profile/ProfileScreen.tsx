@@ -1,14 +1,17 @@
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { OutputLocaleField } from "../../components/profile/OutputLocaleField";
 import { ProfileEditor, type ProfileEditorSection } from "../../components/profile/ProfileEditor";
+import { ActionButton } from "../../components/ui/ActionButton";
 import { Screen } from "../../components/ui/Screen";
+import { ScreenHeader } from "../../components/ui/ScreenHeader";
+import { SectionHeader } from "../../components/ui/SectionHeader";
 import { resolveOutputLocale } from "../../config/outputLocales";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
-import { styles } from "../../theme/styles";
+import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
 
 export type ProfileSection = "general" | ProfileEditorSection;
 
@@ -36,12 +39,13 @@ export function ProfileScreen({
         ? content.profileScreen.generalButton
         : profileSections.find((section) => section.id === activeSection)?.label ?? content.profileScreen.title;
 
+    const activeSubtitle = activeSection === "general" ? content.profileScreen.subtitle : activeSectionHint(activeSection, content);
+
     return (
       <Screen>
-        <Text style={styles.title}>{activeTitle}</Text>
-
+        <ScreenHeader title={activeTitle} subtitle={activeSubtitle} />
         {activeSection === "general" ? (
-          <View style={styles.profileDetailSurface}>
+          <View style={local.detailStack}>
             <OutputLocaleField
               value={profile.outputLocale}
               onChange={(outputLocale) =>
@@ -51,14 +55,11 @@ export function ProfileScreen({
                 })
               }
             />
-            <Text style={styles.subtitle}>{content.profileScreen.subtitle}</Text>
 
-            <Pressable style={styles.ghostButton} onPress={() => auth.signOut()}>
-              <Text style={styles.ghostButtonText}>{content.profileScreen.signOut}</Text>
-            </Pressable>
+            <ActionButton label={content.profileScreen.signOut} variant="secondary" onPress={() => auth.signOut()} />
           </View>
         ) : (
-          <ProfileEditor profile={profile} setProfile={setProfile} section={activeSection} />
+          <ProfileEditor profile={profile} setProfile={setProfile} section={activeSection} hideHeader />
         )}
       </Screen>
     );
@@ -66,23 +67,21 @@ export function ProfileScreen({
 
   return (
     <Screen>
-      <Text style={styles.title}>{content.profileScreen.title}</Text>
+      <ScreenHeader title={content.profileScreen.title} />
 
-      <View style={styles.profileSettingsList}>
+      <View style={local.settingsList}>
         <ProfileMenuRow
           icon={content.profileScreen.generalIcon}
           title={content.profileScreen.generalButton}
           detail={formatLocaleLabel(profile.outputLocale, profile.outputLocale)}
           onPress={() => setActiveSection("general")}
+          isLast
         />
       </View>
 
-      <View style={styles.profilePromptBlock}>
-        <Text style={styles.h2}>{content.profileEditor.introTitle}</Text>
-        <Text style={styles.subtitle}>{content.profileEditor.introSubtitle}</Text>
-      </View>
+      <SectionHeader title={content.profileEditor.introTitle} subtitle={content.profileEditor.introSubtitle} />
 
-      <View style={styles.profileSettingsList}>
+      <View style={local.settingsList}>
         <ProfileMenuRow
           icon={content.profileEditor.preferenceValueIcon}
           title={content.profileScreen.preferencesButton}
@@ -100,6 +99,7 @@ export function ProfileScreen({
           title={content.profileScreen.intolerancesButton}
           detail={activeStatus(profile.intolerances.length, content)}
           onPress={() => setActiveSection("intolerances")}
+          isLast
         />
       </View>
     </Screen>
@@ -110,25 +110,27 @@ function ProfileMenuRow({
   icon,
   title,
   detail,
-  onPress
+  onPress,
+  isLast
 }: {
   icon: string;
   title: string;
   detail: string;
   onPress: () => void;
+  isLast?: boolean;
 }) {
   const content = useMobileContent();
 
   return (
-    <Pressable style={styles.profileMenuRow} onPress={onPress}>
-      <View style={styles.profileMenuIcon}>
-        <Text style={styles.profileMenuIconText}>{icon}</Text>
+    <Pressable style={[local.menuRow, isLast && local.menuRowLast]} onPress={onPress}>
+      <View style={local.menuIcon}>
+        <Text style={local.menuIconText}>{icon}</Text>
       </View>
-      <View style={styles.profileMenuTextBlock}>
-        <Text style={styles.profileMenuTitle}>{title}</Text>
-        <Text style={styles.profileMenuDetail}>{detail}</Text>
+      <View style={local.menuTextBlock}>
+        <Text style={local.menuTitle}>{title}</Text>
+        <Text style={local.menuDetail}>{detail}</Text>
       </View>
-      <Text style={styles.profileMenuChevron}>{content.profileScreen.chevron}</Text>
+      <Text style={local.menuChevron}>{content.profileScreen.chevron}</Text>
     </Pressable>
   );
 }
@@ -137,6 +139,18 @@ function activeStatus(count: number, content: ReturnType<typeof useMobileContent
   return count > 0
     ? formatContent(content.profileScreen.activeStatus, { count })
     : content.profileScreen.emptyStatus;
+}
+
+function activeSectionHint(activeSection: ProfileEditorSection, content: ReturnType<typeof useMobileContent>) {
+  if (activeSection === "preferences") {
+    return content.profileEditor.preferencesHint;
+  }
+
+  if (activeSection === "exclusions") {
+    return content.profileEditor.exclusionsHint;
+  }
+
+  return content.profileEditor.intolerancesHint;
 }
 
 function formatLocaleLabel(locale: string | undefined, displayLocale: string | undefined) {
@@ -163,3 +177,63 @@ function getDisplayName(type: "language" | "region", code: string | undefined, d
 
   return code;
 }
+
+const local = StyleSheet.create({
+  detailStack: {
+    gap: spacing.lg
+  },
+  settingsList: {
+    backgroundColor: semanticColors.surface,
+    borderColor: semanticColors.border,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    marginBottom: spacing.xxl,
+    overflow: "hidden"
+  },
+  menuRow: {
+    alignItems: "center",
+    backgroundColor: semanticColors.surface,
+    borderBottomColor: semanticColors.border,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: spacing.md,
+    minHeight: 68,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md
+  },
+  menuRowLast: {
+    borderBottomWidth: 0
+  },
+  menuIcon: {
+    alignItems: "center",
+    backgroundColor: semanticColors.accentSoft,
+    borderRadius: radius.sm,
+    height: 40,
+    justifyContent: "center",
+    width: 40
+  },
+  menuIconText: {
+    fontSize: 18
+  },
+  menuTextBlock: {
+    flex: 1
+  },
+  menuTitle: {
+    color: semanticColors.text,
+    fontSize: typography.sectionTitle.fontSize,
+    fontWeight: typography.sectionTitle.fontWeight,
+    lineHeight: typography.sectionTitle.lineHeight
+  },
+  menuDetail: {
+    color: semanticColors.textMuted,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    marginTop: spacing.xxs
+  },
+  menuChevron: {
+    color: semanticColors.textMuted,
+    fontSize: 24,
+    fontWeight: "700"
+  }
+});

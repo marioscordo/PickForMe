@@ -3,8 +3,11 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
+import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Dish } from "../../types/menu";
 import type { AnalyzeData, Recommendation } from "../../types/recommendations";
+import { ActionButton } from "../ui/ActionButton";
+import { Surface } from "../ui/Surface";
 
 type RecommendationFeedback = {
   dishNameOriginal: string;
@@ -48,10 +51,10 @@ export function RecommendationCard({
   const topBoxTitle = restaurantDescription ? content.recommendation.restaurantTitle : content.recommendation.fallbackTitle;
   const topBoxText = restaurantDescription || content.recommendation.fallbackText;
   const topBox = (
-    <View style={local.hero}>
+    <Surface style={local.topBox}>
       <Text style={local.title}>{topBoxTitle}</Text>
       <Text style={local.subtitle}>{topBoxText}</Text>
-    </View>
+    </Surface>
   );
 
   const feedbackByName = new Map(
@@ -66,17 +69,15 @@ export function RecommendationCard({
       <>
         {topBox}
 
-        <View style={local.hero}>
+        <Surface tone="soft" style={local.unsafeBox}>
           <Text style={local.kicker}>{content.recommendation.unsafeKicker}</Text>
           <Text style={local.title}>{content.recommendation.unsafeTitle}</Text>
           <Text style={local.subtitle}>
             {content.recommendation.unsafeText}
           </Text>
-        </View>
+        </Surface>
 
-        <Pressable style={local.resetButton} onPress={onReset}>
-          <Text style={local.resetButtonText}>{content.recommendation.resetButton}</Text>
-        </Pressable>
+        <ActionButton label={content.recommendation.resetButton} variant="accent" onPress={onReset} style={local.resetButton} />
       </>
     );
   }
@@ -122,7 +123,7 @@ export function RecommendationCard({
           const isSelected = selectedDishId === dish.id || Boolean(existingFeedback);
 
           return (
-            <View key={dish.id} style={local.card}>
+            <Surface key={dish.id} style={local.card}>
               <View style={local.rankBubble}>
                 <Text style={local.rankText}>{index + 1}</Text>
               </View>
@@ -142,9 +143,12 @@ export function RecommendationCard({
                   </View>
                 ) : null}
 
-                <Pressable style={local.acceptButton} onPress={() => setSelectedDishId(dish.id)}>
-                  <Text style={local.acceptButtonText}>{content.recommendation.acceptButton}</Text>
-                </Pressable>
+                <ActionButton
+                  label={content.recommendation.acceptButton}
+                  variant="secondary"
+                  onPress={() => setSelectedDishId(dish.id)}
+                  style={local.acceptButton}
+                />
 
                 {isSelected ? (
                   <View style={local.ratingBox}>
@@ -177,80 +181,81 @@ export function RecommendationCard({
                   </View>
                 ) : null}
               </View>
-            </View>
+            </Surface>
           );
         })}
       </View>
 
-      <Pressable style={local.resetButton} onPress={onReset}>
-        <Text style={local.resetButtonText}>{content.recommendation.resetButton}</Text>
-      </Pressable>
+      <ActionButton label={content.recommendation.resetButton} variant="accent" onPress={onReset} style={local.resetButton} />
     </>
   );
 }
 
 const local = StyleSheet.create({
-  hero: {
-    backgroundColor: "#DCEBF7",
-    borderRadius: 26,
-    padding: 18,
-    marginBottom: 12
+  topBox: {
+    backgroundColor: semanticColors.accentSoft,
+    borderColor: semanticColors.accent,
+    marginBottom: spacing.md,
+    padding: spacing.xxl
+  },
+
+  unsafeBox: {
+    marginBottom: spacing.md,
+    padding: spacing.xxl
   },
 
   kicker: {
-    color: "#4B6B88",
-    fontSize: 13,
-    fontWeight: "900",
-    marginBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: 0.8
+    color: semanticColors.textMuted,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    marginBottom: spacing.xs,
+    textTransform: "uppercase"
   },
 
   title: {
-    color: "#132238",
-    fontSize: 24,
-    lineHeight: 28,
-    fontWeight: "900",
-    marginBottom: 6
+    color: semanticColors.text,
+    fontSize: typography.screenTitle.fontSize,
+    fontWeight: typography.screenTitle.fontWeight,
+    lineHeight: typography.screenTitle.lineHeight,
+    marginBottom: spacing.xs
   },
 
   subtitle: {
-    color: "#334155",
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: "700"
+    color: semanticColors.text,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    lineHeight: typography.body.lineHeight
   },
 
   list: {
-    gap: 12,
-    marginBottom: 14
+    gap: spacing.md,
+    marginBottom: spacing.lg
   },
 
   card: {
+    borderColor: semanticColors.border,
     flexDirection: "row",
-    gap: 12,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#D8CFF0"
+    gap: spacing.md,
+    marginBottom: 0,
+    padding: spacing.lg
   },
 
   rankBubble: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#E8F3F1",
+    backgroundColor: semanticColors.accentSoft,
+    borderColor: semanticColors.accent,
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#B7D9CD"
+    height: 34,
+    justifyContent: "center",
+    width: 34
   },
 
   rankText: {
-    color: "#285C55",
-    fontWeight: "900",
-    fontSize: 16
+    color: semanticColors.text,
+    fontSize: 16,
+    fontWeight: "900"
   },
 
   cardText: {
@@ -258,35 +263,35 @@ const local = StyleSheet.create({
   },
 
   dishName: {
-    color: "#111827",
-    fontSize: 17,
-    lineHeight: 21,
-    fontWeight: "900"
+    color: semanticColors.text,
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 22
   },
 
   translation: {
-    color: "#64748B",
+    color: semanticColors.textMuted,
     fontSize: 14,
-    lineHeight: 19,
     fontWeight: "800",
-    marginTop: 3,
-    marginBottom: 6
+    lineHeight: 19,
+    marginBottom: spacing.xs,
+    marginTop: spacing.xxs
   },
 
   price: {
-    color: "#285C55",
+    color: semanticColors.success,
     fontSize: 15,
     fontWeight: "900",
-    marginTop: 4
+    marginTop: spacing.xxs
   },
 
   factsBox: {
-    marginTop: 9,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 14,
-    padding: 10,
+    backgroundColor: semanticColors.primarySoft,
+    borderColor: semanticColors.border,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: "#E2E8F0"
+    marginTop: spacing.sm,
+    padding: spacing.md
   },
 
   sectionLabel: {
@@ -299,78 +304,60 @@ const local = StyleSheet.create({
   },
 
   factsText: {
-    color: "#334155",
+    color: semanticColors.textMuted,
     fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "700"
+    fontWeight: "700",
+    lineHeight: 20
   },
 
   acceptButton: {
-    marginTop: 10,
-    backgroundColor: "#E8F3F1",
-    borderColor: "#B7D9CD",
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingVertical: 10,
-    alignItems: "center"
-  },
-
-  acceptButtonText: {
-    color: "#285C55",
-    fontSize: 15,
-    fontWeight: "900"
+    borderRadius: radius.pill,
+    marginTop: spacing.md,
+    paddingVertical: spacing.md
   },
 
   ratingBox: {
-    marginTop: 10,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    padding: 12,
+    backgroundColor: semanticColors.primarySoft,
+    borderColor: semanticColors.border,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#E2E8F0"
+    marginTop: spacing.md,
+    padding: spacing.md
   },
 
   ratingTitle: {
-    color: "#334155",
-    fontSize: 12,
+    color: semanticColors.text,
+    fontSize: typography.label.fontSize,
     fontWeight: "900",
-    marginBottom: 6
+    lineHeight: typography.label.lineHeight,
+    marginBottom: spacing.xs
   },
 
   starRow: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 6
+    gap: spacing.sm,
+    marginBottom: spacing.xs
   },
 
   star: {
-    color: "#94A3B8",
+    color: semanticColors.textMuted,
     fontSize: 28,
     fontWeight: "900"
   },
 
   starActive: {
-    color: "#8FB9B4"
+    color: semanticColors.accent
   },
 
   savedText: {
-    color: "#475569",
+    color: semanticColors.textMuted,
     fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "700"
+    fontWeight: "700",
+    lineHeight: 18
   },
 
   resetButton: {
-    backgroundColor: "#8FB9B4",
-    borderRadius: 999,
-    paddingVertical: 15,
-    alignItems: "center",
+    borderRadius: radius.pill,
     marginBottom: 20
-  },
-
-  resetButtonText: {
-    color: "#102A2A",
-    fontSize: 16,
-    fontWeight: "900"
   }
 });
