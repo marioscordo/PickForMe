@@ -83,7 +83,12 @@ export function PickScreen({
   if (analyze.result) {
     return (
       <Screen>
-        <RecommendationCard result={analyze.result} onReset={analyze.reset} />
+        <RecommendationCard
+          result={analyze.result}
+          menuText={menuText}
+          situation={situation}
+          onReset={analyze.reset}
+        />
 
         {lastAnalyzedMenuUrl ? (
           <View style={local.openMenuSection}>

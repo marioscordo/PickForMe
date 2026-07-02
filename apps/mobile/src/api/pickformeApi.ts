@@ -12,6 +12,11 @@ type AnalyzeMenuMobileArgs = {
   signal?: AbortSignal;
 };
 
+type RequestStarterPairingsMobileArgs = AnalyzeMenuMobileArgs & {
+  result: AnalyzeData;
+  targetDishId: string;
+};
+
 type AnalyzeMenuApiBody = {
   sourceKind: "text";
   menuText: string;
@@ -33,5 +38,28 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
   return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body, {
     signal: args.signal
   });
+}
+
+export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
+  const body = {
+    sourceKind: "text" as const,
+    menuText: args.menuText,
+    situation: args.situation,
+    profile: {
+      ...args.profile,
+      outputLocale: args.profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE
+    },
+    dishes: args.result.dishes,
+    recommendations: args.result.recommendations,
+    targetDishId: args.targetDishId
+  };
+
+  return apiPost<{ recommendations: AnalyzeData["recommendations"] }, typeof body>(
+    "/api/starter-pairings",
+    body,
+    {
+      signal: args.signal
+    }
+  );
 }
 

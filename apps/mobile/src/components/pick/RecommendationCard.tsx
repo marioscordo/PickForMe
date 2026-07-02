@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useProfile } from "../../app/providers/ProfileProvider";
+import { requestStarterPairings } from "../../api/pickformeApi";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
 import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Dish } from "../../types/menu";
+import type { Situation } from "../../types/profile";
 import type { AnalyzeData, Recommendation } from "../../types/recommendations";
 import { ActionButton } from "../ui/ActionButton";
 import { Surface } from "../ui/Surface";
@@ -21,6 +23,8 @@ type ProfileWithFeedback = {
   recommendationFeedback?: RecommendationFeedback[];
 };
 
+type StarterRequestStatus = "loading" | "error";
+
 function buildDisplayTranslation(originalName: string, translatedName?: string) {
   const cleaned = translatedName?.trim() ?? "";
 
@@ -33,20 +37,28 @@ function buildDisplayTranslation(originalName: string, translatedName?: string) 
 
 export function RecommendationCard({
   result,
+  menuText,
+  situation,
   onReset
 }: {
   result: AnalyzeData;
+  menuText: string;
+  situation: Situation;
   onReset: () => void;
 }) {
   const content = useMobileContent();
   const { profile, setProfile } = useProfile();
   const [selectedDishId, setSelectedDishId] = useState<string | null>(null);
+  const [recommendationsWithStarters, setRecommendationsWithStarters] = useState<Recommendation[] | null>(null);
+  const [starterRequestStatusByDishId, setStarterRequestStatusByDishId] = useState<Record<string, StarterRequestStatus>>({});
 
   const dishesById = useMemo(() => new Map(result.dishes.map((dish) => [dish.id, dish])), [result.dishes]);
+  const visibleRecommendations = recommendationsWithStarters ?? result.recommendations;
 
-  const safeRecommendations = result.recommendations
+  const safeRecommendations = visibleRecommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
+  const isStarterSearchRunning = Object.values(starterRequestStatusByDishId).some((status) => status === "loading");
   const restaurantDescription = result.restaurantDescription?.trim() ?? "";
   const topBoxTitle = restaurantDescription ? content.recommendation.restaurantTitle : content.recommendation.fallbackTitle;
   const topBoxText = restaurantDescription || content.recommendation.fallbackText;
@@ -63,6 +75,61 @@ export function RecommendationCard({
       item
     ])
   );
+
+  useEffect(() => {
+    setRecommendationsWithStarters(null);
+    setStarterRequestStatusByDishId({});
+  }, [result]);
+
+  async function handleStarterSearch(recommendation: Recommendation) {
+    if (isStarterSearchRunning) {
+      return;
+    }
+
+    setStarterRequestStatusByDishId((current) => ({
+      ...current,
+      [recommendation.dishId]: "loading"
+    }));
+
+    try {
+      const data = await requestStarterPairings({
+        menuText,
+        situation,
+        profile,
+        targetDishId: recommendation.dishId,
+        result: {
+          ...result,
+          recommendations: visibleRecommendations
+        }
+      });
+      const updatedRecommendation = data.recommendations.find((item) => item.dishId === recommendation.dishId);
+
+      if (!updatedRecommendation?.starter) {
+        throw new Error("STARTER_NOT_FOUND");
+      }
+
+      setRecommendationsWithStarters((current) =>
+        (current ?? result.recommendations).map((item) =>
+          item.dishId === recommendation.dishId
+            ? {
+                ...item,
+                starter: updatedRecommendation.starter
+              }
+            : item
+        )
+      );
+      setStarterRequestStatusByDishId((current) => {
+        const next = { ...current };
+        delete next[recommendation.dishId];
+        return next;
+      });
+    } catch {
+      setStarterRequestStatusByDishId((current) => ({
+        ...current,
+        [recommendation.dishId]: "error"
+      }));
+    }
+  }
 
   if (safeRecommendations.length === 0) {
     return (
@@ -103,7 +170,7 @@ export function RecommendationCard({
   }
 
   return (
-    <>
+    <View style={local.resultRoot}>
       {topBox}
 
       <View style={local.list}>
@@ -117,6 +184,12 @@ export function RecommendationCard({
           const originalName = dishData.nameOriginal ?? dishData.name ?? content.recommendation.fallbackDishName;
           const translatedName = buildDisplayTranslation(originalName, rec.translatedName);
           const showTranslation = translatedName.length > 0;
+          const starter = rec.starter;
+          const starterTranslation = starter
+            ? buildDisplayTranslation(starter.nameOriginal, starter.translatedName)
+            : "";
+          const starterRequestStatus = starterRequestStatusByDishId[rec.dishId];
+          const shouldShowStarterButton = situation === "richtig_hunger" && !starter;
 
           const priceText = typeof dishData.price === "number" ? `${dishData.price.toFixed(2).replace(".", ",")} €` : "";
           const existingFeedback = feedbackByName.get(originalName.toLowerCase());
@@ -140,6 +213,38 @@ export function RecommendationCard({
                 {rec.facts?.trim() ? (
                   <View style={local.factsBox}>
                     <Text style={local.factsText}>{rec.facts.trim()}</Text>
+                  </View>
+                ) : null}
+
+                {starter ? (
+                  <View style={local.starterBox}>
+                    <Text style={local.starterLabel}>{content.recommendation.starterLabel}</Text>
+                    <Text style={local.starterName}>{starter.nameOriginal}</Text>
+                    {starterTranslation ? (
+                      <Text style={local.starterTranslation}>{starterTranslation}</Text>
+                    ) : null}
+                    {starter.priceRaw ? (
+                      <Text style={local.starterPrice}>{starter.priceRaw}</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {shouldShowStarterButton ? (
+                  <View style={local.starterActionBox}>
+                    {starterRequestStatus === "error" ? (
+                      <Text style={local.starterActionText}>{content.recommendation.starterSearchError}</Text>
+                    ) : null}
+                    <ActionButton
+                      disabled={isStarterSearchRunning}
+                      label={
+                        starterRequestStatus === "loading"
+                          ? content.recommendation.starterSearchLoading
+                          : content.recommendation.starterSearchButton
+                      }
+                      variant="secondary"
+                      onPress={() => handleStarterSearch(rec)}
+                      style={local.starterActionButton}
+                    />
                   </View>
                 ) : null}
 
@@ -187,11 +292,15 @@ export function RecommendationCard({
       </View>
 
       <ActionButton label={content.recommendation.resetButton} variant="accent" onPress={onReset} style={local.resetButton} />
-    </>
+    </View>
   );
 }
 
 const local = StyleSheet.create({
+  resultRoot: {
+    position: "relative"
+  },
+
   topBox: {
     backgroundColor: semanticColors.accentSoft,
     borderColor: semanticColors.accent,
@@ -308,6 +417,63 @@ const local = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20
+  },
+
+  starterBox: {
+    backgroundColor: semanticColors.accentSoft,
+    borderColor: semanticColors.accent,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginTop: spacing.sm,
+    padding: spacing.md
+  },
+
+  starterLabel: {
+    color: semanticColors.textMuted,
+    fontSize: 12,
+    fontWeight: "900",
+    lineHeight: 16,
+    marginBottom: spacing.xxs,
+    textTransform: "uppercase"
+  },
+
+  starterName: {
+    color: semanticColors.text,
+    fontSize: 14,
+    fontWeight: "900",
+    lineHeight: 19
+  },
+
+  starterTranslation: {
+    color: semanticColors.textMuted,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+    marginTop: spacing.xxs
+  },
+
+  starterPrice: {
+    color: semanticColors.success,
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: spacing.xxs
+  },
+
+  starterActionBox: {
+    marginTop: spacing.md
+  },
+
+  starterActionText: {
+    color: semanticColors.textMuted,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    lineHeight: typography.body.lineHeight,
+    marginBottom: spacing.sm
+  },
+
+  starterActionButton: {
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md
   },
 
   acceptButton: {
