@@ -132,6 +132,7 @@ Felder:
 - `restaurant_url`
 - `dish_name_original`
 - `translated_name`
+- `output_locale`
 - `rating`
 - `accepted`
 - `situation`
