@@ -57,6 +57,8 @@
     "devNotConfigured": "Dev-Zugang ist nicht konfiguriert.",
     "devNotAllowed": "Dieser Zugang ist nicht freigeschaltet.",
     "loginFailed": "Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.",
+    "accountDeleteDevUnavailable": "Account-Löschung ist im lokalen Testzugang nicht verfügbar.",
+    "accountDeleteFailed": "Account und Daten konnten gerade nicht gelöscht werden. Bitte versuche es später noch einmal.",
     "missingProvider": "useAuth muss innerhalb von AuthProvider genutzt werden."
   },
   "situations": [
@@ -105,7 +107,13 @@
     "exclusionsButton": "Meine Ausschlüsse",
     "intolerancesButton": "Allergien und Unverträglichkeiten",
     "subtitle": "PickForMe merkt sich, was Dir wichtig ist - ohne Fragebogen.",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "deleteAccount": "Account und Daten löschen",
+    "deleteAccountLoading": "Account wird gelöscht ...",
+    "deleteAccountConfirmTitle": "Account löschen?",
+    "deleteAccountConfirmText": "Dein Account und die gespeicherten PickForMe-Daten werden dauerhaft gelöscht.",
+    "deleteAccountConfirmAction": "Dauerhaft löschen",
+    "deleteAccountFailed": "Account und Daten konnten gerade nicht gelöscht werden. Bitte versuche es später noch einmal."
   },
   "outputLocale": {
     "label": "Ausgabesprache",

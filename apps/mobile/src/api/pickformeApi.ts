@@ -63,3 +63,7 @@ export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
   );
 }
 
+export function deleteAccount() {
+  return apiPost<{ deleted: boolean }, Record<string, never>>("/api/account/delete", {});
+}
+

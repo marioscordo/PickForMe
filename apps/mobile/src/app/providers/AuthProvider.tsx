@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { deleteAccount as deleteAccountRequest } from "../../api/pickformeApi";
 import { env } from "../../config/env";
 import { getMobileContent } from "../../content/mobileContent";
 import { supabase } from "../../services/supabaseClient";
@@ -9,6 +10,7 @@ type AuthContextValue = {
   state: AuthState;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 };
 
 const authContent = getMobileContent(undefined).authErrors;
@@ -79,11 +81,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ status: "anonymous" });
   }
 
+  async function deleteAccount() {
+    if (env.devMode) {
+      throw new Error(authContent.accountDeleteDevUnavailable);
+    }
+
+    try {
+      await deleteAccountRequest();
+    } catch {
+      throw new Error(authContent.accountDeleteFailed);
+    }
+
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      setState({ status: "anonymous" });
+    }
+  }
+
   const value = useMemo(
     () => ({
       state,
       signIn,
-      signOut
+      signOut,
+      deleteAccount
     }),
     [state]
   );

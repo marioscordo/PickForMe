@@ -1,5 +1,5 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { OutputLocaleField } from "../../components/profile/OutputLocaleField";
@@ -25,6 +25,8 @@ export function ProfileScreen({
   const content = useMobileContent();
   const auth = useAuth();
   const { profile, setProfile } = useProfile();
+  const [deleteAccountPending, setDeleteAccountPending] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
 
   const profileSections: { id: ProfileEditorSection; label: string }[] = [
     { id: "preferences", label: content.profileScreen.preferencesButton },
@@ -40,6 +42,38 @@ export function ProfileScreen({
         : profileSections.find((section) => section.id === activeSection)?.label ?? content.profileScreen.title;
 
     const activeSubtitle = activeSection === "general" ? content.profileScreen.subtitle : activeSectionHint(activeSection, content);
+
+    function confirmDeleteAccount() {
+      setDeleteAccountError(null);
+      Alert.alert(
+        content.profileScreen.deleteAccountConfirmTitle,
+        content.profileScreen.deleteAccountConfirmText,
+        [
+          {
+            text: content.common.cancel,
+            style: "cancel"
+          },
+          {
+            text: content.profileScreen.deleteAccountConfirmAction,
+            style: "destructive",
+            onPress: deleteAccount
+          }
+        ]
+      );
+    }
+
+    async function deleteAccount() {
+      setDeleteAccountError(null);
+      setDeleteAccountPending(true);
+
+      try {
+        await auth.deleteAccount();
+      } catch (error) {
+        setDeleteAccountError(error instanceof Error ? error.message : content.profileScreen.deleteAccountFailed);
+      } finally {
+        setDeleteAccountPending(false);
+      }
+    }
 
     return (
       <Screen>
@@ -57,6 +91,15 @@ export function ProfileScreen({
             />
 
             <ActionButton label={content.profileScreen.signOut} variant="secondary" onPress={() => auth.signOut()} />
+            {deleteAccountError ? (
+              <Text style={local.errorText}>{deleteAccountError}</Text>
+            ) : null}
+            <ActionButton
+              label={deleteAccountPending ? content.profileScreen.deleteAccountLoading : content.profileScreen.deleteAccount}
+              variant="secondary"
+              disabled={deleteAccountPending}
+              onPress={confirmDeleteAccount}
+            />
           </View>
         ) : (
           <ProfileEditor profile={profile} setProfile={setProfile} section={activeSection} hideHeader />
@@ -235,5 +278,12 @@ const local = StyleSheet.create({
     color: semanticColors.textMuted,
     fontSize: 24,
     fontWeight: "700"
+  },
+  errorText: {
+    color: semanticColors.danger,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    textAlign: "center"
   }
 });
