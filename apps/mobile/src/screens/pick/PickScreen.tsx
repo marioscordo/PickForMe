@@ -209,10 +209,18 @@ export function PickScreen({
       ) : null}
 
       {analyze.error ? (
-        <View style={local.feedbackErrorCard}>
-          <Text style={local.errorTitle}>{content.pick.errorTitle}</Text>
-          <Text style={local.errorText}>{analyze.error}</Text>
-        </View>
+        <>
+          <View style={local.feedbackErrorCard}>
+            <Text style={local.errorTitle}>{content.pick.errorTitle}</Text>
+            <Text style={local.errorText}>{analyze.error}</Text>
+          </View>
+
+          {lastAnalyzedMenuUrl ? (
+            <View style={local.openMenuSection}>
+              <ActionButton label={content.pick.openMenu} variant="secondary" onPress={openAnalyzedMenu} />
+            </View>
+          ) : null}
+        </>
       ) : null}
 
       <ActionButton

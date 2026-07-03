@@ -14,13 +14,15 @@
     },
     "ios": {
       "bundleIdentifier": "com.marioscordo.gustaroai",
-      "buildNumber": "1.0.1",
+      "buildNumber": "1.0.2",
       "supportsTablet": false
     },
     "android": {
       "package": "com.marioscordo.gustaroai",
       "versionCode": 1,
-      "permissions": ["CAMERA"],
+      "permissions": [
+        "CAMERA"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#071B4A"
