@@ -242,7 +242,15 @@ Vor jedem Production-Build muss geprueft werden:
    - Vor jedem neuen Production-Build wird die zuletzt bei EAS/App Store Connect eingereichte Buildnummer geprueft.
    - Der naechste Production-Build nach dem bereits realisierten Build `1.0.2` muss `1.0.3` verwenden.
    - Eine Buildnummer wird erst erhoeht, wenn tatsaechlich ein neuer Production-Build erstellt werden soll.
-9. Login-relevante Voraussetzungen sind geprueft:
+9. Live-Deployment-Stand der Production-API ist geprueft:
+   - Der fuer TestFlight/Store relevante Git-Stand ist zu GitHub gepusht.
+   - Vercel/Production ist auf diesem Stand deployed.
+   - `https://www.gustaroai.com/api/health` meldet `"service":"gustaroai-api"`.
+   - `https://www.gustaroai.com/privacy` zeigt GustaroAI, `kontakt@gustaroai.com` und die aktuelle ladungsfaehige Anschrift.
+   - `https://www.gustaroai.com/support` zeigt GustaroAI und `kontakt@gustaroai.com`.
+   - Auf live ausgelieferten Legal-/Supportseiten duerfen `PickForMe`, `support@pickforme.app` oder alte Produktbegriffe nicht sichtbar sein.
+   - Wenn dieser Live-Check fehlschlaegt, ist der Build nicht store-tauglich und darf nicht als abgenommen gelten.
+10. Login-relevante Voraussetzungen sind geprueft:
    - Supabase Auth User existiert.
    - User ist bestaetigt.
    - Passwort ist bekannt oder neu gesetzt.
@@ -276,6 +284,8 @@ TestFlight-Abnahme:
 - Die Dev-App darf fuer schnelle Entwicklungspruefungen genutzt werden, ist aber keine Store-Abnahme.
 - Stopper werden lokal korrigiert, danach wird ein neuer Production-Build erstellt und erneut ueber TestFlight geprueft.
 - Kein Store-Release erfolgt ohne erfolgreich installierten und getesteten TestFlight-Build.
+- Kein Store-Release erfolgt ohne live gepruefte Legal-/Supportseiten auf `https://www.gustaroai.com/privacy` und `https://www.gustaroai.com/support`.
+- Die Abnahme muss den Live-Stand der Web-/API-Seiten einschliessen; ein lokal korrekter Code-Stand reicht nicht aus.
 
 Fehlerregel:
 
