@@ -338,3 +338,79 @@ Sie darf nicht zur Steuerung der GUI-Sprache verwendet werden.
 Alle KI-Aufrufe, Uebersetzungen, Empfehlungen, Gerichtsnamen, Begruendungen und KI-generierten Sicherheitshinweise muessen die KI-Ausgabesprache beachten.
 
 Alle festen App-Texte, Navigation, Buttons, Labels, Fehlermeldungen, Hinweise und Popups muessen die GUI-Sprache beachten.
+
+## 18. Verbindliche Legal- und Support-Regel
+
+Alle sichtbaren Legal-, Datenschutz-, Support-, Profil- und Nutzerkommunikationstexte muessen den aktuellen Produktnamen GustaroAI verwenden.
+
+PickForMe ist nur historischer Arbeitsname und darf in der App, in Legal-Screens, Supportseiten, Profilbereichen oder Nutzerkommunikation nicht sichtbar sein.
+
+Datenschutz- und Supportseiten muessen vor jedem Store-Release geprueft werden.
+
+Verantwortlicher, Kontaktadresse, Loeschhinweise und sicherheitsrelevante Hinweise muessen sachlich, aktuell und produktkonform sein.
+
+Legal- und Supporttexte muessen korrekte UTF-8-Umlaute verwenden.
+
+Rechtliche, organisatorische oder sicherheitsbezogene Aussagen duerfen nur enthalten sein, wenn sie dem tatsaechlichen Produktstand, der tatsaechlichen Unternehmenssituation und der tatsaechlichen technischen Verarbeitung entsprechen.
+
+Aenderungen an Legal- und Supporttexten sind Copy-/Compliance-Aenderungen.
+
+Sie duerfen keine App-Funktion, Datenverarbeitung, Sicherheitslogik oder Architektur veraendern.
+
+Vor einem Release muss geprueft werden:
+
+1. Kein sichtbarer PickForMe-Bezug.
+2. Produktname ueberall sichtbar GustaroAI.
+3. Kontaktadresse aktuell.
+4. Verantwortlicher aktuell.
+5. Account-Loeschhinweise aktuell.
+6. Datenschutzseite erreichbar.
+7. Supportseite erreichbar.
+8. Typecheck oder Build fuer die betroffenen Seiten erfolgreich.
+
+## 19. Business-Validierung
+
+Business-Validierungen dokumentieren reale Praxiserfahrungen mit GustaroAI.
+
+Sie dienen nicht als Einzelfall-Beweis, sondern als Produktsignal fuer Positionierung, Nutzenversprechen und Priorisierung.
+
+### Praxisfall 001 - Zollhaus Forchheim
+
+Restaurant:
+
+Zollhaus Forchheim
+
+Quelle:
+
+Gourmetkarte Juni 2026
+
+Empfehlung:
+
+Zollhaus "Zwiebelrost 2.0"
+
+Dazu als Vorspeise:
+
+Gegrillte Jakobsmuschel & Garnele
+
+Ergebnis:
+
+Nutzer hat Empfehlung bestellt.
+
+Bewertung:
+
+Sehr gut.
+
+Restaurantfeedback:
+
+Bedienung positiv interessiert.
+
+Chefin hoeflich interessiert, sieht fuer ihr Restaurant aber begrenzten Bedarf wegen:
+
+- staendig wechselnder Kueche
+- Mund-zu-Mund-Propaganda
+- ueberschaubarer Karte
+- Gaeste lesen Karte vorher
+
+Produkt-Erkenntnis:
+
+GustaroAI ist zuerst ein Gaesteprodukt, kein Restaurantprodukt.
