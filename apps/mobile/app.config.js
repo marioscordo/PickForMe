@@ -22,13 +22,14 @@ module.exports = {
 
     ios: {
       supportsTablet: false,
-      buildNumber: "1.0.0",
+      buildNumber: "1.0.1",
       bundleIdentifier: IS_PROD
         ? "com.marioscordo.gustaroai"
         : "com.marioscordo.gustaroai.dev",
 
       infoPlist: {
         NSCameraUsageDescription: cameraUsageDescription,
+        ITSAppUsesNonExemptEncryption: false,
         ...(!IS_PROD
           ? {
               NSAppTransportSecurity: {
