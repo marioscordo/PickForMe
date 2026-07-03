@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { OutputLocaleField } from "../../components/profile/OutputLocaleField";
@@ -8,6 +8,7 @@ import { ActionButton } from "../../components/ui/ActionButton";
 import { Screen } from "../../components/ui/Screen";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { SectionHeader } from "../../components/ui/SectionHeader";
+import { env } from "../../config/env";
 import { resolveOutputLocale } from "../../config/outputLocales";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
@@ -75,6 +76,14 @@ export function ProfileScreen({
       }
     }
 
+    async function openLegalUrl(url: string) {
+      try {
+        await Linking.openURL(url);
+      } catch {
+        Alert.alert(content.profileScreen.legalLinkFailed);
+      }
+    }
+
     return (
       <Screen>
         <ScreenHeader title={activeTitle} subtitle={activeSubtitle} />
@@ -88,6 +97,17 @@ export function ProfileScreen({
                   outputLocale: resolveOutputLocale(outputLocale)
                 })
               }
+            />
+
+            <ActionButton
+              label={content.profileScreen.privacyPolicy}
+              variant="secondary"
+              onPress={() => openLegalUrl(env.privacyUrl)}
+            />
+            <ActionButton
+              label={content.profileScreen.support}
+              variant="secondary"
+              onPress={() => openLegalUrl(env.supportUrl)}
             />
 
             <ActionButton label={content.profileScreen.signOut} variant="secondary" onPress={() => auth.signOut()} />

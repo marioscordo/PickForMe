@@ -6,16 +6,29 @@
     "orientation": "portrait",
     "scheme": "pickforme",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#071B4A"
+    },
     "ios": {
       "bundleIdentifier": "com.marioscordo.pickforme",
+      "buildNumber": "1.0.0",
       "supportsTablet": false
     },
     "android": {
-      "package": "com.marioscordo.pickforme"
+      "package": "com.marioscordo.pickforme",
+      "versionCode": 1,
+      "permissions": ["CAMERA"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#071B4A"
+      }
     },
     "extra": {
       "eas": {
-        "projectId": "local-dev"
+        "projectId": "7f45f9ad-456e-4ba2-b7c7-16c4edf44358"
       }
     }
   }

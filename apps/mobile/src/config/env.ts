@@ -4,13 +4,25 @@ const localApiUrl = isLocalApiUrl(apiUrl);
 const defaultDevMode = process.env.NODE_ENV !== "production";
 const defaultDevEmail = "dev@pickforme.local";
 
+const apiOrigin = getApiOrigin(apiUrl);
+
 export const env = {
   apiUrl,
   devMode: explicitDevMode ? explicitDevMode === "true" : localApiUrl || defaultDevMode,
   devEmail: process.env.EXPO_PUBLIC_PICKFORME_DEV_EMAIL ?? defaultDevEmail,
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://example.supabase.co",
-  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder"
+  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder",
+  privacyUrl: `${apiOrigin}/privacy`,
+  supportUrl: `${apiOrigin}/support`
 };
+
+function getApiOrigin(value: string) {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return "https://api.pickforme.app";
+  }
+}
 
 function isLocalApiUrl(value: string) {
   try {

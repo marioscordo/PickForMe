@@ -2,6 +2,8 @@ const APP_VARIANT = process.env.APP_VARIANT || "development";
 const IS_PROD = APP_VARIANT === "production";
 const mobileContent = require("./src/content/mobileContent.de-DE.json");
 
+const cameraUsageDescription = mobileContent.permissions.camera;
+
 module.exports = {
   expo: {
     name: IS_PROD ? "PickForMe" : "PickForMe Dev",
@@ -12,27 +14,38 @@ module.exports = {
     userInterfaceStyle: "automatic",
 
     icon: "./assets/icon.png",
+    splash: {
+      image: "./assets/icon.png",
+      resizeMode: "contain",
+      backgroundColor: "#071B4A"
+    },
 
     ios: {
       supportsTablet: false,
+      buildNumber: "1.0.0",
       bundleIdentifier: IS_PROD
         ? "com.marioscordo.pickforme"
         : "com.marioscordo.pickforme.dev",
 
-      infoPlist: IS_PROD
-        ? {}
-        : {
-            NSAppTransportSecurity: {
-              NSAllowsArbitraryLoads: true,
-              NSAllowsLocalNetworking: true
+      infoPlist: {
+        NSCameraUsageDescription: cameraUsageDescription,
+        ...(!IS_PROD
+          ? {
+              NSAppTransportSecurity: {
+                NSAllowsArbitraryLoads: true,
+                NSAllowsLocalNetworking: true
+              }
             }
-          }
+          : {})
+      }
     },
 
     android: {
       package: IS_PROD
         ? "com.marioscordo.pickforme"
         : "com.marioscordo.pickforme.dev",
+      versionCode: 1,
+      permissions: ["CAMERA"],
 
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
@@ -49,7 +62,8 @@ module.exports = {
       [
         "expo-camera",
         {
-          cameraPermission: mobileContent.permissions.camera
+          cameraPermission: cameraUsageDescription,
+          recordAudioAndroid: false
         }
       ]
     ],

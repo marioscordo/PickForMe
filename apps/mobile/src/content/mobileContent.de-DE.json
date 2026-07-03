@@ -113,7 +113,10 @@
     "deleteAccountConfirmTitle": "Account löschen?",
     "deleteAccountConfirmText": "Dein Account und die gespeicherten PickForMe-Daten werden dauerhaft gelöscht.",
     "deleteAccountConfirmAction": "Dauerhaft löschen",
-    "deleteAccountFailed": "Account und Daten konnten gerade nicht gelöscht werden. Bitte versuche es später noch einmal."
+    "deleteAccountFailed": "Account und Daten konnten gerade nicht gelöscht werden. Bitte versuche es später noch einmal.",
+    "privacyPolicy": "Datenschutz",
+    "support": "Support",
+    "legalLinkFailed": "Der Link konnte gerade nicht geöffnet werden."
   },
   "outputLocale": {
     "label": "Ausgabesprache",

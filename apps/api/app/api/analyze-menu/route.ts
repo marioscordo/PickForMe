@@ -22,6 +22,7 @@ import type { AnalyzeMenuRequest } from "../../../src/types/api";
 import type { MenuExtractionResult } from "../../../src/menu/extraction/types";
 import type { RestaurantDescriptionResult } from "../../../src/restaurant/extractRestaurantDescription";
 import type { Dish } from "../../../src/types/menu";
+import type { Recommendation } from "../../../src/types/recommendations";
 
 type FallbackHeroContext = {
   dishes?: Dish[];
@@ -46,6 +47,10 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as AnalyzeMenuRequest;
     const outputLocale = normalizeTargetLocale(body.profile.outputLocale);
+    const profile = {
+      ...body.profile,
+      outputLocale
+    };
 
     if (body.sourceKind !== "text") {
       throw new AppError(400, "SOURCE_KIND_UNSUPPORTED", "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.");
@@ -111,7 +116,7 @@ export async function POST(request: Request) {
         const aiResult = await askPdfWithShortRateLimitRetry(
           {
             pdfUrl: pdfMenuUrl,
-            profile: body.profile,
+            profile,
             situation: body.situation,
             userLocale: outputLocale
           },
@@ -209,7 +214,7 @@ export async function POST(request: Request) {
         const aiResult = await withTimeout(
           askPickForMeImageUrlsAI({
             imageUrls: [directImageUrl],
-            profile: body.profile,
+            profile,
             situation: body.situation,
             userLocale: outputLocale
           }),
@@ -336,7 +341,7 @@ export async function POST(request: Request) {
         const aiResult = await withAbortTimeout(
           (signal) => askPickForMeAI({
             menuText: effectiveMenuText,
-            profile: body.profile,
+            profile,
             situation: body.situation,
             signal,
             userLocale: outputLocale
@@ -418,7 +423,7 @@ export async function POST(request: Request) {
           const aiResult = await withTimeout(
             askPickForMeImageUrlsAI({
               imageUrls,
-              profile: body.profile,
+              profile,
               situation: body.situation,
               userLocale: outputLocale
             }),
@@ -534,7 +539,7 @@ export async function POST(request: Request) {
 
     const recommendations = recommendDishes({
       dishes,
-      profile: body.profile,
+      profile,
       situation: body.situation
     });
 
@@ -592,8 +597,91 @@ async function localizeRecommendationsForPayload(
   try {
     return await localizeRecommendationDisplayTexts(input);
   } catch (error) {
-    return input.recommendations;
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("PickForMe recommendation localization failed.", error);
+    }
+
+    return stripUnsafeRecommendationTranslations(input.recommendations, input.dishes, input.userLocale);
   }
+}
+
+function stripUnsafeRecommendationTranslations(
+  recommendations: Recommendation[],
+  dishes: Dish[],
+  userLocale: string | undefined
+) {
+  const targetLocale = normalizeTargetLocale(userLocale);
+  const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
+
+  if (targetLanguageCode === "en") {
+    return recommendations;
+  }
+
+  const dishesById = new Map(dishes.map((dish) => [dish.id, dish]));
+
+  return recommendations.map((recommendation) => {
+    const dish = dishesById.get(recommendation.dishId);
+    const translatedName = recommendation.translatedName?.trim();
+
+    if (!translatedName || !dish) {
+      return recommendation;
+    }
+
+    if (isSameDisplayName(translatedName, dish.nameOriginal) || hasLikelyEnglishDisplayText(translatedName)) {
+      const { translatedName: _translatedName, ...withoutUnsafeTranslation } = recommendation;
+      return withoutUnsafeTranslation;
+    }
+
+    return recommendation;
+  });
+}
+
+function isSameDisplayName(left: string, right: string) {
+  return normalizeDisplayName(left) === normalizeDisplayName(right);
+}
+
+function normalizeDisplayName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasLikelyEnglishDisplayText(value: string) {
+  const normalized = ` ${value.toLowerCase().replace(/[^a-z]+/g, " ")} `;
+
+  if (!normalized.trim()) {
+    return false;
+  }
+
+  return [
+    " a ",
+    " an ",
+    " and ",
+    " baked ",
+    " beef ",
+    " braised ",
+    " chicken ",
+    " choice ",
+    " dish ",
+    " fillet ",
+    " fish ",
+    " fried ",
+    " grilled ",
+    " lamb ",
+    " pork ",
+    " roast ",
+    " roasted ",
+    " salmon ",
+    " served ",
+    " style ",
+    " the ",
+    " tuna ",
+    " with "
+  ].some((term) => normalized.includes(term));
 }
 
 function buildRestaurantDescriptionPayload(restaurantDescription: LocalizedRestaurantDescriptionResult | null) {
