@@ -68,6 +68,13 @@ export function RecommendationCard({
       <Text style={local.subtitle}>{topBoxText}</Text>
     </Surface>
   );
+  const analysisWarning = result.analysisWarning?.trim() ?? "";
+  const warningBox = analysisWarning ? (
+    <Surface tone="soft" style={local.warningBox}>
+      <Text style={local.warningTitle}>{content.recommendation.warningTitle}</Text>
+      <Text style={local.warningText}>{analysisWarning}</Text>
+    </Surface>
+  ) : null;
 
   const feedbackByName = new Map(
     (((profile as ProfileWithFeedback).recommendationFeedback ?? []) as RecommendationFeedback[]).map((item) => [
@@ -135,6 +142,7 @@ export function RecommendationCard({
     return (
       <>
         {topBox}
+        {warningBox}
 
         <Surface tone="soft" style={local.unsafeBox}>
           <Text style={local.kicker}>{content.recommendation.unsafeKicker}</Text>
@@ -172,6 +180,7 @@ export function RecommendationCard({
   return (
     <View style={local.resultRoot}>
       {topBox}
+      {warningBox}
 
       <View style={local.list}>
         {safeRecommendations.map(({ rec, dish }, index) => {
@@ -311,6 +320,28 @@ const local = StyleSheet.create({
   unsafeBox: {
     marginBottom: spacing.md,
     padding: spacing.xxl
+  },
+
+  warningBox: {
+    backgroundColor: semanticColors.warningSurface,
+    borderColor: semanticColors.warningBorder,
+    marginBottom: spacing.md,
+    padding: spacing.lg
+  },
+
+  warningTitle: {
+    color: semanticColors.warningText,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    marginBottom: spacing.xs
+  },
+
+  warningText: {
+    color: semanticColors.warningBody,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    lineHeight: typography.body.lineHeight
   },
 
   kicker: {

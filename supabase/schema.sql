@@ -74,6 +74,18 @@ create table if not exists public.recommendation_feedback (
     check (jsonb_typeof(dish_attributes) = 'object')
 );
 
+create table if not exists public.allergy_warning_confirmations (
+  id uuid primary key default extensions.gen_random_uuid(),
+  user_id_hash text not null,
+  confirmation_timestamp timestamptz not null,
+  confirmation_version text not null,
+  created_at timestamptz not null default now(),
+  constraint allergy_warning_confirmations_user_id_hash_format
+    check (user_id_hash ~ '^[a-f0-9]{64}$'),
+  constraint allergy_warning_confirmations_version_length
+    check (char_length(confirmation_version) between 1 and 80)
+);
+
 create index if not exists user_profile_rules_user_id_idx
   on public.user_profile_rules (user_id);
 
@@ -85,6 +97,9 @@ create index if not exists recommendation_feedback_user_id_created_at_idx
 
 create index if not exists recommendation_feedback_source_format_idx
   on public.recommendation_feedback (user_id, source_format);
+
+create index if not exists allergy_warning_confirmations_user_hash_created_at_idx
+  on public.allergy_warning_confirmations (user_id_hash, created_at desc);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -111,6 +126,7 @@ create trigger user_profile_rules_set_updated_at
 alter table public.user_profiles enable row level security;
 alter table public.user_profile_rules enable row level security;
 alter table public.recommendation_feedback enable row level security;
+alter table public.allergy_warning_confirmations enable row level security;
 
 drop policy if exists user_profiles_select_own on public.user_profiles;
 create policy user_profiles_select_own
@@ -202,3 +218,4 @@ create policy recommendation_feedback_delete_own
 grant select, insert, update, delete on public.user_profiles to authenticated;
 grant select, insert, update, delete on public.user_profile_rules to authenticated;
 grant select, insert, update, delete on public.recommendation_feedback to authenticated;
+grant insert on public.allergy_warning_confirmations to service_role;

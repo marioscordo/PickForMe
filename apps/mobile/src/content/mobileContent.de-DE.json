@@ -42,6 +42,14 @@
   "permissions": {
     "camera": "PickForMe benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
   },
+  "allergyWarning": {
+    "title": "Wichtiger Hinweis zu Allergien und Unverträglichkeiten",
+    "message": "Du hast Allergien oder Unverträglichkeiten angegeben. PickForMe unterstützt dich bei der Auswahl von Speisen, ersetzt aber keine medizinische Beratung und keine Rückfrage beim Servicepersonal.\n\nInformationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App.\n\nNur wenn du diesen Hinweis bestätigst, können Empfehlungen angezeigt werden.",
+    "confirmButton": "Bestätigen",
+    "rejectButton": "Nicht bestätigen - Empfehlungen löschen",
+    "logFailedTitle": "Hinweis konnte nicht bestätigt werden",
+    "logFailedMessage": "Bitte versuche es noch einmal. Empfehlungen werden erst angezeigt, wenn der Hinweis bestätigt wurde."
+  },
   "login": {
     "title": "Willkommen zurück",
     "subtitle": "Ich kenne Deine Vorlieben. Melde Dich an, dann suche ich Dir wieder etwas Passendes.",
@@ -83,6 +91,7 @@
     "restaurantTitle": "Über das Restaurant",
     "fallbackTitle": "Das passt heute zu Dir",
     "fallbackText": "Ich ordne die erkannten Gerichte für Deinen Moment ein.",
+    "warningTitle": "Wichtiger Hinweis",
     "unsafeKicker": "Das ist mir zu unsicher",
     "unsafeTitle": "Ich kann Dir daraus nichts verlässlich empfehlen",
     "unsafeText": "Zeig mir bitte eine klarere Speisekarte oder füge den Speisekartentext ein.",
@@ -145,7 +154,7 @@
     "deleteActiveExceptionsLabel": "Aktive Ausnahmen löschen",
     "intolerancesTitle": "Allergien & Unverträglichkeiten",
     "intolerancesHint": "Diese Zutaten werden besonders streng berücksichtigt.",
-    "safetyHint": "Deine Sicherheit geht vor: PickForMe hilft dir bei der Auswahl - aber du entscheidest. Bitte prüfe jedes Gericht selbst, wenn Allergien oder Unverträglichkeiten bestehen.",
+    "safetyHint": "Wichtiger Hinweis: PickForMe unterstützt dich bei der Auswahl von Speisen anhand deiner Angaben zu Allergien und Unverträglichkeiten. Die App ersetzt keine medizinische Beratung und keine Rückfrage beim Servicepersonal. Informationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App. Bei bekannten Allergien oder Unverträglichkeiten musst du jede Speise selbst kontrollieren.",
     "addIntoleranceLabel": "Unverträglichkeit hinzufügen",
     "addIntolerancePlaceholder": "z. B. Histamin, Zwiebeln, Fructose ...",
     "addIntoleranceButton": "Unverträglichkeit hinzufügen",

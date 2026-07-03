@@ -46,6 +46,7 @@ export default function PrivacyPage() {
           <li>Profilangaben wie Vorlieben, Abneigungen, Unvertraeglichkeiten und Ausgabesprache</li>
           <li>eingegebene Speisekartentexte, Links oder aus QR-Codes gelesene URLs</li>
           <li>Analyseergebnisse, Empfehlungen und technisches Feedback zur Verbesserung der Funktion</li>
+          <li>Bestaetigungen von Sicherheitshinweisen, einschliesslich Zeitpunkt, Version und pseudonymisiertem Nutzerbezug</li>
           <li>technische Daten, die fuer Betrieb, Sicherheit und Fehleranalyse erforderlich sind</li>
         </ul>
       </section>

@@ -24,6 +24,11 @@ type AnalyzeMenuApiBody = {
   profile: UserProfile;
 };
 
+type LogAllergyWarningConfirmationBody = {
+  confirmationVersion: string;
+  confirmationTimestamp: string;
+};
+
 export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
   const body: AnalyzeMenuApiBody = {
     sourceKind: "text",
@@ -65,5 +70,12 @@ export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
 
 export function deleteAccount() {
   return apiPost<{ deleted: boolean }, Record<string, never>>("/api/account/delete", {});
+}
+
+export function logAllergyWarningConfirmation(body: LogAllergyWarningConfirmationBody) {
+  return apiPost<{ logged: boolean }, LogAllergyWarningConfirmationBody>(
+    "/api/safety/allergy-warning-confirmation",
+    body
+  );
 }
 

@@ -107,6 +107,7 @@ export async function POST(request: Request) {
       restaurantDescription,
       outputLocale
     );
+    const sourceInputAllergenWarningPayload = buildAllergenInfoWarningPayload(profile, rawMenuText);
     if (pdfMenuUrl) {
       if (process.env.PICKFORME_AI_ENABLED !== "true") {
         throw new AppError(400, "PDF_AI_DISABLED", "PDF-Speisekarten benötigen in V1 den KI-Modus.");
@@ -153,6 +154,7 @@ export async function POST(request: Request) {
             dishes: aiResult.dishes,
             recommendations,
             conciergeHero,
+            ...sourceInputAllergenWarningPayload,
             ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
           }
         });
@@ -252,6 +254,7 @@ export async function POST(request: Request) {
             dishes: aiResult.dishes,
             recommendations,
             conciergeHero,
+            ...sourceInputAllergenWarningPayload,
             ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
           }
         });
@@ -338,6 +341,10 @@ export async function POST(request: Request) {
 
     if (process.env.PICKFORME_AI_ENABLED === "true") {
       try {
+        const textAllergenWarningPayload = buildAllergenInfoWarningPayload(
+          profile,
+          `${rawMenuText}\n${effectiveMenuText}`
+        );
         const aiResult = await withAbortTimeout(
           (signal) => askPickForMeAI({
             menuText: effectiveMenuText,
@@ -377,6 +384,7 @@ export async function POST(request: Request) {
               conciergeHero,
               recommendationMode: aiResult.recommendationMode,
               menuType: aiResult.menuType,
+              ...textAllergenWarningPayload,
               ...buildRestaurantDescriptionPayload(localizedRestaurantDescription),
               ...buildMenuExtractionPayload(htmlMenuExtraction)
             }
@@ -461,6 +469,7 @@ export async function POST(request: Request) {
               dishes: aiResult.dishes,
               recommendations,
               conciergeHero,
+              ...sourceInputAllergenWarningPayload,
               ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
             }
           });
@@ -581,6 +590,7 @@ export async function POST(request: Request) {
               restaurantContextText: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`
             })
         }),
+        ...buildAllergenInfoWarningPayload(profile, `${rawMenuText}\n${effectiveMenuText}`),
         ...buildRestaurantDescriptionPayload(localizedRestaurantDescription),
         ...buildMenuExtractionPayload(htmlMenuExtraction)
       }
@@ -702,6 +712,83 @@ function buildMenuExtractionPayload(htmlMenuExtraction: MenuExtractionResult | n
         menuExtraction: htmlMenuExtraction
       }
     : {};
+}
+
+function buildAllergenInfoWarningPayload(profile: AnalyzeMenuRequest["profile"], sourceText: string) {
+  if (!hasAllergiesOrIntolerances(profile) || hasRecognizableAllergenInfo(sourceText)) {
+    return {};
+  }
+
+  return {
+    analysisWarning:
+      "In dieser Speisekarte wurden keine vollständigen Allergenangaben erkannt. Bitte prüfe jedes Gericht eigenverantwortlich und frage bei Allergien oder Unverträglichkeiten zusätzlich beim Servicepersonal nach."
+  };
+}
+
+function hasAllergiesOrIntolerances(profile: AnalyzeMenuRequest["profile"]) {
+  return [profile.intolerances, profile.customIntolerances].some((items) =>
+    (items ?? []).some((item) => item.trim().length > 0)
+  );
+}
+
+function hasRecognizableAllergenInfo(sourceText: string) {
+  const normalized = normalizeForAllergenInfoDetection(sourceText);
+
+  if (!normalized) {
+    return false;
+  }
+
+  return [
+    "allergen",
+    "allergene",
+    "allergenen",
+    "allergie",
+    "allergien",
+    "allergenhinweis",
+    "allergenkennzeichnung",
+    "kennzeichnungspflichtige allergene",
+    "zusatzstoffe und allergene",
+    "glutenhaltiges getreide",
+    "enthaelt gluten",
+    "enthalt gluten",
+    "enthaelt milch",
+    "enthalt milch",
+    "enthaelt ei",
+    "enthalt ei",
+    "enthaelt soja",
+    "enthalt soja",
+    "enthaelt sellerie",
+    "enthalt sellerie",
+    "enthaelt senf",
+    "enthalt senf",
+    "enthaelt sesam",
+    "enthalt sesam",
+    "enthaelt sulfit",
+    "enthalt sulfit",
+    "laktosefrei",
+    "glutenfrei",
+    "contains allergens",
+    "contains gluten",
+    "contains milk",
+    "contains egg",
+    "contains soy",
+    "contains nuts",
+    "allergy information",
+    "allergen information"
+  ].some((term) => normalized.includes(term));
+}
+
+function normalizeForAllergenInfoDetection(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildMenuAnalysisDetails(

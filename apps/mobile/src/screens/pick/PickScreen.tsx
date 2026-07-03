@@ -1,5 +1,7 @@
 ﻿import { useEffect, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { useProfile } from "../../app/providers/ProfileProvider";
+import { logAllergyWarningConfirmation } from "../../api/pickformeApi";
 import { Screen } from "../../components/ui/Screen";
 import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
@@ -11,18 +13,21 @@ import { Surface } from "../../components/ui/Surface";
 import { useMobileContent } from "../../content/useMobileContent";
 import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
 import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
-import type { Situation } from "../../types/profile";
+import type { Situation, UserProfile } from "../../types/profile";
 
 type PickScreenProps = {
   resetSignal?: number;
   onResultVisibleChange?: (visible: boolean) => void;
 };
 
+const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
+
 export function PickScreen({
   resetSignal = 0,
   onResultVisibleChange
 }: PickScreenProps) {
   const content = useMobileContent();
+  const { profile } = useProfile();
   const loadingSteps = content.pick.loadingSteps;
   const [menuText, setMenuText] = useState("");
   const [situation, setSituation] = useState<Situation>("richtig_hunger");
@@ -71,8 +76,53 @@ export function PickScreen({
   }
 
   function handleAnalyze() {
+    if (hasAllergiesOrIntolerances(profile)) {
+      analyze.reset();
+      showAllergyWarningBeforeAnalyze();
+      return;
+    }
+
+    startAnalyze();
+  }
+
+  function startAnalyze() {
     setLastAnalyzedMenuUrl(normalizeMenuUrl(menuText));
     analyze.run(menuText, situation);
+  }
+
+  function showAllergyWarningBeforeAnalyze() {
+    Alert.alert(
+      content.allergyWarning.title,
+      content.allergyWarning.message,
+      [
+        {
+          text: content.allergyWarning.rejectButton,
+          style: "destructive",
+          onPress: analyze.reset
+        },
+        {
+          text: content.allergyWarning.confirmButton,
+          onPress: confirmAllergyWarningAndAnalyze
+        }
+      ],
+      { cancelable: false }
+    );
+  }
+
+  async function confirmAllergyWarningAndAnalyze() {
+    try {
+      await logAllergyWarningConfirmation({
+        confirmationTimestamp: new Date().toISOString(),
+        confirmationVersion: ALLERGY_WARNING_CONFIRMATION_VERSION
+      });
+      startAnalyze();
+    } catch {
+      analyze.reset();
+      Alert.alert(
+        content.allergyWarning.logFailedTitle,
+        content.allergyWarning.logFailedMessage
+      );
+    }
   }
 
   async function openAnalyzedMenu() {
@@ -301,3 +351,9 @@ const local = StyleSheet.create({
   }
 
 });
+
+function hasAllergiesOrIntolerances(profile: UserProfile) {
+  return [profile.intolerances, profile.customIntolerances].some((items) =>
+    (items ?? []).some((item) => item.trim().length > 0)
+  );
+}
