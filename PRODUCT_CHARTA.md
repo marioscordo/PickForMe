@@ -215,3 +215,126 @@ Der Code enthält keine sprachspezifischen Strings.
 Personalisierte Texte, zum Beispiel Hero-Texte, werden dynamisch erzeugt, basierend auf strukturierten Restaurantdaten und Nutzerprofilen.
 
 Sie werden niemals als statische Vorlagen im Code hinterlegt.
+
+## 16. Verbindliches TestFlight-Procedere
+
+TestFlight ist der verbindliche Pruefweg fuer Store-relevante iOS-Versionen.
+
+Kein TestFlight-Build darf ohne Preflight-Check erstellt oder eingereicht werden.
+
+Vor jedem Production-Build muss geprueft werden:
+
+1. Git-Arbeitsbaum ist bekannt und es gibt keine unbeabsichtigten Aenderungen.
+2. Typecheck ist erfolgreich.
+3. Production-API ist erreichbar.
+4. EAS Production Environment enthaelt alle benoetigten Public Runtime Values:
+   - `EXPO_PUBLIC_PICKFORME_API_URL`
+   - `EXPO_PUBLIC_PICKFORME_DEV_MODE=false`
+   - `EXPO_PUBLIC_SUPABASE_URL`
+   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+5. `APP_VARIANT=production` ist fuer Build und Submit eindeutig gesetzt.
+6. Das iOS Bundle Identifier Ziel ist `com.marioscordo.gustaroai`.
+7. Die App Store Connect Ziel-App ist GustaroAI mit ASC App ID `6787099278`.
+8. Die Buildnummer ist eindeutig hoeher als beim zuletzt eingereichten Build.
+9. Login-relevante Voraussetzungen sind geprueft:
+   - Supabase Auth User existiert.
+   - User ist bestaetigt.
+   - Passwort ist bekannt oder neu gesetzt.
+   - Email/Password Auth ist aktiv.
+
+Build-Regel:
+
+- Production-Builds werden nur mit dem Production-Profil erstellt.
+- Der Build-Log muss zeigen, dass Supabase URL und Supabase Anon Key aus der EAS Production Environment geladen wurden.
+- Wenn dieser Nachweis fehlt, wird der Build nicht fuer TestFlight verwendet.
+
+Submit-Regel:
+
+- Einreichungen erfolgen bevorzugt mit konkreter Build-ID.
+- `--latest` wird fuer Store- oder TestFlight-Submits nicht verwendet, wenn mehrere Builds oder Varianten existieren.
+- Vor dem Submit muss `APP_VARIANT=production` gesetzt sein.
+- Nach dem Submit wird die lokale Environment-Variable wieder entfernt.
+
+Verbindlicher Submit-Ablauf:
+
+```powershell
+cd D:\Mario\PickForMe\pickforme-product-v1\apps\mobile
+$env:APP_VARIANT="production"
+npx eas-cli submit --platform ios --id <BUILD_ID>
+Remove-Item Env:\APP_VARIANT
+```
+
+TestFlight-Abnahme:
+
+- Getestet wird die App GustaroAI aus TestFlight, nicht die Dev-App.
+- Die Dev-App darf fuer schnelle Entwicklungspruefungen genutzt werden, ist aber keine Store-Abnahme.
+- Stopper werden lokal korrigiert, danach wird ein neuer Production-Build erstellt und erneut ueber TestFlight geprueft.
+- Kein Store-Release erfolgt ohne erfolgreich installierten und getesteten TestFlight-Build.
+
+Fehlerregel:
+
+Wenn ein Store- oder TestFlight-relevanter Fehler auftritt, wird nicht improvisiert.
+
+Es gilt:
+
+1. Fehler reproduzieren.
+2. Ursache im Code, Backend, Environment oder App Store Connect eindeutig zuordnen.
+3. Patch lokal umsetzen.
+4. Typecheck ausfuehren.
+5. Neuen Production-Build erstellen.
+6. Konkrete Build-ID einreichen.
+7. In TestFlight erneut testen.
+
+Ein Fehler im Build-, Submit- oder Environment-Prozess darf sich nicht wiederholen.
+
+## 17. Verbindliche Sprachregel
+
+GustaroAI unterscheidet strikt zwischen GUI-Sprache und KI-Ausgabesprache.
+
+Die GUI-Sprache ist die Bedienoberflaeche der App.
+
+Die KI-Ausgabesprache ist die Sprache fuer Empfehlungen, Gerichtserklaerungen, Uebersetzungen und KI-generierte Begruendungen.
+
+Die KI-Ausgabesprache bleibt im Profil waelbar.
+
+Die GUI-Sprache wird aus den Geraeteeinstellungen des Nutzers abgeleitet.
+
+Auf iOS ist die verbindliche Quelle:
+
+```text
+Einstellungen -> Allgemein -> Sprache & Region -> Bevorzugte Sprachen -> erste Sprache
+```
+
+Die Region ist nur Kontext und darf weder GUI-Sprache noch KI-Ausgabesprache ueberschreiben.
+
+GUI-Regel:
+
+```text
+preferredDeviceLanguage = firstPreferredDeviceLanguage
+if preferredDeviceLanguage starts with "de": guiLanguage = German
+else if preferredDeviceLanguage starts with "en": guiLanguage = English
+else guiLanguage = English
+```
+
+KI-Ausgaberegel:
+
+```text
+aiOutputLanguage = user profile setting
+fallback = guiLanguage
+region = context only
+```
+
+Beispiele:
+
+- Bevorzugte Sprache `Deutsch`: GUI auf Deutsch.
+- Bevorzugte Sprache `English`: GUI auf Englisch.
+- Bevorzugte Sprache `Italiano`: GUI auf Englisch.
+- KI-Ausgabesprache `Franzoesisch`: Empfehlungen und Erklaerungen auf Franzoesisch, unabhaengig von der GUI-Sprache.
+
+Eine manuelle Ausgabesprachen-Auswahl ist eine dauerhafte Personalisierungsfunktion fuer KI-Inhalte.
+
+Sie darf nicht zur Steuerung der GUI-Sprache verwendet werden.
+
+Alle KI-Aufrufe, Uebersetzungen, Empfehlungen, Gerichtsnamen, Begruendungen und KI-generierten Sicherheitshinweise muessen die KI-Ausgabesprache beachten.
+
+Alle festen App-Texte, Navigation, Buttons, Labels, Fehlermeldungen, Hinweise und Popups muessen die GUI-Sprache beachten.
