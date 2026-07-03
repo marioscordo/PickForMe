@@ -3,6 +3,7 @@ import type { Situation, UserProfile } from "../types/profile";
 import type { Recommendation } from "../types/recommendations";
 import type { MenuFacts, MenuItemFact, MenuUnitFact } from "../types/menuFacts";
 import { blockReasonForRecommendation } from "../profile/profileRules";
+import { isAiEnabled } from "../config/aiFeatureFlag";
 import {
   askConciergeRecommendationAI,
   type ConciergeRecommendationResult
@@ -58,7 +59,7 @@ export async function askPickForMeAI({
   signal?: AbortSignal;
   userLocale?: string;
 }): Promise<TextAiAnalyzeResult> {
-  if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
+  if (!isAiEnabled()) {
     throw new Error("GustaroAI AI ist nicht aktiviert.");
   }
 

@@ -5,6 +5,7 @@ import { askPickForMeAI } from "../../../src/ai/askPickForMeAI";
 import { askPickForMePdfUrlAI } from "../../../src/ai/askPickForMePdfUrlAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
+import { isAiEnabled } from "../../../src/config/aiFeatureFlag";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
     );
     const sourceInputAllergenWarningPayload = buildAllergenInfoWarningPayload(profile, rawMenuText);
     if (pdfMenuUrl) {
-      if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
+      if (!isAiEnabled()) {
         throw new AppError(400, "PDF_AI_DISABLED", "PDF-Speisekarten benötigen in V1 den KI-Modus.");
       }
 
@@ -208,7 +209,7 @@ export async function POST(request: Request) {
     const directImageUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikeImageUrl(rawMenuText) ? rawMenuText : null;
 
     if (directImageUrl) {
-      if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
+      if (!isAiEnabled()) {
         throw new AppError(400, "IMAGE_AI_DISABLED", "Bild-Speisekarten benötigen in V1 den KI-Modus.");
       }
 
@@ -339,7 +340,7 @@ export async function POST(request: Request) {
       throw new AppError(400, "MENU_TOO_SHORT", "Aus dieser Eingabe konnte kein ausreichender Speisekartentext gelesen werden.");
     }
 
-    if (process.env.GUSTAROAI_AI_ENABLED === "true") {
+    if (isAiEnabled()) {
       try {
         const textAllergenWarningPayload = buildAllergenInfoWarningPayload(
           profile,
@@ -423,7 +424,7 @@ export async function POST(request: Request) {
 
     const dishes = htmlMenuDishes ?? parseMenu(effectiveMenuText);
 
-    if (dishes.length === 0 && inputLooksLikeUrl && process.env.GUSTAROAI_AI_ENABLED === "true") {
+    if (dishes.length === 0 && inputLooksLikeUrl && isAiEnabled()) {
       const imageUrls = await findLinkedMenuImageUrls(rawMenuText);
 
       if (imageUrls.length > 0) {
