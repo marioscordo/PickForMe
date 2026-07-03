@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           <br />
           Einzelunternehmen
           <br />
-          [ladungsfähige Anschrift ergänzen]
+          Reuendorfer Weg 8a, 91336 Heroldsbach
         </p>
         <p>
           Kontakt für Datenschutz- und Supportanfragen:
