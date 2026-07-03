@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       try {
         dynamicMenuText = await loadMenuTextFromMenury(rawMenuText);
       } catch (menuryError) {
-        console.error("PickForMe Menury loader failed.", menuryError);
+        console.error("GustaroAI Menury loader failed.", menuryError);
 
         throw new AppError(
           422,
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     );
     const sourceInputAllergenWarningPayload = buildAllergenInfoWarningPayload(profile, rawMenuText);
     if (pdfMenuUrl) {
-      if (process.env.PICKFORME_AI_ENABLED !== "true") {
+      if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
         throw new AppError(400, "PDF_AI_DISABLED", "PDF-Speisekarten benötigen in V1 den KI-Modus.");
       }
 
@@ -199,7 +199,7 @@ export async function POST(request: Request) {
           );
         }
 
-        console.error("PickForMe PDF AI failed.", pdfAiError);
+        console.error("GustaroAI PDF AI failed.", pdfAiError);
 
         throw pdfAiError;
       }
@@ -208,7 +208,7 @@ export async function POST(request: Request) {
     const directImageUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikeImageUrl(rawMenuText) ? rawMenuText : null;
 
     if (directImageUrl) {
-      if (process.env.PICKFORME_AI_ENABLED !== "true") {
+      if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
         throw new AppError(400, "IMAGE_AI_DISABLED", "Bild-Speisekarten benötigen in V1 den KI-Modus.");
       }
 
@@ -259,7 +259,7 @@ export async function POST(request: Request) {
           }
         });
       } catch (imageAiError) {
-        console.error("PickForMe Image AI failed.", imageAiError);
+        console.error("GustaroAI Image AI failed.", imageAiError);
 
         const message = imageAiError instanceof Error ? imageAiError.message : "";
 
@@ -339,7 +339,7 @@ export async function POST(request: Request) {
       throw new AppError(400, "MENU_TOO_SHORT", "Aus dieser Eingabe konnte kein ausreichender Speisekartentext gelesen werden.");
     }
 
-    if (process.env.PICKFORME_AI_ENABLED === "true") {
+    if (process.env.GUSTAROAI_AI_ENABLED === "true") {
       try {
         const textAllergenWarningPayload = buildAllergenInfoWarningPayload(
           profile,
@@ -411,10 +411,10 @@ export async function POST(request: Request) {
 
         if (message.includes("TEXT_AI_TIMEOUT") || isRateLimitError(aiError)) {
           if (process.env.NODE_ENV !== "production") {
-            console.error("PickForMe AI unavailable, falling back to local recommendation.", aiError);
+            console.error("GustaroAI AI unavailable, falling back to local recommendation.", aiError);
           }
         } else {
-          console.error("PickForMe AI failed.", aiError);
+          console.error("GustaroAI AI failed.", aiError);
 
           throw aiError;
         }
@@ -423,7 +423,7 @@ export async function POST(request: Request) {
 
     const dishes = htmlMenuDishes ?? parseMenu(effectiveMenuText);
 
-    if (dishes.length === 0 && inputLooksLikeUrl && process.env.PICKFORME_AI_ENABLED === "true") {
+    if (dishes.length === 0 && inputLooksLikeUrl && process.env.GUSTAROAI_AI_ENABLED === "true") {
       const imageUrls = await findLinkedMenuImageUrls(rawMenuText);
 
       if (imageUrls.length > 0) {
@@ -474,7 +474,7 @@ export async function POST(request: Request) {
             }
           });
         } catch (imageAiError) {
-          console.error("PickForMe linked Image AI failed.", imageAiError);
+          console.error("GustaroAI linked Image AI failed.", imageAiError);
 
           const message = imageAiError instanceof Error ? imageAiError.message : "";
 
@@ -543,7 +543,7 @@ export async function POST(request: Request) {
         );
       }
 
-      throw new AppError(400, "NO_DISHES_FOUND", "PickForMe konnte noch keine Gerichte erkennen.");
+      throw new AppError(400, "NO_DISHES_FOUND", "GustaroAI konnte noch keine Gerichte erkennen.");
     }
 
     const recommendations = recommendDishes({
@@ -608,7 +608,7 @@ async function localizeRecommendationsForPayload(
     return await localizeRecommendationDisplayTexts(input);
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
-      console.warn("PickForMe recommendation localization failed.", error);
+      console.warn("GustaroAI recommendation localization failed.", error);
     }
 
     return stripUnsafeRecommendationTranslations(input.recommendations, input.dishes, input.userLocale);
@@ -888,7 +888,7 @@ async function translateRestaurantDescriptionText({
         {
           role: "system",
           content: [
-            "Translate and compress official restaurant descriptions for the PickForMe app.",
+            "Translate and compress official restaurant descriptions for the GustaroAI app.",
             `Target language: ${targetLanguage}.`,
             `Target locale: ${targetLocale}.`,
             "",
@@ -913,7 +913,7 @@ async function translateRestaurantDescriptionText({
 
     return completion.choices[0]?.message?.content?.trim() || null;
   } catch (error) {
-    console.error("PickForMe restaurant description translation failed.", error);
+    console.error("GustaroAI restaurant description translation failed.", error);
     return null;
   }
 }
@@ -1033,7 +1033,7 @@ async function buildConciergeHeroFromOfficialWebsiteText({
 
     return completion.choices[0]?.message?.content?.trim() ?? "";
   } catch (error) {
-    console.error("PickForMe official website hero editor failed.", error);
+    console.error("GustaroAI official website hero editor failed.", error);
     return "";
   }
 }

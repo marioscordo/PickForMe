@@ -1,10 +1,10 @@
-﻿# PickForMe V1
+﻿# GustaroAI V1
 
 Mobile-first App für Restaurantgäste.
 
 Leitsatz:
 
-> Das Restaurant kenne ich nicht. PickForMe kennt mich.
+> Das Restaurant kenne ich nicht. GustaroAI kennt mich.
 
 ## Architektur
 

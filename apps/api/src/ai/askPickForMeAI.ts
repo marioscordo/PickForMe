@@ -9,7 +9,7 @@ import {
 } from "./askConciergeRecommendationAI";
 import { extractMenuFactsFromTextAI } from "./extractMenuFactsFromTextAI";
 
-const SUMMARY_LABEL = "PickForMe two-step text AI summary";
+const SUMMARY_LABEL = "GustaroAI two-step text AI summary";
 const MAX_CONCIERGE_STANDALONE_DISHES = 40;
 
 type TextAiAnalyzeResult = {
@@ -58,8 +58,8 @@ export async function askPickForMeAI({
   signal?: AbortSignal;
   userLocale?: string;
 }): Promise<TextAiAnalyzeResult> {
-  if (process.env.PICKFORME_AI_ENABLED !== "true") {
-    throw new Error("PickForMe AI ist nicht aktiviert.");
+  if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
+    throw new Error("GustaroAI AI ist nicht aktiviert.");
   }
 
   if (!process.env.OPENAI_API_KEY) {

@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
 export const metadata = {
-  title: "PickForMe",
-  description: "PickForMe Support und Datenschutz"
+  title: "GustaroAI",
+  description: "GustaroAI Support und Datenschutz"
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

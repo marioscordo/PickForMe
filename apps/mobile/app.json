@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "PickForMe",
-    "slug": "pickforme",
+    "name": "GustaroAI",
+    "slug": "gustaroai",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "pickforme",
+    "scheme": "gustaroai",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
     "splash": {
@@ -13,12 +13,12 @@
       "backgroundColor": "#071B4A"
     },
     "ios": {
-      "bundleIdentifier": "com.marioscordo.pickforme",
+      "bundleIdentifier": "com.marioscordo.gustaroai",
       "buildNumber": "1.0.0",
       "supportsTablet": false
     },
     "android": {
-      "package": "com.marioscordo.pickforme",
+      "package": "com.marioscordo.gustaroai",
       "versionCode": 1,
       "permissions": ["CAMERA"],
       "adaptiveIcon": {

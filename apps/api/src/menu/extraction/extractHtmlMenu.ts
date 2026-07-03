@@ -52,7 +52,7 @@ export async function extractHtmlMenuFromUrl(value: string): Promise<MenuExtract
     response = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        "User-Agent": "PickForMe/1.0 HTML Menu Extractor",
+        "User-Agent": "GustaroAI/1.0 HTML Menu Extractor",
         Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.3"
       }
     });

@@ -86,7 +86,7 @@ function buildImagePrompt(input: { profile: ProfileInput; situation?: string; us
   const targetLanguage = getLanguageNameForLocale(targetLocale);
 
   return [
-    "Du bist PickForMe, ein persoenlicher Restaurant-Assistent.",
+    "Du bist GustaroAI, ein persoenlicher Restaurant-Assistent.",
     "Lies die beigefuegten Restaurant-Speisekartenbilder.",
     "Die Bilder koennen mehrere Seiten oder Kategorien einer Speisekarte zeigen.",
     `Sprache fuer nutzerseitige Ausgaben: ${targetLanguage} (${targetLocale}).`,

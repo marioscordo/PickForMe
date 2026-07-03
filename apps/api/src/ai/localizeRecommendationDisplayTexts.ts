@@ -103,7 +103,7 @@ async function requestDishDisplayTranslations({
           {
             role: "system",
             content: [
-              "Translate selected restaurant dish names for the PickForMe app.",
+              "Translate selected restaurant dish names for the GustaroAI app.",
               `Target language: ${targetLanguage}.`,
               `Target locale: ${targetLocale}.`,
               "",

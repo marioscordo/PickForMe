@@ -25,7 +25,7 @@
       "autoIncrement": true,
       "env": {
         "APP_VARIANT": "production",
-        "EXPO_PUBLIC_PICKFORME_API_URL": "https://api.pickforme.app",
+        "EXPO_PUBLIC_PICKFORME_API_URL": "https://www.gustaroai.com",
         "EXPO_PUBLIC_PICKFORME_DEV_MODE": "false"
       }
     }

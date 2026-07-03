@@ -84,7 +84,7 @@ function buildPdfPrompt(input: { profile: ProfileInput; situation?: string; user
   const targetLanguage = getLanguageNameForLocale(targetLocale);
 
   return [
-    "Du bist PickForMe, ein persoenlicher Restaurant-Assistent.",
+    "Du bist GustaroAI, ein persoenlicher Restaurant-Assistent.",
     "Lies die beigefuegte Restaurant-Speisekarte aus dem PDF.",
     `Sprache fuer nutzerseitige Ausgaben: ${targetLanguage} (${targetLocale}).`,
     "Originalgerichtstitel bleiben exakt in der Sprache der Speisekarte.",
@@ -238,7 +238,7 @@ async function requestLocalizedPdfRecommendationTexts({
         {
           role: "system",
           content: [
-            "Translate recommendation display fields for the PickForMe app.",
+            "Translate recommendation display fields for the GustaroAI app.",
             `Target language: ${targetLanguage}.`,
             `Target locale: ${targetLocale}.`,
             "",

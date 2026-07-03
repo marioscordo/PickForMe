@@ -6,11 +6,11 @@ const cameraUsageDescription = mobileContent.permissions.camera;
 
 module.exports = {
   expo: {
-    name: IS_PROD ? "PickForMe" : "PickForMe Dev",
-    slug: "pickforme",
+    name: IS_PROD ? "GustaroAI" : "GustaroAI Dev",
+    slug: "gustaroai",
     version: "1.0.0",
     orientation: "portrait",
-    scheme: IS_PROD ? "pickforme" : "pickforme-dev",
+    scheme: IS_PROD ? "gustaroai" : "gustaroai-dev",
     userInterfaceStyle: "automatic",
 
     icon: "./assets/icon.png",
@@ -24,8 +24,8 @@ module.exports = {
       supportsTablet: false,
       buildNumber: "1.0.0",
       bundleIdentifier: IS_PROD
-        ? "com.marioscordo.pickforme"
-        : "com.marioscordo.pickforme.dev",
+        ? "com.marioscordo.gustaroai"
+        : "com.marioscordo.gustaroai.dev",
 
       infoPlist: {
         NSCameraUsageDescription: cameraUsageDescription,
@@ -42,8 +42,8 @@ module.exports = {
 
     android: {
       package: IS_PROD
-        ? "com.marioscordo.pickforme"
-        : "com.marioscordo.pickforme.dev",
+        ? "com.marioscordo.gustaroai"
+        : "com.marioscordo.gustaroai.dev",
       versionCode: 1,
       permissions: ["CAMERA"],
 

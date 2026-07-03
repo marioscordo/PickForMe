@@ -1,4 +1,4 @@
--- PickForMe V1 Supabase schema
+-- GustaroAI V1 Supabase schema
 -- Profile, structured rules, and recommendation feedback persistence.
 
 create extension if not exists pgcrypto with schema extensions;

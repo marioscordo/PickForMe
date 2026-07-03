@@ -2,13 +2,13 @@
 
 ## Ziel
 
-PickForMe soll Nutzerprofil, Bewertungsfeedback und daraus abgeleitete Statistiken dauerhaft speichern.
+GustaroAI soll Nutzerprofil, Bewertungsfeedback und daraus abgeleitete Statistiken dauerhaft speichern.
 
 Das Ziel ist eine bessere zukuenftige Empfehlung, ohne harte Ausschluesse, Allergien oder Unvertraeglichkeiten jemals zu ueberstimmen.
 
 ## Produktbegruendung
 
-PickForMe ist ein persoenlicher Restaurant-Concierge. Dafuer muss die App lernen koennen:
+GustaroAI ist ein persoenlicher Restaurant-Concierge. Dafuer muss die App lernen koennen:
 
 - welche Gerichte der Nutzer wirklich nimmt
 - welche Gerichte der Nutzer hoch oder niedrig bewertet

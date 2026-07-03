@@ -124,7 +124,7 @@ async function loadRestaurantDescriptionPage(
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        "User-Agent": "PickForMe/1.0 Restaurant Description Extractor",
+        "User-Agent": "GustaroAI/1.0 Restaurant Description Extractor",
         Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.3"
       }
     });

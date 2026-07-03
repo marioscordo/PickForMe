@@ -1,13 +1,13 @@
-# PICKFORME - PRODUKTENTWICKLUNG V2
+# GUSTAROAI - PRODUKTENTWICKLUNG V2
 ## Verbindliche Produkt-Charta
 
-Diese Produkt-Charta ist verbindlich. Jede technische Änderung an PickForMe muss mit dieser Charta vereinbar sein.
+Diese Produkt-Charta ist verbindlich. Jede technische Änderung an GustaroAI muss mit dieser Charta vereinbar sein.
 
 ## 1. Vision
 
-PickForMe ist kein Speisekarten-Parser.
+GustaroAI ist kein Speisekarten-Parser.
 
-PickForMe ist ein persönlicher Restaurant-Concierge.
+GustaroAI ist ein persönlicher Restaurant-Concierge.
 
 Ziel ist nicht, Speisekarten zu erklären, sondern Menschen in unbekannten Restaurants sicher, schnell und mit Freude zur richtigen Entscheidung zu führen.
 
@@ -21,7 +21,7 @@ Das Restaurant erzählt seine Geschichte.
 
 Die Speisekarte liefert ausschließlich Fakten.
 
-PickForMe trifft die Empfehlung.
+GustaroAI trifft die Empfehlung.
 
 Diese drei Rollen dürfen niemals vermischt werden.
 
@@ -66,13 +66,13 @@ Sie ist keine Empfehlung.
 
 Die Speisekarte gehört ausschließlich dem Restaurant.
 
-PickForMe darf:
+GustaroAI darf:
 
 - übersetzen
 - strukturieren
 - kürzen
 
-PickForMe darf niemals:
+GustaroAI darf niemals:
 
 - Gerichte erfinden
 - Zutaten ergänzen
@@ -81,7 +81,7 @@ PickForMe darf niemals:
 
 ## 6. Empfehlungen
 
-PickForMe empfiehlt.
+GustaroAI empfiehlt.
 
 Die Empfehlung basiert ausschließlich auf:
 
@@ -149,17 +149,17 @@ Der Produktmodus ist CPO-getrieben.
 
 Die wichtigste Aufgabe ist nicht, möglichst schnell Code zu erzeugen.
 
-Die wichtigste Aufgabe ist, PickForMe zum besten persönlichen Restaurant-Concierge zu entwickeln.
+Die wichtigste Aufgabe ist, GustaroAI zum besten persönlichen Restaurant-Concierge zu entwickeln.
 
 Wenn eine technische Lösung die Produktvision verschlechtert, hat immer die Produktvision Vorrang.
 
-## 12. Das PickForMe-Prinzip
+## 12. Das GustaroAI-Prinzip
 
 Das Restaurant erzählt seine Geschichte.
 
 Die Speisekarte liefert die Fakten.
 
-PickForMe trifft die Entscheidung.
+GustaroAI trifft die Entscheidung.
 
 ## 13. Verbindliche Arbeitsregel
 
@@ -179,12 +179,12 @@ Folgende Produktentscheidungen sind verbindlich:
 - Fehlen beide Quellen, wird keine Restaurantbox angezeigt.
 - Speisekarteninformationen stammen ausschließlich aus der Speisekarte.
 - Hero-/Restauranttexte dürfen niemals Gerichte, Preise oder Zutaten ergänzen.
-- Empfehlungen stammen ausschließlich von PickForMe.
+- Empfehlungen stammen ausschließlich von GustaroAI.
 - Die Empfehlungskarten enthalten keine KI-Begründungen mehr.
 - Der Concierge spricht nur noch einmal.
 - Harter Grundsatz:
   Das Restaurant erzählt seine Geschichte.
-  PickForMe erzählt seine Empfehlung.
+  GustaroAI erzählt seine Empfehlung.
 
 ## 15. Verbindliche Content-Guidelines
 

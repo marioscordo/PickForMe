@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import type { MenuFacts, MenuItemFact, MenuUnitFact } from "../types/menuFacts";
 
-const SUMMARY_LABEL = "PickForMe two-step text AI summary";
+const SUMMARY_LABEL = "GustaroAI two-step text AI summary";
 
 const MENU_ITEM_TYPES = ["dish", "course", "drink", "unknown"] as const;
 const MENU_ITEM_ORDERABILITIES = ["standalone", "part_of_menu", "unclear"] as const;
@@ -85,7 +85,7 @@ function buildSystemPrompt(userLocale?: string) {
   const targetLanguage = getLanguageNameForLocale(targetLocale);
 
   return [
-    "Du extrahierst reine Speisekarten-Fakten fuer PickForMe.",
+    "Du extrahierst reine Speisekarten-Fakten fuer GustaroAI.",
     "Du gibst keine Empfehlung, kein Ranking und keinen Concierge-Text aus.",
     "Nutze ausschliesslich Fakten aus dem geladenen Speisekartentext.",
     "Nutze keine externen Restaurantinformationen und keine Vermutungen.",

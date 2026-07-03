@@ -5,8 +5,8 @@ const sectionStyle = {
 };
 
 export const metadata = {
-  title: "Datenschutzerklaerung | PickForMe",
-  description: "Datenschutzhinweise fuer PickForMe"
+  title: "Datenschutzerklaerung | GustaroAI",
+  description: "Datenschutzhinweise fuer GustaroAI"
 };
 
 export default function PrivacyPage() {
@@ -17,30 +17,30 @@ export default function PrivacyPage() {
       padding: "48px 20px 72px",
       lineHeight: 1.6
     }}>
-      <p style={{ color: "#667085", margin: "0 0 8px" }}>PickForMe</p>
+      <p style={{ color: "#667085", margin: "0 0 8px" }}>GustaroAI</p>
       <h1 style={{ fontSize: 36, lineHeight: 1.15, margin: 0 }}>Datenschutzerklaerung</h1>
       <p style={{ color: "#667085" }}>Stand: {updatedAt}</p>
 
       <section style={sectionStyle}>
         <h2>1. Verantwortlicher</h2>
         <p>
-          Verantwortlich fuer PickForMe ist der Betreiber der App. Kontakt fuer Datenschutz- und Supportanfragen:
+          Verantwortlich fuer GustaroAI ist der Betreiber der App. Kontakt fuer Datenschutz- und Supportanfragen:
           <br />
-          <a href="mailto:support@pickforme.app">support@pickforme.app</a>
+          <a href="mailto:support@gustaroai.com">support@gustaroai.com</a>
         </p>
       </section>
 
       <section style={sectionStyle}>
         <h2>2. Zweck der App</h2>
         <p>
-          PickForMe hilft Nutzerinnen und Nutzern, auf Basis einer Speisekarte, ihres Profils und der aktuellen
+          GustaroAI hilft Nutzerinnen und Nutzern, auf Basis einer Speisekarte, ihres Profils und der aktuellen
           Essenssituation eine passende Restaurantempfehlung zu erhalten.
         </p>
       </section>
 
       <section style={sectionStyle}>
         <h2>3. Verarbeitete Daten</h2>
-        <p>PickForMe kann folgende Daten verarbeiten:</p>
+        <p>GustaroAI kann folgende Daten verarbeiten:</p>
         <ul>
           <li>Account- und Login-Daten, soweit fuer Anmeldung und Sicherheit erforderlich</li>
           <li>Profilangaben wie Vorlieben, Abneigungen, Unvertraeglichkeiten und Ausgabesprache</li>
@@ -54,7 +54,7 @@ export default function PrivacyPage() {
       <section style={sectionStyle}>
         <h2>4. Kamera und QR-Codes</h2>
         <p>
-          Die Kamera wird nur verwendet, um QR-Codes von Speisekarten zu scannen. PickForMe speichert keine
+          Die Kamera wird nur verwendet, um QR-Codes von Speisekarten zu scannen. GustaroAI speichert keine
           Kamerabilder und benoetigt keinen Mikrofonzugriff.
         </p>
       </section>
@@ -64,14 +64,14 @@ export default function PrivacyPage() {
         <p>
           Fuer die Analyse koennen Speisekartentexte, Restaurantlinks, Profilregeln und Situationsangaben an
           serverseitige KI-Dienste uebermittelt werden. OpenAI-Schluessel werden nicht in der mobilen App gespeichert.
-          Die mobile App kommuniziert mit dem PickForMe-Backend.
+          Die mobile App kommuniziert mit dem GustaroAI-Backend.
         </p>
       </section>
 
       <section style={sectionStyle}>
         <h2>6. Speicherung und Loeschung</h2>
         <p>
-          Nutzerinnen und Nutzer koennen ihren Account und gespeicherte PickForMe-Daten in der App unter Profil
+          Nutzerinnen und Nutzer koennen ihren Account und gespeicherte GustaroAI-Daten in der App unter Profil
           dauerhaft loeschen. Alternativ kann eine Loeschanfrage per E-Mail gestellt werden.
         </p>
       </section>
@@ -89,7 +89,7 @@ export default function PrivacyPage() {
         <h2>8. Rechte der Nutzerinnen und Nutzer</h2>
         <p>
           Nutzerinnen und Nutzer koennen Auskunft, Berichtigung oder Loeschung ihrer personenbezogenen Daten
-          verlangen. Anfragen koennen an <a href="mailto:support@pickforme.app">support@pickforme.app</a> gerichtet werden.
+          verlangen. Anfragen koennen an <a href="mailto:support@gustaroai.com">support@gustaroai.com</a> gerichtet werden.
         </p>
       </section>
     </main>

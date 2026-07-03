@@ -1,8 +1,8 @@
-# PickForMe Configuration Audit
+# GustaroAI Configuration Audit
 
 ## Zweck
 
-Diese Datei dokumentiert das Ergebnis des ersten gezielten Konfigurations-Audits fÃ¼r PickForMe. Sie verÃ¤ndert keine Produktlogik, keine Build-Konfiguration und keine App-FunktionalitÃ¤t.
+Diese Datei dokumentiert das Ergebnis des ersten gezielten Konfigurations-Audits fÃ¼r GustaroAI. Sie verÃ¤ndert keine Produktlogik, keine Build-Konfiguration und keine App-FunktionalitÃ¤t.
 
 ## Ergebnis des Audits
 

@@ -20,7 +20,7 @@ function getApiOrigin(value: string) {
   try {
     return new URL(value).origin;
   } catch {
-    return "https://api.pickforme.app";
+    return "https://www.gustaroai.com";
   }
 }
 

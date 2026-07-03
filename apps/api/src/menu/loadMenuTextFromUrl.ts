@@ -21,7 +21,7 @@ export async function loadMenuTextFromUrl(urlText: string): Promise<string> {
   const response = await fetch(url.toString(), {
     method: "GET",
     headers: {
-      "User-Agent": "PickForMe/1.0 Menu Reader",
+      "User-Agent": "GustaroAI/1.0 Menu Reader",
       Accept: "text/html,application/xhtml+xml,application/pdf,text/plain;q=0.9,*/*;q=0.5"
     }
   });

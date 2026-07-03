@@ -4,7 +4,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     data: {
-      service: "pickforme-api",
+      service: "gustaroai-api",
       status: "ok"
     }
   });

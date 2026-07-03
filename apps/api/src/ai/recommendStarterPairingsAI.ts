@@ -229,7 +229,7 @@ export async function addStarterPairingsFromMenuTextAI({
       {
         role: "system",
         content: [
-          "Du bist eine gekapselte PickForMe-Vorspeisenroutine.",
+          "Du bist eine gekapselte GustaroAI-Vorspeisenroutine.",
           "Die Hauptgericht-Empfehlungen sind bereits final.",
           "Deine einzige Aufgabe: Suche aus dem Original-Speisekartentext je Hauptgericht hoechstens eine passende Vorspeise.",
           "Veraendere keine Hauptgericht-Empfehlung und gib keine neuen Hauptgerichte aus.",
@@ -412,7 +412,7 @@ function buildMainItems(dishes: Dish[], recommendations: Recommendation[]): Main
 
 function buildCandidateSystemPrompt(targetLanguage: string, targetLocale: string) {
   return [
-    "You select optional starter pairings for existing PickForMe main-course recommendations.",
+    "You select optional starter pairings for existing GustaroAI main-course recommendations.",
     `Target language for translatedName: ${targetLanguage} (${targetLocale}).`,
     "The main recommendations are final. Do not change their order, dishId, names, or selection.",
     "Choose at most one starterCandidateId for each main recommendation.",
@@ -439,7 +439,7 @@ function buildSourcePrompt({
   targetLocale: string;
 }) {
   return [
-    "Du bist eine gekapselte PickForMe-Vorspeisenroutine.",
+    "Du bist eine gekapselte GustaroAI-Vorspeisenroutine.",
     "Die Hauptgericht-Empfehlungen sind bereits final.",
     "Deine einzige Aufgabe: Suche aus der beigefuegten Original-Speisekarte je Hauptgericht hoechstens eine passende Vorspeise.",
     "Veraendere keine Hauptgericht-Empfehlung und gib keine neuen Hauptgerichte aus.",

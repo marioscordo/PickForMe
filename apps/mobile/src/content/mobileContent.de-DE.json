@@ -34,17 +34,17 @@
   "qrScanner": {
     "title": "QR-Code scannen",
     "preparing": "Kamera wird vorbereitet...",
-    "permissionText": "PickForMe benötigt die Kamera, um QR-Codes von Speisekarten zu scannen.",
+    "permissionText": "GustaroAI benötigt die Kamera, um QR-Codes von Speisekarten zu scannen.",
     "allowCamera": "Kamera erlauben",
     "instruction": "Richte die Kamera auf den QR-Code der Speisekarte.",
     "close": "Scanner schließen"
   },
   "permissions": {
-    "camera": "PickForMe benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
+    "camera": "GustaroAI benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
   },
   "allergyWarning": {
     "title": "Wichtiger Hinweis zu Allergien und Unverträglichkeiten",
-    "message": "Du hast Allergien oder Unverträglichkeiten angegeben. PickForMe unterstützt dich bei der Auswahl von Speisen, ersetzt aber keine medizinische Beratung und keine Rückfrage beim Servicepersonal.\n\nInformationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App.\n\nNur wenn du diesen Hinweis bestätigst, können Empfehlungen angezeigt werden.",
+    "message": "Du hast Allergien oder Unverträglichkeiten angegeben. GustaroAI unterstützt dich bei der Auswahl von Speisen, ersetzt aber keine medizinische Beratung und keine Rückfrage beim Servicepersonal.\n\nInformationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App.\n\nNur wenn du diesen Hinweis bestätigst, können Empfehlungen angezeigt werden.",
     "confirmButton": "Bestätigen",
     "rejectButton": "Nicht bestätigen - Empfehlungen löschen",
     "logFailedTitle": "Hinweis konnte nicht bestätigt werden",
@@ -58,7 +58,7 @@
     "emailPlaceholder": "name@example.com",
     "passwordLabel": "Passwort",
     "passwordPlaceholder": "Passwort",
-    "continueButton": "Weiter zu PickForMe",
+    "continueButton": "Weiter zu GustaroAI",
     "genericError": "Login fehlgeschlagen."
   },
   "authErrors": {
@@ -115,12 +115,12 @@
     "preferencesButton": "Meine Vorlieben",
     "exclusionsButton": "Meine Ausschlüsse",
     "intolerancesButton": "Allergien und Unverträglichkeiten",
-    "subtitle": "PickForMe merkt sich, was Dir wichtig ist - ohne Fragebogen.",
+    "subtitle": "GustaroAI merkt sich, was Dir wichtig ist - ohne Fragebogen.",
     "signOut": "Abmelden",
     "deleteAccount": "Account und Daten löschen",
     "deleteAccountLoading": "Account wird gelöscht ...",
     "deleteAccountConfirmTitle": "Account löschen?",
-    "deleteAccountConfirmText": "Dein Account und die gespeicherten PickForMe-Daten werden dauerhaft gelöscht.",
+    "deleteAccountConfirmText": "Dein Account und die gespeicherten GustaroAI-Daten werden dauerhaft gelöscht.",
     "deleteAccountConfirmAction": "Dauerhaft löschen",
     "deleteAccountFailed": "Account und Daten konnten gerade nicht gelöscht werden. Bitte versuche es später noch einmal.",
     "privacyPolicy": "Datenschutz",
@@ -134,15 +134,15 @@
   },
   "profileEditor": {
     "introTitle": "Sag mir kurz, worauf ich achten soll",
-    "introSubtitle": "Alles freiwillig. PickForMe nutzt es sofort für bessere Empfehlungen.",
+    "introSubtitle": "Alles freiwillig. GustaroAI nutzt es sofort für bessere Empfehlungen.",
     "preferencesTitle": "Meine Vorlieben",
-    "preferencesHint": "Was PickForMe bei Empfehlungen bevorzugen soll.",
+    "preferencesHint": "Was GustaroAI bei Empfehlungen bevorzugen soll.",
     "addPreferenceLabel": "Vorliebe hinzufügen",
     "addPreferencePlaceholder": "z. B. Steak, Sushi, proteinreich ...",
     "addPreferenceButton": "Vorliebe hinzufügen",
     "deleteActivePreferencesLabel": "Aktive Vorlieben löschen",
     "exclusionsTitle": "Meine Ausschlüsse",
-    "exclusionsHint": "Was PickForMe nicht empfehlen darf.",
+    "exclusionsHint": "Was GustaroAI nicht empfehlen darf.",
     "addExclusionLabel": "Ausschluss hinzufügen",
     "addExclusionPlaceholder": "z. B. Knoblauch, Kümmel, Lamm ...",
     "addExclusionButton": "Ausschluss hinzufügen",
@@ -154,7 +154,7 @@
     "deleteActiveExceptionsLabel": "Aktive Ausnahmen löschen",
     "intolerancesTitle": "Allergien & Unverträglichkeiten",
     "intolerancesHint": "Diese Zutaten werden besonders streng berücksichtigt.",
-    "safetyHint": "Wichtiger Hinweis: PickForMe unterstützt dich bei der Auswahl von Speisen anhand deiner Angaben zu Allergien und Unverträglichkeiten. Die App ersetzt keine medizinische Beratung und keine Rückfrage beim Servicepersonal. Informationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App. Bei bekannten Allergien oder Unverträglichkeiten musst du jede Speise selbst kontrollieren.",
+    "safetyHint": "Wichtiger Hinweis: GustaroAI unterstützt dich bei der Auswahl von Speisen anhand deiner Angaben zu Allergien und Unverträglichkeiten. Die App ersetzt keine medizinische Beratung und keine Rückfrage beim Servicepersonal. Informationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App. Bei bekannten Allergien oder Unverträglichkeiten musst du jede Speise selbst kontrollieren.",
     "addIntoleranceLabel": "Unverträglichkeit hinzufügen",
     "addIntolerancePlaceholder": "z. B. Histamin, Zwiebeln, Fructose ...",
     "addIntoleranceButton": "Unverträglichkeit hinzufügen",
