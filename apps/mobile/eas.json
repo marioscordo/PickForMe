@@ -22,7 +22,7 @@
       }
     },
     "production": {
-      "autoIncrement": true,
+      "autoIncrement": false,
       "env": {
         "APP_VARIANT": "production",
         "EXPO_PUBLIC_PICKFORME_API_URL": "https://www.gustaroai.com",

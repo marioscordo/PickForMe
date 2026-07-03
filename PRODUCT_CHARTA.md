@@ -236,7 +236,9 @@ Vor jedem Production-Build muss geprueft werden:
 6. Das iOS Bundle Identifier Ziel ist `com.marioscordo.gustaroai`.
 7. Die App Store Connect Ziel-App ist GustaroAI mit ASC App ID `6787099278`.
 8. Die Buildnummer ist eindeutig hoeher als beim zuletzt eingereichten Build.
-   - Die iOS-Buildnummer in `apps/mobile/app.json` ist fortlaufend und darf nie wiederverwendet werden.
+   - Die iOS-Buildnummer in `apps/mobile/app.config.js` ist fortlaufend und darf nie wiederverwendet werden.
+   - `apps/mobile/app.config.js` ist die verbindliche Source of Truth fuer EAS-Builds; `apps/mobile/app.json` darf nicht abweichen.
+   - Production-Builds duerfen nicht automatisch inkrementieren; `apps/mobile/eas.json` muss fuer `production.autoIncrement` auf `false` stehen.
    - Vor jedem neuen Production-Build wird die zuletzt bei EAS/App Store Connect eingereichte Buildnummer geprueft.
    - Der naechste Production-Build nach dem bereits realisierten Build `1.0.2` muss `1.0.3` verwenden.
    - Eine Buildnummer wird erst erhoeht, wenn tatsaechlich ein neuer Production-Build erstellt werden soll.
