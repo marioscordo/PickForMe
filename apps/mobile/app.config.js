@@ -7,7 +7,7 @@ const cameraUsageDescription = mobileContent.permissions.camera;
 module.exports = {
   expo: {
     name: IS_PROD ? "GustaroAI" : "GustaroAI Dev",
-    slug: "gustaroai",
+    slug: "pickforme",
     version: "1.0.0",
     orientation: "portrait",
     scheme: IS_PROD ? "gustaroai" : "gustaroai-dev",
