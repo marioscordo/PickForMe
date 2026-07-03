@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { logAllergyWarningConfirmation } from "../../api/pickformeApi";
@@ -6,6 +6,7 @@ import { Screen } from "../../components/ui/Screen";
 import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
 import { RecommendationCard } from "../../components/pick/RecommendationCard";
+import { RestaurantDiscoveryDialog } from "../../components/pick/RestaurantDiscoveryDialog";
 import { SituationSelector } from "../../components/pick/SituationSelector";
 import { ActionButton } from "../../components/ui/ActionButton";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
@@ -32,6 +33,7 @@ export function PickScreen({
   const [menuText, setMenuText] = useState("");
   const [situation, setSituation] = useState<Situation>("richtig_hunger");
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [showRestaurantDiscovery, setShowRestaurantDiscovery] = useState(false);
   const analyze = useAnalyzeMenu();
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
   const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
@@ -44,6 +46,7 @@ export function PickScreen({
     if (resetSignal === 0) return;
     analyze.reset();
     setShowQrScanner(false);
+    setShowRestaurantDiscovery(false);
   }, [resetSignal]);
 
   useEffect(() => {
@@ -173,17 +176,37 @@ export function PickScreen({
         </Pressable>
       </View>
 
+      <View style={local.discoveryButtonWrap}>
+        <ActionButton
+          label={content.pick.findMenuButton}
+          variant="secondary"
+          onPress={() => setShowRestaurantDiscovery(true)}
+          style={local.discoveryButton}
+        />
+      </View>
+
+      <RestaurantDiscoveryDialog
+        visible={showRestaurantDiscovery}
+        onClose={() => setShowRestaurantDiscovery(false)}
+        onApply={(value) => {
+          setMenuText(value);
+          setShowQrScanner(false);
+          setShowRestaurantDiscovery(false);
+        }}
+      />
+
       {showQrScanner ? (
         <QrMenuScanner
           onUrlScanned={(value: string) => {
             setMenuText(value);
             setShowQrScanner(false);
+            setShowRestaurantDiscovery(false);
           }}
           onClose={() => setShowQrScanner(false)}
         />
       ) : null}
 
-      <MenuInputCard menuText={menuText} setMenuText={setMenuText} />
+      <MenuInputCard menuText={menuText} setMenuText={setMenuText} compact />
 
       <Surface style={local.moodCard}>
         <Text style={local.moodTitle}>{content.pick.moodTitle}</Text>
@@ -265,6 +288,15 @@ const local = StyleSheet.create({
 
   quickButtonTextActive: {
     color: semanticColors.text
+  },
+
+  discoveryButtonWrap: {
+    marginBottom: spacing.md
+  },
+
+  discoveryButton: {
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md
   },
 
   moodCard: {
@@ -357,7 +389,6 @@ const local = StyleSheet.create({
     marginTop: 12,
     marginBottom: 16
   }
-
 });
 
 function hasAllergiesOrIntolerances(profile: UserProfile) {

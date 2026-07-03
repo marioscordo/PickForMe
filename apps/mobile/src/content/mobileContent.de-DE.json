@@ -23,7 +23,8 @@
     "errorTitle": "Speisekarte nicht sicher ausgewertet",
     "mainButtonIdle": "Such mir etwas Passendes",
     "mainButtonLoading": "Ich schaue auf die Karte ...",
-    "openMenu": "Speisekarte öffnen"
+    "openMenu": "Speisekarte öffnen",
+    "findMenuButton": "Speisekarte finden"
   },
   "menuInput": {
     "kicker": "Schick mir die Speisekarte",
@@ -313,5 +314,19 @@
     "sourceKindUnsupported": "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.",
     "pdfAiDisabled": "PDF-Speisekarten benötigen den KI-Modus.",
     "noDishesFound": "Ich konnte in dieser Eingabe noch keine Gerichte erkennen."
+  },
+  "restaurantDiscovery": {
+    "title": "Speisekarte finden",
+    "restaurantNameLabel": "Restaurantname",
+    "cityLabel": "Stadt",
+    "showButton": "Zeigen",
+    "restaurantOutputLabel": "Restaurant",
+    "menuButton": "Speisekarte",
+    "linkOutputLabel": "Link",
+    "applyButton": "Übernehmen",
+    "backButton": "zurück",
+    "loading": "Bitte warten...",
+    "noResults": "Keine Treffer gefunden",
+    "noMenuUrl": "Kein auswertbarer Speisekartenlink gefunden"
   }
 }

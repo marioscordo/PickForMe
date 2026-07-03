@@ -5,10 +5,12 @@ import { Surface } from "../ui/Surface";
 
 export function MenuInputCard({
   menuText,
-  setMenuText
+  setMenuText,
+  compact = false
 }: {
   menuText: string;
   setMenuText: (value: string) => void;
+  compact?: boolean;
 }) {
   const content = useMobileContent();
 
@@ -19,9 +21,10 @@ export function MenuInputCard({
       <Text style={local.hint}>{content.menuInput.hint}</Text>
 
       <TextInput
+        testID="menu-input-textarea"
         multiline
         scrollEnabled
-        style={local.textArea}
+        style={[local.textArea, compact && local.textAreaCompact]}
         value={menuText}
         onChangeText={setMenuText}
         placeholder={content.menuInput.placeholder}
@@ -65,5 +68,9 @@ const local = StyleSheet.create({
     maxHeight: 124,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm
+  },
+  textAreaCompact: {
+    height: 68,
+    maxHeight: 68
   }
 });

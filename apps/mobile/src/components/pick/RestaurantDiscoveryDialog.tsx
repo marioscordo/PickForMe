@@ -1,0 +1,292 @@
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from "react-native";
+import {
+  generateRestaurantCandidates,
+  nominatimRestaurantDiscoveryProvider,
+  resolveSelectedRestaurantSource,
+  type RestaurantCandidate
+} from "../../gustaroai/restaurantDiscoveryRoutine";
+import { useMobileContent } from "../../content/useMobileContent";
+import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
+import { ActionButton } from "../ui/ActionButton";
+import { Screen } from "../ui/Screen";
+import { Surface } from "../ui/Surface";
+
+type RestaurantDiscoveryDialogProps = {
+  visible: boolean;
+  onClose: () => void;
+  onApply: (menuUrl: string) => void;
+};
+
+const DOUBLE_TAP_WINDOW_MS = 500;
+
+export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: RestaurantDiscoveryDialogProps) {
+  const content = useMobileContent();
+  const copy = content.restaurantDiscovery;
+  const [restaurantName, setRestaurantName] = useState("");
+  const [city, setCity] = useState("");
+  const [candidates, setCandidates] = useState<RestaurantCandidate[]>([]);
+  const [selectedCandidate, setSelectedCandidate] = useState<RestaurantCandidate | null>(null);
+  const [menuUrl, setMenuUrl] = useState("");
+  const [message, setMessage] = useState("");
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [loadingMenu, setLoadingMenu] = useState(false);
+  const [lastTap, setLastTap] = useState<{ id: string; time: number } | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    setRestaurantName("");
+    setCity("");
+    setCandidates([]);
+    setSelectedCandidate(null);
+    setMenuUrl("");
+    setMessage("");
+    setLastTap(null);
+  }, [visible]);
+
+  async function showCandidates() {
+    setLoadingCandidates(true);
+    setSelectedCandidate(null);
+    setMenuUrl("");
+    setMessage("");
+
+    try {
+      const result = await generateRestaurantCandidates(
+        { restaurantName, city },
+        nominatimRestaurantDiscoveryProvider
+      );
+      setCandidates(result);
+      setMessage(result.length === 0 ? copy.noResults : "");
+    } catch {
+      setCandidates([]);
+      setMessage(copy.noResults);
+    } finally {
+      setLoadingCandidates(false);
+    }
+  }
+
+  function handleCandidatePress(candidate: RestaurantCandidate) {
+    const now = Date.now();
+    const isDoubleTap = lastTap?.id === candidate.id && now - lastTap.time <= DOUBLE_TAP_WINDOW_MS;
+    setLastTap({ id: candidate.id, time: now });
+
+    if (!isDoubleTap) return;
+
+    setSelectedCandidate(candidate);
+    setMenuUrl("");
+    setMessage("");
+  }
+
+  async function findMenuUrl() {
+    if (!selectedCandidate) return;
+
+    setLoadingMenu(true);
+    setMenuUrl("");
+    setMessage("");
+
+    try {
+      const source = await resolveSelectedRestaurantSource(selectedCandidate, nominatimRestaurantDiscoveryProvider);
+      if (source.menuUrl) {
+        setMenuUrl(source.menuUrl);
+        return;
+      }
+
+      setMessage(copy.noMenuUrl);
+    } catch {
+      setMessage(copy.noMenuUrl);
+    } finally {
+      setLoadingMenu(false);
+    }
+  }
+
+  function applyMenuUrl() {
+    if (!menuUrl) return;
+    onApply(menuUrl);
+  }
+
+  return (
+    <Modal animationType="slide" visible={visible} onRequestClose={onClose}>
+      <Screen>
+        <Text style={local.title}>{copy.title}</Text>
+
+        <Surface style={local.panel}>
+          <Text style={local.label}>{copy.restaurantNameLabel}</Text>
+          <TextInput
+            testID="restaurant-discovery-name-input"
+            value={restaurantName}
+            onChangeText={setRestaurantName}
+            style={local.input}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+
+          <Text style={local.label}>{copy.cityLabel}</Text>
+          <TextInput
+            testID="restaurant-discovery-city-input"
+            value={city}
+            onChangeText={setCity}
+            style={local.input}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+
+          <ActionButton
+            label={loadingCandidates ? copy.loading : copy.showButton}
+            onPress={showCandidates}
+            disabled={loadingCandidates || !restaurantName.trim() || !city.trim()}
+            variant="secondary"
+            style={local.action}
+          />
+        </Surface>
+
+        {loadingCandidates ? <ActivityIndicator color={semanticColors.accentActive} /> : null}
+
+        {candidates.length > 0 ? (
+          <FlatList
+            testID="restaurant-discovery-candidate-list"
+            data={candidates}
+            keyExtractor={(item) => item.id}
+            style={local.list}
+            renderItem={({ item }) => (
+              <Pressable
+                testID="restaurant-discovery-candidate"
+                onPress={() => handleCandidatePress(item)}
+                style={[local.candidate, selectedCandidate?.id === item.id && local.candidateSelected]}
+              >
+                <Text style={local.candidateName}>{item.name}</Text>
+                <Text style={local.candidateMeta}>{[item.address, item.websiteUrl].filter(Boolean).join(" · ")}</Text>
+              </Pressable>
+            )}
+          />
+        ) : null}
+
+        <Surface style={local.panel}>
+          <Text style={local.label}>{copy.restaurantOutputLabel}</Text>
+          <TextInput
+            testID="restaurant-discovery-selected-restaurant"
+            value={selectedCandidate ? [selectedCandidate.name, selectedCandidate.city].filter(Boolean).join(", ") : ""}
+            editable={false}
+            style={local.input}
+          />
+
+          <ActionButton
+            label={loadingMenu ? copy.loading : copy.menuButton}
+            onPress={findMenuUrl}
+            disabled={loadingMenu || !selectedCandidate}
+            variant="secondary"
+            style={local.action}
+          />
+
+          <Text style={local.label}>{copy.linkOutputLabel}</Text>
+          <TextInput testID="restaurant-discovery-link" value={menuUrl} editable={false} style={local.input} />
+
+          {message ? <Text style={local.message}>{message}</Text> : null}
+
+          <View style={local.footerRow}>
+            <ActionButton label={copy.backButton} onPress={onClose} variant="secondary" style={local.footerButton} />
+            <ActionButton
+              label={copy.applyButton}
+              onPress={applyMenuUrl}
+              disabled={!menuUrl}
+              variant="accent"
+              style={local.footerButton}
+            />
+          </View>
+        </Surface>
+      </Screen>
+    </Modal>
+  );
+}
+
+const local = StyleSheet.create({
+  title: {
+    color: semanticColors.text,
+    fontSize: typography.screenTitle.fontSize,
+    fontWeight: typography.screenTitle.fontWeight,
+    lineHeight: typography.screenTitle.lineHeight,
+    marginBottom: spacing.md
+  },
+  panel: {
+    padding: spacing.md
+  },
+  label: {
+    color: semanticColors.text,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    marginBottom: spacing.xs
+  },
+  input: {
+    backgroundColor: semanticColors.surface,
+    borderColor: semanticColors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    color: semanticColors.text,
+    fontSize: 16,
+    lineHeight: 21,
+    marginBottom: spacing.md,
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  },
+  action: {
+    borderRadius: radius.pill,
+    marginBottom: spacing.xs,
+    paddingVertical: spacing.md
+  },
+  list: {
+    marginBottom: spacing.md,
+    maxHeight: 220
+  },
+  candidate: {
+    backgroundColor: semanticColors.surface,
+    borderColor: semanticColors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+    padding: spacing.md
+  },
+  candidateSelected: {
+    backgroundColor: semanticColors.accentSoft,
+    borderColor: semanticColors.accent
+  },
+  candidateName: {
+    color: semanticColors.text,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    lineHeight: typography.body.lineHeight
+  },
+  candidateMeta: {
+    color: semanticColors.textMuted,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    marginTop: spacing.xxs
+  },
+  message: {
+    color: semanticColors.warningText,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    lineHeight: typography.label.lineHeight,
+    marginBottom: spacing.md
+  },
+  footerRow: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  footerButton: {
+    borderRadius: radius.pill,
+    flex: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md
+  }
+});
