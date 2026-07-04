@@ -22,7 +22,7 @@ module.exports = {
 
     ios: {
       supportsTablet: false,
-      buildNumber: "1.0.5",
+      buildNumber: "1.0.6",
       bundleIdentifier: IS_PROD
         ? "com.marioscordo.gustaroai"
         : "com.marioscordo.gustaroai.dev",
