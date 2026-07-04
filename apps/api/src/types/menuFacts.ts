@@ -1,3 +1,5 @@
+import type { DishRole, MealType, SubstanceLevel } from "./menu";
+
 export type MenuItemFactType = "dish" | "course" | "drink" | "unknown";
 
 export type MenuItemOrderability = "standalone" | "part_of_menu" | "unclear";
@@ -11,6 +13,12 @@ export type MenuItemFact = {
   priceRaw?: string;
   orderability: MenuItemOrderability;
   parentMenuUnitId?: string;
+  dishRole?: DishRole;
+  mealType?: MealType;
+  substanceLevel?: SubstanceLevel;
+  isMainCourseCandidate?: boolean;
+  isLightDishCandidate?: boolean;
+  classificationConfidence?: number;
   evidence: string;
 };
 

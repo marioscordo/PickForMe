@@ -10,7 +10,6 @@ import {
 import { extractMenuFactsFromTextAI } from "./extractMenuFactsFromTextAI";
 
 const SUMMARY_LABEL = "GustaroAI two-step text AI summary";
-const MAX_CONCIERGE_STANDALONE_DISHES = 40;
 
 type TextAiAnalyzeResult = {
   dishes: Dish[];
@@ -37,6 +36,12 @@ type SelectedRecommendation = {
   rank: number;
   reason: string;
   facts: string;
+};
+
+type PrioritizedMenuItem = {
+  item: MenuItemFact;
+  score: number;
+  strongPreferenceScore: number;
 };
 
 type FactLookupResult =
@@ -67,7 +72,7 @@ export async function askPickForMeAI({
   }
 
   const menuFacts = await extractMenuFactsFromTextAI(menuText, { signal, userLocale });
-  const conciergeMenuFacts = buildConciergeMenuFacts(menuFacts, profile);
+  const conciergeMenuFacts = buildConciergeMenuFacts(menuFacts, profile, situation);
   const conciergeRecommendation = await askConciergeRecommendationAI({
     menuFacts: conciergeMenuFacts,
     profile,
@@ -95,8 +100,15 @@ export async function askPickForMeAI({
     });
   }
 
+  const governedRecommendations = applyStructuredRecommendationPriority({
+    selectedRecommendations,
+    menuFacts,
+    conciergeMenuFacts,
+    profile,
+    situation
+  });
   const recommendationMode =
-    conciergeRecommendation.recommendationMode ?? inferRecommendationMode(selectedRecommendations);
+    conciergeRecommendation.recommendationMode ?? inferRecommendationMode(governedRecommendations);
   const conciergeHero = conciergeRecommendation.conciergeHero?.trim();
 
   if (process.env.NODE_ENV !== "production") {
@@ -106,8 +118,8 @@ export async function askPickForMeAI({
       menuUnits: menuFacts.menuUnits.length,
       conciergeItems: conciergeMenuFacts.items.length,
       conciergeMenuUnits: conciergeMenuFacts.menuUnits.length,
-      selectedRecommendations: selectedRecommendations.length,
-      returnsEmpty: selectedRecommendations.length === 0,
+      selectedRecommendations: governedRecommendations.length,
+      returnsEmpty: governedRecommendations.length === 0,
       hasConciergeHero: Boolean(conciergeHero),
       recommendationMode,
       menuTypePresent: Boolean(menuFacts.menuType?.trim())
@@ -115,7 +127,7 @@ export async function askPickForMeAI({
   }
 
   return {
-    ...toAnalyzeDataParts(selectedRecommendations),
+    ...toAnalyzeDataParts(governedRecommendations),
     conciergeHero,
     recommendationMode,
     menuType: menuFacts.menuType
@@ -158,18 +170,24 @@ function findSelectableFact(menuFacts: MenuFacts, factId: string): FactLookupRes
   };
 }
 
-function buildConciergeMenuFacts(menuFacts: MenuFacts, profile: UserProfile): MenuFacts {
-  const menuUnits = menuFacts.menuUnits.filter((unit) => unit.orderability === "standalone");
+function buildConciergeMenuFacts(menuFacts: MenuFacts, profile: UserProfile, situation: Situation): MenuFacts {
+  const menuUnits = situation === "leicht"
+    ? []
+    : menuFacts.menuUnits
+        .filter((unit) => unit.orderability === "standalone")
+        .filter((unit) => !isBlockedByProfile({ kind: "unit", fact: unit }, profile, menuFacts));
   const includedItemIds = new Set(menuUnits.flatMap((unit) => unit.includedItemIds ?? []));
   const menuUnitContextItems = menuFacts.items.filter(
     (item) => item.parentMenuUnitId && menuUnits.some((unit) => unit.id === item.parentMenuUnitId)
       || includedItemIds.has(item.id)
-  );
+  ).filter((item) => !isBlockedByProfile({ kind: "item", fact: item }, profile, menuFacts));
   const standaloneDishCandidates = menuFacts.items
-    .filter((item) => item.itemType === "dish" && item.orderability === "standalone")
+    .filter((item) => isConciergeCandidateForSituation(item, situation))
     .filter((item) => !isBlockedByProfile({ kind: "item", fact: item }, profile, menuFacts))
-    .sort((a, b) => scoreConciergeCandidate(b) - scoreConciergeCandidate(a))
-    .slice(0, MAX_CONCIERGE_STANDALONE_DISHES);
+    .sort((left, right) =>
+      scoreConciergeCandidate(right, profile, situation).score -
+      scoreConciergeCandidate(left, profile, situation).score
+    );
   const itemIds = new Set<string>();
   const items = [...menuUnitContextItems, ...standaloneDishCandidates].filter((item) => {
     if (itemIds.has(item.id)) {
@@ -187,15 +205,274 @@ function buildConciergeMenuFacts(menuFacts: MenuFacts, profile: UserProfile): Me
   };
 }
 
-function scoreConciergeCandidate(item: MenuItemFact) {
-  let score = 0;
+function isConciergeCandidateForSituation(item: MenuItemFact, situation: Situation) {
+  if (item.itemType !== "dish" || item.orderability !== "standalone") {
+    return false;
+  }
 
-  if (item.descriptionOriginal) score += 3;
-  if (item.translatedName) score += 2;
-  if (item.priceRaw) score += 1;
-  if (item.evidence) score += 1;
+  if (situation === "leicht") {
+    return item.isLightDishCandidate === true ||
+      item.dishRole === "starter" ||
+      item.mealType === "salad";
+  }
+
+  return item.isMainCourseCandidate === true ||
+    (
+      item.dishRole === "main" &&
+      item.substanceLevel !== "light" &&
+      item.mealType !== "salad"
+    );
+}
+
+function applyStructuredRecommendationPriority({
+  selectedRecommendations,
+  menuFacts,
+  conciergeMenuFacts,
+  profile,
+  situation
+}: {
+  selectedRecommendations: SelectedRecommendation[];
+  menuFacts: MenuFacts;
+  conciergeMenuFacts: MenuFacts;
+  profile: UserProfile;
+  situation: Situation;
+}) {
+  if (selectedRecommendations.some((recommendation) => recommendation.fact.kind === "unit")) {
+    return normalizeRecommendationRanks(selectedRecommendations);
+  }
+
+  const prioritizedItems = getPrioritizedStandaloneDishCandidates(conciergeMenuFacts, profile, situation);
+
+  if (prioritizedItems.length === 0) {
+    return normalizeRecommendationRanks(selectedRecommendations);
+  }
+
+  const priorityByItemId = new Map(prioritizedItems.map((candidate) => [candidate.item.id, candidate]));
+  const sortedSelectedRecommendations = [...selectedRecommendations].sort((left, right) => left.rank - right.rank);
+  const firstSelectedItem = sortedSelectedRecommendations.find(
+    (recommendation) => recommendation.fact.kind === "item"
+  )?.fact.fact;
+  const firstSelectedPriority = firstSelectedItem ? priorityByItemId.get(firstSelectedItem.id) : undefined;
+  const topPriority = prioritizedItems[0]!;
+  const strongPreferenceMustLead = topPriority.strongPreferenceScore > 0;
+  const shouldPromoteTopPriority =
+    sortedSelectedRecommendations.length === 0 ||
+    (
+      strongPreferenceMustLead &&
+      (!firstSelectedPriority || firstSelectedPriority.strongPreferenceScore < topPriority.strongPreferenceScore)
+    );
+  const nextRecommendations: SelectedRecommendation[] = [];
+  const usedFactKeys = new Set<string>();
+
+  if (shouldPromoteTopPriority) {
+    addSelectedRecommendation(
+      nextRecommendations,
+      usedFactKeys,
+      buildSelectedRecommendationFromItem(topPriority.item, 1, menuFacts)
+    );
+  }
+
+  for (const recommendation of sortedSelectedRecommendations) {
+    addSelectedRecommendation(nextRecommendations, usedFactKeys, recommendation);
+  }
+
+  for (const candidate of prioritizedItems) {
+    if (nextRecommendations.length >= 3) {
+      break;
+    }
+
+    addSelectedRecommendation(
+      nextRecommendations,
+      usedFactKeys,
+      buildSelectedRecommendationFromItem(candidate.item, nextRecommendations.length + 1, menuFacts)
+    );
+  }
+
+  return normalizeRecommendationRanks(nextRecommendations.slice(0, 3));
+}
+
+function getPrioritizedStandaloneDishCandidates(
+  menuFacts: MenuFacts,
+  profile: UserProfile,
+  situation: Situation
+) {
+  return menuFacts.items
+    .filter((item) => isConciergeCandidateForSituation(item, situation))
+    .map((item) => ({
+      item,
+      ...scoreConciergeCandidate(item, profile, situation)
+    }))
+    .sort((left, right) => right.score - left.score);
+}
+
+function scoreConciergeCandidate(item: MenuItemFact, profile: UserProfile, situation: Situation): Omit<PrioritizedMenuItem, "item"> {
+  const strongPreferenceScore = preferenceScoreForItem(item, uniquePreferences([
+    ...(profile.primaryLikes ?? []),
+    ...(profile.customPreferences ?? [])
+  ]), 90);
+  const secondaryPreferenceScore = preferenceScoreForItem(item, uniquePreferences(profile.secondaryLikes ?? []), 24);
+  const structuralScore = structuralScoreForItem(item, situation);
+  const score = strongPreferenceScore + secondaryPreferenceScore + structuralScore;
+
+  return {
+    score,
+    strongPreferenceScore
+  };
+}
+
+function structuralScoreForItem(item: MenuItemFact, situation: Situation) {
+  let score = (item.classificationConfidence ?? 0) * 10;
+
+  if (item.isMainCourseCandidate) {
+    score += 30;
+  }
+
+  if (item.dishRole === "main") {
+    score += 18;
+  }
+
+  if (item.substanceLevel === "substantial") {
+    score += situation === "richtig_hunger" ? 55 : 28;
+  } else if (item.substanceLevel === "medium") {
+    score += situation === "richtig_hunger" ? 25 : 14;
+  } else if (item.substanceLevel === "light") {
+    score += situation === "leicht" ? 35 : -45;
+  }
+
+  if (situation === "leicht") {
+    if (item.isLightDishCandidate) {
+      score += 45;
+    }
+
+    if (item.dishRole === "starter") {
+      score += 28;
+    }
+
+    if (item.mealType === "salad") {
+      score += 28;
+    }
+  } else if (item.isLightDishCandidate || item.mealType === "salad") {
+    score -= 80;
+  }
 
   return score;
+}
+
+function preferenceScoreForItem(item: MenuItemFact, preferences: string[], weight: number) {
+  let score = 0;
+
+  for (const preference of preferences) {
+    if (structuredPreferenceMatchesItem(item, preference)) {
+      score += weight;
+    }
+  }
+
+  return score;
+}
+
+function structuredPreferenceMatchesItem(item: MenuItemFact, preference: string) {
+  const normalizedPreference = normalizePreference(preference);
+
+  if (!normalizedPreference) {
+    return false;
+  }
+
+  if (normalizedPreference.includes("fleisch") || normalizedPreference.includes("meat")) {
+    return item.mealType === "meat";
+  }
+
+  if (normalizedPreference.includes("fisch") || normalizedPreference.includes("fish")) {
+    return item.mealType === "fish";
+  }
+
+  if (normalizedPreference.includes("protein")) {
+    return item.mealType === "meat" ||
+      item.mealType === "fish" ||
+      item.substanceLevel === "medium" ||
+      item.substanceLevel === "substantial";
+  }
+
+  if (
+    normalizedPreference.includes("portion") ||
+    normalizedPreference.includes("gross") ||
+    normalizedPreference.includes("grosse") ||
+    normalizedPreference.includes("large")
+  ) {
+    return item.substanceLevel === "substantial" || item.isMainCourseCandidate === true;
+  }
+
+  if (normalizedPreference.includes("pasta")) {
+    return item.mealType === "pasta";
+  }
+
+  if (normalizedPreference.includes("salat") || normalizedPreference.includes("salad")) {
+    return item.mealType === "salad";
+  }
+
+  if (normalizedPreference.includes("pizza")) {
+    return item.mealType === "pizza";
+  }
+
+  return false;
+}
+
+function normalizePreference(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\u00df/g, "ss")
+    .trim();
+}
+
+function uniquePreferences(preferences: string[]) {
+  return Array.from(new Set(preferences.map((preference) => preference.trim()).filter(Boolean)));
+}
+
+function buildSelectedRecommendationFromItem(
+  item: MenuItemFact,
+  rank: number,
+  menuFacts: MenuFacts
+): SelectedRecommendation {
+  const selectedFact: SelectedFact = {
+    kind: "item",
+    fact: item
+  };
+
+  return {
+    fact: selectedFact,
+    rank,
+    reason: rank === 1 ? "Erste Empfehlung aus den sicheren Optionen." : "Weitere sichere Option.",
+    facts: buildFactsText(selectedFact, menuFacts)
+  };
+}
+
+function addSelectedRecommendation(
+  recommendations: SelectedRecommendation[],
+  usedFactKeys: Set<string>,
+  recommendation: SelectedRecommendation
+) {
+  const key = selectedFactKey(recommendation.fact);
+
+  if (usedFactKeys.has(key)) {
+    return;
+  }
+
+  usedFactKeys.add(key);
+  recommendations.push(recommendation);
+}
+
+function selectedFactKey(selectedFact: SelectedFact) {
+  return `${selectedFact.kind}:${selectedFact.fact.id}`;
+}
+
+function normalizeRecommendationRanks(recommendations: SelectedRecommendation[]) {
+  return recommendations
+    .slice(0, 3)
+    .map((recommendation, index) => ({
+      ...recommendation,
+      rank: index + 1
+    }));
 }
 
 function isBlockedByProfile(selectedFact: SelectedFact, profile: UserProfile, menuFacts: MenuFacts) {
@@ -213,6 +490,7 @@ function toAnalyzeDataParts(selectedRecommendations: SelectedRecommendation[]): 
 } {
   const dishes: Dish[] = selectedRecommendations.map((selected, index) => {
     const fact = selected.fact.fact;
+    const itemFact = getItemFact(selected.fact);
 
     return {
       id: `ai_fact_${String(index + 1).padStart(3, "0")}`,
@@ -220,6 +498,13 @@ function toAnalyzeDataParts(selectedRecommendations: SelectedRecommendation[]): 
       descriptionOriginal: fact.descriptionOriginal,
       price: fact.priceRaw ? parsePrice(fact.priceRaw) : undefined,
       category: selected.fact.kind === "unit" ? "KI-Menueempfehlung" : "KI-Empfehlung",
+      itemType: getDishItemType(itemFact),
+      dishRole: itemFact?.dishRole,
+      mealType: itemFact?.mealType,
+      substanceLevel: itemFact?.substanceLevel,
+      isMainCourseCandidate: itemFact?.isMainCourseCandidate,
+      isLightDishCandidate: itemFact?.isLightDishCandidate,
+      classificationConfidence: itemFact?.classificationConfidence,
       sourceLine: fact.evidence
     };
   });
@@ -271,6 +556,7 @@ function buildFactsText(selectedFact: SelectedFact, menuFacts: MenuFacts) {
 
 function toProfileRuleInput(selectedFact: SelectedFact, menuFacts: MenuFacts) {
   const fact = selectedFact.fact;
+  const itemFact = getItemFact(selectedFact);
   const includedItems = selectedFact.kind === "unit"
     ? getIncludedMenuItems(selectedFact.fact, menuFacts)
     : [];
@@ -284,6 +570,13 @@ function toProfileRuleInput(selectedFact: SelectedFact, menuFacts: MenuFacts) {
       .filter(Boolean)
       .join(" "),
     category: fact.itemType,
+    itemType: getDishItemType(itemFact),
+    dishRole: itemFact?.dishRole,
+    mealType: itemFact?.mealType,
+    substanceLevel: itemFact?.substanceLevel,
+    isMainCourseCandidate: itemFact?.isMainCourseCandidate,
+    isLightDishCandidate: itemFact?.isLightDishCandidate,
+    classificationConfidence: itemFact?.classificationConfidence,
     sourceLine: [
       fact.evidence,
       ...includedItems.map((item) => item.evidence)
@@ -297,6 +590,18 @@ function toProfileRuleInput(selectedFact: SelectedFact, menuFacts: MenuFacts) {
       .filter(Boolean)
       .join(" ")
   };
+}
+
+function getItemFact(selectedFact: SelectedFact) {
+  return selectedFact.kind === "item" ? selectedFact.fact : undefined;
+}
+
+function getDishItemType(item: MenuItemFact | undefined) {
+  if (!item || item.itemType === "course") {
+    return undefined;
+  }
+
+  return item.itemType;
 }
 
 function getIncludedMenuItems(menuUnit: MenuUnitFact, menuFacts: MenuFacts) {

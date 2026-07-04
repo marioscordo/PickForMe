@@ -34,14 +34,15 @@ Status: lokal gepatcht und mit 10er-Test nachgeprueft; vor Deploy/Build zu commi
 Befund:
 
 - In Build 1.0.5 koennen ueber "Speisekarte finden" bereitgestellte Links in der anschliessenden Analyse scheitern.
-- Konkreter Fehlerpfad: PDF-Links oder Seiten mit verlinktem PDF werden im Analyse-Endpoint vor der gemeinsamen URL-Laderoutine als PDF-Sonderfall abgefangen und koennen mit `PDF_AI_DISABLED` abbrechen.
-- Das widerspricht der Produktregel, dass selbst gefundene Speisekartenlinks anschliessend analysierbar sein muessen.
+- Konkreter Fehlerpfad: Gefundene oder direkt eingegebene Speisekartenlinks duerfen nach einem gescheiterten AI-Versuch nicht still in den alten unstrukturierten Fallback wechseln.
+- Das widerspricht der Produktregel, dass alle Speisekartenformate charta-konform und ohne unsichere Ersatzempfehlungen behandelt werden muessen.
 
 Akzeptanz:
 
 - Gefundener Link -> Analyse startet erfolgreich, oder der Link wird nicht angeboten.
 - Il Pozzetto, Rom ist Pflichtfall: der gefundene `menuUrl` muss direkt von `analyze-menu` verarbeitet werden.
-- HTML, PDF und Text laufen ueber denselben serverseitigen Quellenvertrag; KI-PDF ist hoechstens Fallback.
+- HTML, PDF, Bild und Text laufen ueber denselben Sicherheitsvertrag: Wenn ein AI-Pfad scheitert, wird kein unsicherer Fallback mit Empfehlungen angezeigt.
+- PDF-Links duerfen den direkteren PDF-AI-Pfad nutzen, muessen bei Scheitern aber sicher abbrechen.
 - Die Regression muss den Uebergang von `restaurant-discovery` zu `analyze-menu` pruefen, nicht nur die Erreichbarkeit der URL.
 
 ## Lokaler 10er-Test vom 2026-07-04

@@ -8,6 +8,9 @@ const MENU_ITEM_TYPES = ["dish", "course", "drink", "unknown"] as const;
 const MENU_ITEM_ORDERABILITIES = ["standalone", "part_of_menu", "unclear"] as const;
 const MENU_UNIT_TYPES = ["whole_menu", "sharing_menu"] as const;
 const MENU_UNIT_ORDERABILITIES = ["standalone"] as const;
+const DISH_ROLES = ["starter", "main", "side", "dessert", "drink", "unknown"] as const;
+const MEAL_TYPES = ["salad", "pasta", "pizza", "meat", "fish", "vegetarian", "dessert", "unknown"] as const;
+const SUBSTANCE_LEVELS = ["light", "medium", "substantial", "unknown"] as const;
 const GENERIC_MENU_UNIT_TITLES = [
   "degustationsmenu",
   "degustationsmenue",
@@ -90,6 +93,8 @@ function buildSystemPrompt(userLocale?: string) {
     "Nutze ausschliesslich Fakten aus dem geladenen Speisekartentext.",
     "Nutze keine externen Restaurantinformationen und keine Vermutungen.",
     "Erfinde keine Namen, Preise, Zutaten, Beschreibungen oder Bestellbarkeit.",
+    "Extrahiere die Karte ueber alle sichtbaren Abschnitte hinweg; stoppe nicht beim ersten Kartenblock.",
+    "Spaet sichtbare Hauptgerichte und weitere Kartenabschnitte sind genauso wichtig wie fruehe Abschnitte.",
     `Sprache fuer nutzerseitige Gerichtsanzeigen: ${targetLanguage} (${targetLocale}).`,
     "nameOriginal muss ein exakt sichtbarer Originalname aus dem Text sein.",
     "MenuUnit titleOriginal muss ein exakt sichtbarer Originaltitel, Abschnittstitel oder klar sichtbarer Menue-Titel aus dem Text sein.",
@@ -111,7 +116,17 @@ function buildSystemPrompt(userLocale?: string) {
     "Erfasse solche bestellbaren Gesamtmenues als menuUnits.",
     "Einzelne Gaenge eines Menues als itemType course und orderability part_of_menu markieren, wenn sie nicht klar separat bestellbar sind.",
     "Normale separat bestellbare Speisen als itemType dish und orderability standalone markieren.",
+    "Bestimme dishRole aus Kartenstruktur, Abschnitt, Name und Beschreibung: starter, main, side, dessert, drink oder unknown.",
+    "Eine eigenstaendig bestellbare vollwertige Speise oder ein Hauptgericht bekommt dishRole main.",
+    "Vorspeisen, kleine Auftaktgerichte und nicht vollwertige Eintraege bekommen dishRole starter, side oder dessert statt main.",
+    "Bestimme mealType als grobe strukturierte Klasse: salad, pasta, pizza, meat, fish, vegetarian, dessert oder unknown.",
+    "Bestimme substanceLevel als light, medium, substantial oder unknown, nur wenn es aus Kartenstruktur, Name oder Beschreibung ableitbar ist.",
+    "Setze isMainCourseCandidate true nur fuer eigenstaendig bestellbare Hauptgerichte oder vollwertige Speisen.",
+    "Setze isLightDishCandidate true nur fuer klar leichte Speisen.",
+    "classificationConfidence ist eine Zahl von 0 bis 1 fuer die strukturelle Klassifikation; bei unsicherer Klassifikation niedrig oder 0 setzen.",
     "Getraenke als itemType drink markieren.",
+    "Getraenke duerfen niemals itemType dish bekommen, auch wenn sie einzeln bestellbar sind.",
+    "Mengenzeilen wie 0,20 l, 0.2 l, 200 ml oder 20 cl sind keine Speisennamen; bei Cola, Wasser, Wein, Bier, Kaffee, Tee, Saft, Limonade oder Cocktails muss itemType drink verwendet werden.",
     "Wenn Bestellbarkeit unklar ist, orderability unclear verwenden.",
     "evidence muss ein kurzer Originalausschnitt aus dem Speisekartentext sein.",
     "Gib keine leeren item-Objekte aus.",
@@ -132,6 +147,12 @@ function buildSystemPrompt(userLocale?: string) {
     '      "priceRaw": "exakter Rohpreis falls sichtbar",',
     '      "orderability": "standalone | part_of_menu | unclear",',
     '      "parentMenuUnitId": "unit_001 falls Teil eines Gesamtmenues",',
+    '      "dishRole": "starter | main | side | dessert | drink | unknown",',
+    '      "mealType": "salad | pasta | pizza | meat | fish | vegetarian | dessert | unknown",',
+    '      "substanceLevel": "light | medium | substantial | unknown",',
+    '      "isMainCourseCandidate": true,',
+    '      "isLightDishCandidate": false,',
+    '      "classificationConfidence": 0.8,',
     '      "evidence": "Originalausschnitt aus dem Speisekartentext"',
     "    }",
     "  ],",
@@ -246,9 +267,9 @@ function validateMenuFacts(result: RawMenuFacts, menuText: string): MenuFacts {
       continue;
     }
 
-    const sourceBoundItem = withSourceBoundDetails(item, normalizedMenu);
+    const sourceBoundItem = coerceMenuItemType(withSourceBoundDetails(item, normalizedMenu));
 
-    seenItemIds.add(item.id);
+    seenItemIds.add(sourceBoundItem.id);
     items.push(sourceBoundItem);
   }
 
@@ -288,6 +309,10 @@ function toMenuItemFact(value: unknown, index: number): MenuItemFact | null {
   const nameOriginal = toNonEmptyString(object.nameOriginal);
   const orderability = toEnum(object.orderability, MENU_ITEM_ORDERABILITIES);
   const evidence = toNonEmptyString(object.evidence);
+  const dishRole = toEnum(object.dishRole, DISH_ROLES);
+  const mealType = toEnum(object.mealType, MEAL_TYPES);
+  const substanceLevel = toEnum(object.substanceLevel, SUBSTANCE_LEVELS);
+  const classificationConfidence = toNumberInRange(object.classificationConfidence, 0, 1);
 
   if (!itemType || !nameOriginal || !orderability || !evidence) {
     return null;
@@ -302,6 +327,12 @@ function toMenuItemFact(value: unknown, index: number): MenuItemFact | null {
     priceRaw: toNonEmptyString(object.priceRaw),
     orderability,
     parentMenuUnitId: toNonEmptyString(object.parentMenuUnitId),
+    dishRole,
+    mealType,
+    substanceLevel,
+    isMainCourseCandidate: toBoolean(object.isMainCourseCandidate),
+    isLightDishCandidate: toBoolean(object.isLightDishCandidate),
+    classificationConfidence,
     evidence
   };
 }
@@ -351,6 +382,162 @@ function withSourceBoundDetails<T extends MenuItemFact | MenuUnitFact>(fact: T, 
   };
 }
 
+function coerceMenuItemType(item: MenuItemFact): MenuItemFact {
+  if (item.itemType === "drink" || item.dishRole === "drink") {
+    return {
+      ...item,
+      itemType: "drink",
+      dishRole: "drink",
+      mealType: "unknown",
+      substanceLevel: "unknown",
+      isMainCourseCandidate: false,
+      isLightDishCandidate: false
+    };
+  }
+
+  if (item.itemType !== "dish") {
+    return item;
+  }
+
+  return looksLikeDrinkItem(item)
+    ? {
+        ...item,
+        itemType: "drink",
+        dishRole: "drink",
+        mealType: "unknown",
+        substanceLevel: "unknown",
+        isMainCourseCandidate: false,
+        isLightDishCandidate: false
+      }
+    : item;
+}
+
+function looksLikeDrinkItem(item: MenuItemFact) {
+  const name = normalize([
+    item.nameOriginal,
+    item.translatedName
+  ].filter(Boolean).join(" "));
+  const context = normalize([
+    item.descriptionOriginal,
+    item.evidence
+  ].filter(Boolean).join(" "));
+  const rawText = [
+    item.nameOriginal,
+    item.translatedName,
+    item.descriptionOriginal,
+    item.evidence
+  ].filter(Boolean).join(" ");
+
+  if (!name) {
+    return false;
+  }
+
+  if (hasAnyNormalizedTerm(name, FOOD_COUNTER_TERMS)) {
+    return false;
+  }
+
+  if (isQuantityOnlyName(item.nameOriginal) && hasAnyNormalizedTerm(context, DRINK_CONTEXT_TERMS)) {
+    return true;
+  }
+
+  if (hasAnyNormalizedTerm(name, DISTINCT_DRINK_NAME_TERMS)) {
+    return true;
+  }
+
+  if (hasVolumeMarker(rawText) && hasAnyNormalizedTerm(`${name} ${context}`, DRINK_CONTEXT_TERMS)) {
+    return true;
+  }
+
+  return false;
+}
+
+const DISTINCT_DRINK_NAME_TERMS = [
+  "coca cola",
+  "coca cola light",
+  "coca cola zero",
+  "cola",
+  "fanta",
+  "sprite",
+  "mezzo mix",
+  "softdrink",
+  "limonade",
+  "lemonade",
+  "soda",
+  "wasser",
+  "mineralwasser",
+  "acqua",
+  "espresso",
+  "cappuccino",
+  "kaffee",
+  "coffee",
+  "tee",
+  "tea",
+  "saft",
+  "juice",
+  "bier",
+  "beer",
+  "pils",
+  "weizen",
+  "wein",
+  "wine",
+  "vino",
+  "prosecco",
+  "sekt",
+  "champagner",
+  "champagne",
+  "cocktail",
+  "aperol",
+  "spritz"
+];
+
+const DRINK_CONTEXT_TERMS = [
+  ...DISTINCT_DRINK_NAME_TERMS,
+  "getraenke",
+  "getranke",
+  "drinks",
+  "beverages"
+];
+
+const FOOD_COUNTER_TERMS = [
+  "sauce",
+  "sosse",
+  "risotto",
+  "pasta",
+  "spaghetti",
+  "steak",
+  "filet",
+  "fish",
+  "fisch",
+  "chicken",
+  "haehnchen",
+  "beef",
+  "rind",
+  "pork",
+  "schwein",
+  "salat",
+  "salad",
+  "pizza",
+  "burger"
+];
+
+function hasAnyNormalizedTerm(value: string, terms: string[]) {
+  return terms.some((term) => hasNormalizedTerm(value, term));
+}
+
+function hasNormalizedTerm(value: string, term: string) {
+  const normalizedTerm = normalize(term);
+  const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|\\s)${escaped}(\\s|$)`).test(value);
+}
+
+function isQuantityOnlyName(value: string) {
+  return /^\d+(?:[,.]\d+)?\s*(?:l|liter|ml|cl)\b\.?$/i.test(value.trim());
+}
+
+function hasVolumeMarker(value: string) {
+  return /\b\d+(?:[,.]\d+)?\s*(?:l|liter|ml|cl)\b/i.test(value);
+}
+
 function isVisibleText(value: string, normalizedMenu: string): boolean {
   const normalizedValue = normalize(value);
 
@@ -391,6 +578,18 @@ function toStringArray(value: unknown): string[] | undefined {
     .filter((itemId): itemId is string => Boolean(itemId));
 
   return strings.length > 0 ? strings : undefined;
+}
+
+function toBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function toNumberInRange(value: unknown, min: number, max: number): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  return Math.min(max, Math.max(min, value));
 }
 
 function normalize(value: string) {

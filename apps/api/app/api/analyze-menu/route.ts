@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "../../../src/auth/requireUser";
 import { askPickForMeAI } from "../../../src/ai/askPickForMeAI";
+import { askPickForMePdfUrlAI } from "../../../src/ai/askPickForMePdfUrlAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
 import { AppError } from "../../../src/errors/AppError";
@@ -39,6 +40,11 @@ type LinkedPdfMenu = {
 type LocalizedRestaurantDescriptionResult = RestaurantDescriptionResult & {
   displayText: string;
 };
+
+const SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE =
+  "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen";
+const TEXT_AI_TIMEOUT_MS = 90000;
+const PDF_AI_TIMEOUT_MS = 90000;
 
 export async function POST(request: Request) {
   try {
@@ -107,6 +113,93 @@ export async function POST(request: Request) {
       outputLocale
     );
     const sourceInputAllergenWarningPayload = buildAllergenInfoWarningPayload(profile, rawMenuText);
+
+    if (pdfMenuUrl) {
+      if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
+        throw new AppError(400, "PDF_AI_DISABLED", "PDF-Speisekarten benötigen in V1 den KI-Modus.");
+      }
+
+      try {
+        const aiResult = await withTimeout(
+          askPickForMePdfUrlAI({
+            pdfUrl: pdfMenuUrl,
+            profile,
+            situation: body.situation,
+            userLocale: outputLocale
+          }),
+          PDF_AI_TIMEOUT_MS,
+          "PDF_AI_TIMEOUT"
+        );
+
+        if (aiResult.recommendations.length === 0) {
+          throw new AppError(
+            422,
+            "NO_SAFE_RECOMMENDATIONS",
+            "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+          );
+        }
+
+        const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
+          officialWebsiteText: restaurantDescription?.text,
+          restaurantUrl: officialRestaurantUrl,
+          fallbackHero: buildFallbackConciergeHero({
+            dishes: aiResult.dishes,
+            restaurantContextText: linkedPdfMenu?.restaurantContextText ?? rawMenuText
+          })
+        });
+
+        const recommendations = await localizeRecommendationsForPayload({
+          dishes: aiResult.dishes,
+          recommendations: aiResult.recommendations,
+          userLocale: outputLocale
+        });
+
+        return NextResponse.json({
+          ok: true,
+          data: {
+            mode: "ai_pdf",
+            dishes: aiResult.dishes,
+            recommendations,
+            conciergeHero,
+            ...sourceInputAllergenWarningPayload,
+            ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
+          }
+        });
+      } catch (pdfAiError) {
+        const message = pdfAiError instanceof Error ? pdfAiError.message : "";
+
+        if (pdfAiError instanceof AppError) {
+          throw pdfAiError;
+        }
+
+        if (isRateLimitError(pdfAiError)) {
+          throw new AppError(
+            429,
+            "AI_RATE_LIMIT",
+            "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+          );
+        }
+
+        if (message.includes("PDF_LOCALIZATION_FAILED") || message.includes("PDF_AI_TIMEOUT")) {
+          throw new AppError(
+            422,
+            "ANALYSIS_NOT_SAFE",
+            SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE,
+            buildMenuAnalysisDetails(localizedRestaurantDescription, null)
+          );
+        }
+
+        console.error("GustaroAI PDF AI failed.", pdfAiError);
+
+        throw new AppError(
+          422,
+          "ANALYSIS_NOT_SAFE",
+          SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE,
+          buildMenuAnalysisDetails(localizedRestaurantDescription, null)
+        );
+      }
+    }
+
     const menuTextUrl = pdfMenuUrl || rawMenuText;
 
     const directImageUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikeImageUrl(rawMenuText) ? rawMenuText : null;
@@ -257,7 +350,7 @@ export async function POST(request: Request) {
             signal,
             userLocale: outputLocale
           }),
-          30000,
+          TEXT_AI_TIMEOUT_MS,
           "TEXT_AI_TIMEOUT"
         );
         if (aiResult.recommendations.length > 0) {
@@ -313,19 +406,31 @@ export async function POST(request: Request) {
       } catch (aiError) {
         const message = aiError instanceof Error ? aiError.message : "";
 
-        if (message.includes("TEXT_AI_TIMEOUT") || isRateLimitError(aiError)) {
-          if (process.env.NODE_ENV !== "production") {
-            console.error("GustaroAI AI unavailable, falling back to local recommendation.", aiError);
-          }
-        } else {
-          console.error("GustaroAI AI failed.", aiError);
-
-          throw aiError;
+        if (isRateLimitError(aiError)) {
+          throw new AppError(
+            429,
+            "AI_RATE_LIMIT",
+            "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+          );
         }
+
+        if (message.includes("TEXT_AI_TIMEOUT")) {
+          throw new AppError(
+            422,
+            "ANALYSIS_NOT_SAFE",
+            SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE,
+            buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
+          );
+        }
+
+        console.error("GustaroAI AI failed.", aiError);
+
+        throw aiError;
       }
     }
 
-    const dishes = htmlMenuDishes ?? parseMenu(effectiveMenuText);
+    const parsedMenuItems = htmlMenuDishes ?? parseMenu(effectiveMenuText);
+    const dishes = parsedMenuItems.filter(isFoodDish);
 
     if (dishes.length === 0 && inputLooksLikeUrl && process.env.GUSTAROAI_AI_ENABLED === "true") {
       const imageUrls = await findLinkedMenuImageUrls(rawMenuText);
@@ -705,6 +810,10 @@ function buildMenuAnalysisDetails(
   };
 
   return Object.keys(details).length > 0 ? details : undefined;
+}
+
+function isFoodDish(dish: Dish) {
+  return dish.itemType !== "drink" && dish.dishRole !== "drink";
 }
 
 function buildPartialAnalysisPayload(

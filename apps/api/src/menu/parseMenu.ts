@@ -33,7 +33,9 @@ export function parseMenu(menuText: string): Dish[] {
       continue;
     }
 
-    const namePart = line.slice(0, priceInfo.index).trim();
+    const rawNamePart = line.slice(0, priceInfo.index).trim();
+    const categoryAsName = Boolean(currentCategory && isQuantityOnlyName(rawNamePart));
+    const namePart = categoryAsName && currentCategory ? currentCategory : rawNamePart;
 
     if (namePart.length < 3) {
       continue;
@@ -46,15 +48,22 @@ export function parseMenu(menuText: string): Dish[] {
     }
 
     const { nameOriginal, descriptionOriginal } = splitNameAndDescription(namePart);
+    const isDrink = isDrinkEntry({ namePart, rawNamePart, category: currentCategory, sourceLine: line });
 
     dishes.push({
       id: `dish_${String(dishes.length + 1).padStart(3, "0")}`,
       nameOriginal,
-      descriptionOriginal,
+      descriptionOriginal: categoryAsName ? rawNamePart : descriptionOriginal,
       price,
-      category: currentCategory,
+      category: categoryAsName ? undefined : currentCategory,
+      itemType: isDrink ? "drink" : "dish",
+      dishRole: isDrink ? "drink" : undefined,
       sourceLine: line
     });
+
+    if (categoryAsName) {
+      currentCategory = undefined;
+    }
   }
 
   return dishes;
@@ -103,6 +112,143 @@ function isAcceptablePriceTail(tail: string) {
 
 function shouldSkipLine(line: string) {
   return SKIP_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+function isQuantityOnlyName(value: string) {
+  return /^\d+(?:[,.]\d+)?\s*(?:l|liter|ml|cl)\b\.?$/i.test(value.trim());
+}
+
+function isDrinkEntry({
+  namePart,
+  rawNamePart,
+  category,
+  sourceLine
+}: {
+  namePart: string;
+  rawNamePart: string;
+  category: string | undefined;
+  sourceLine: string;
+}) {
+  const normalizedName = normalizeText(namePart);
+  const normalizedRawName = normalizeText(rawNamePart);
+  const normalizedCategory = normalizeText(category ?? "");
+  const normalizedLine = normalizeText(sourceLine);
+  const combined = `${normalizedName} ${normalizedRawName} ${normalizedCategory} ${normalizedLine}`;
+
+  if (hasAnyTerm(combined, FOOD_COUNTER_TERMS)) {
+    return false;
+  }
+
+  if (isQuantityOnlyName(rawNamePart) && hasAnyTerm(normalizedCategory, DRINK_TERMS)) {
+    return true;
+  }
+
+  if (hasAnyTerm(normalizedName, DRINK_TERMS) && hasVolumeMarker(sourceLine)) {
+    return true;
+  }
+
+  return hasAnyTerm(normalizedCategory, DRINK_SECTION_TERMS) && hasAnyTerm(combined, DRINK_TERMS);
+}
+
+const DRINK_TERMS = [
+  "coca cola",
+  "cola",
+  "fanta",
+  "sprite",
+  "mezzo mix",
+  "softdrink",
+  "limonade",
+  "lemonade",
+  "soda",
+  "wasser",
+  "mineralwasser",
+  "acqua",
+  "espresso",
+  "cappuccino",
+  "kaffee",
+  "coffee",
+  "tee",
+  "tea",
+  "saft",
+  "juice",
+  "bier",
+  "beer",
+  "pils",
+  "weizen",
+  "wein",
+  "wine",
+  "vino",
+  "prosecco",
+  "sekt",
+  "champagner",
+  "champagne",
+  "cocktail",
+  "aperol",
+  "spritz",
+  "vodka",
+  "bacardi",
+  "gin",
+  "rum",
+  "whisky"
+];
+
+const DRINK_SECTION_TERMS = [
+  ...DRINK_TERMS,
+  "getraenke",
+  "getranke",
+  "drinks",
+  "beverages",
+  "softdrinks",
+  "alkoholfrei",
+  "longdrinks",
+  "weinkarte",
+  "cocktails"
+];
+
+const FOOD_COUNTER_TERMS = [
+  "sauce",
+  "sosse",
+  "risotto",
+  "pasta",
+  "spaghetti",
+  "steak",
+  "filet",
+  "fish",
+  "fisch",
+  "chicken",
+  "haehnchen",
+  "beef",
+  "rind",
+  "pork",
+  "schwein",
+  "salat",
+  "salad",
+  "pizza",
+  "burger"
+];
+
+function hasAnyTerm(value: string, terms: string[]) {
+  return terms.some((term) => hasTerm(value, term));
+}
+
+function hasTerm(value: string, term: string) {
+  const escaped = normalizeText(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|\\s)${escaped}(\\s|$)`).test(value);
+}
+
+function hasVolumeMarker(value: string) {
+  return /\b\d+(?:[,.]\d+)?\s*(?:l|liter|ml|cl)\b/i.test(value);
+}
+
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\u00df/g, "ss")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function looksLikeCategory(line: string) {

@@ -102,36 +102,6 @@ const MENU_SOURCE_PATH_PARTS = [
   "dining",
   "gourmetkarte"
 ];
-const MENU_TEXT_SIGNALS = [
-  "speisekarte",
-  "menu",
-  "carta",
-  "carte",
-  "antipasti",
-  "primi",
-  "secondi",
-  "dolci",
-  "vorspeisen",
-  "hauptgerichte",
-  "starter",
-  "starters",
-  "main course",
-  "mains",
-  "dessert",
-  "drinks",
-  "beverages",
-  "wein",
-  "wine",
-  "pizza",
-  "pasta",
-  "salad",
-  "salate",
-  "fish",
-  "fisch",
-  "meat",
-  "fleisch",
-  "vegetarian"
-];
 const LIKELY_OFFICIAL_DOMAIN_TLDS = ["com", "de"];const NOMINATIM_QUERY_DELAY_MS = 1100;
 const SECOND_LEVEL_DOMAIN_SUFFIXES = new Set([
   "co.uk",
@@ -482,9 +452,39 @@ async function verifyAnalyzableMenuUrl(value: string, expectedDomain: string) {
   if (!reachableUrl) return "";
   if (getRegistrableDomain(reachableUrl) !== expectedDomain) return "";
 
+  if (!isPdfUrl(reachableUrl)) {
+    const linkedMenuUrl = await findLinkedAnalyzableMenuUrl(reachableUrl, expectedDomain);
+    if (linkedMenuUrl) return linkedMenuUrl;
+  }
+
+  return verifyDirectAnalyzableMenuUrl(reachableUrl, expectedDomain);
+}
+
+async function findLinkedAnalyzableMenuUrl(pageUrl: string, expectedDomain: string) {
+  const links = await loadSameDomainLinks(pageUrl, expectedDomain);
+  const candidateLinks = orderMenuCandidateLinks(links.filter(looksLikeMenuSourceUrl))
+    .slice(0, MAX_ANALYZABILITY_CANDIDATES_PER_PAGE);
+
+  for (const candidateUrl of candidateLinks) {
+    if (sameUrlWithoutTrailingSlash(candidateUrl, pageUrl)) continue;
+
+    const reachableUrl = await verifyReachableUrl(candidateUrl);
+    if (!reachableUrl) continue;
+    if (getRegistrableDomain(reachableUrl) !== expectedDomain) continue;
+
+    const menuUrl = await verifyDirectAnalyzableMenuUrl(reachableUrl, expectedDomain);
+    if (menuUrl) return menuUrl;
+  }
+
+  return "";
+}
+
+async function verifyDirectAnalyzableMenuUrl(value: string, expectedDomain: string) {
+  if (getRegistrableDomain(value) !== expectedDomain) return "";
+
   try {
-    const menuText = await loadMenuTextFromUrl(reachableUrl);
-    return isAnalyzableMenuText(menuText) ? reachableUrl : "";
+    const menuText = await loadMenuTextFromUrl(value);
+    return isAnalyzableMenuText(menuText) ? value : "";
   } catch {
     return "";
   }
@@ -494,14 +494,7 @@ function isAnalyzableMenuText(menuText: string) {
   const trimmed = menuText.trim();
   if (trimmed.length < MIN_ANALYZABLE_MENU_TEXT_LENGTH) return false;
 
-  if (parseMenu(menuText).length >= 2) return true;
-
-  const normalized = normalizeMenuProbeText(menuText);
-  const signalHits = countIncludedTerms(normalized, MENU_TEXT_SIGNALS);
-  const priceHits = (menuText.match(/(?:€|\bEUR\b|\bUSD\b|\bCHF\b|\$|£|\b\d{1,3}[,.]\d{2}\b)/gi) ?? []).length;
-
-  if (priceHits >= 2 && signalHits >= 1) return true;
-  return signalHits >= 3 && normalized.length >= 500;
+  return parseMenu(menuText).length >= 2;
 }
 
 function countIncludedTerms(value: string, terms: string[]) {

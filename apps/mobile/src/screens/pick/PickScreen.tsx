@@ -93,6 +93,24 @@ export function PickScreen({
     analyze.run(menuText, situation);
   }
 
+  function resetAnalysisState() {
+    analyze.reset();
+    setLastAnalyzedMenuUrl("");
+    setLoadingStepIndex(0);
+  }
+
+  function closeRestaurantDiscovery() {
+    resetAnalysisState();
+    setShowRestaurantDiscovery(false);
+  }
+
+  function applyDiscoveredMenuUrl(value: string) {
+    resetAnalysisState();
+    setMenuText(value);
+    setShowQrScanner(false);
+    setShowRestaurantDiscovery(false);
+  }
+
   function showAllergyWarningBeforeAnalyze() {
     Alert.alert(
       content.allergyWarning.title,
@@ -187,12 +205,8 @@ export function PickScreen({
 
       <RestaurantDiscoveryDialog
         visible={showRestaurantDiscovery}
-        onClose={() => setShowRestaurantDiscovery(false)}
-        onApply={(value) => {
-          setMenuText(value);
-          setShowQrScanner(false);
-          setShowRestaurantDiscovery(false);
-        }}
+        onClose={closeRestaurantDiscovery}
+        onApply={applyDiscoveredMenuUrl}
       />
 
       {showQrScanner ? (

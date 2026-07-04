@@ -4,7 +4,7 @@ import { useProfile } from "../../app/providers/ProfileProvider";
 import { requestStarterPairings } from "../../api/pickformeApi";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
-import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
+import { premiumColors, radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Dish } from "../../types/menu";
 import type { Situation } from "../../types/profile";
 import type { AnalyzeData, Recommendation } from "../../types/recommendations";
@@ -198,35 +198,38 @@ export function RecommendationCard({
             ? buildDisplayTranslation(starter.nameOriginal, starter.translatedName)
             : "";
           const starterRequestStatus = starterRequestStatusByDishId[rec.dishId];
-          const shouldShowStarterButton = situation === "richtig_hunger" && !starter;
+          const shouldShowStarterButton = situation !== "leicht" && !starter;
+          const isPrimaryRecommendation = index === 0;
 
           const priceText = typeof dishData.price === "number" ? `${dishData.price.toFixed(2).replace(".", ",")} €` : "";
           const existingFeedback = feedbackByName.get(originalName.toLowerCase());
           const isSelected = selectedDishId === dish.id || Boolean(existingFeedback);
 
           return (
-            <Surface key={dish.id} style={local.card}>
-              <View style={local.rankBubble}>
-                <Text style={local.rankText}>{index + 1}</Text>
+            <Surface key={dish.id} style={[local.card, isPrimaryRecommendation ? local.primaryCard : local.secondaryCard]}>
+              <View style={[local.rankBubble, isPrimaryRecommendation ? local.rankBubblePrimary : local.rankBubbleSecondary]}>
+                <Text style={[local.rankText, isPrimaryRecommendation && local.rankTextPrimary]}>{index + 1}</Text>
               </View>
 
-              <View style={local.cardText}>
-                <Text style={local.dishName}>{originalName}</Text>
+              <View style={[local.cardText, isPrimaryRecommendation && local.cardTextPrimary]}>
+                <Text style={[local.dishName, isPrimaryRecommendation ? local.dishNamePrimary : local.dishNameSecondary]}>
+                  {originalName}
+                </Text>
 
                 {showTranslation ? (
-                  <Text style={local.translation}>{translatedName}</Text>
+                  <Text style={[local.translation, isPrimaryRecommendation && local.translationPrimary]}>{translatedName}</Text>
                 ) : null}
 
-                {priceText ? <Text style={local.price}>{priceText}</Text> : null}
+                {priceText ? <Text style={[local.price, isPrimaryRecommendation && local.pricePrimary]}>{priceText}</Text> : null}
 
                 {rec.facts?.trim() ? (
-                  <View style={local.factsBox}>
-                    <Text style={local.factsText}>{rec.facts.trim()}</Text>
+                  <View style={[local.factsBox, isPrimaryRecommendation ? local.factsBoxPrimary : local.factsBoxSecondary]}>
+                    <Text style={[local.factsText, isPrimaryRecommendation && local.factsTextPrimary]}>{rec.facts.trim()}</Text>
                   </View>
                 ) : null}
 
                 {starter ? (
-                  <View style={local.starterBox}>
+                  <View style={[local.starterBox, isPrimaryRecommendation ? local.starterBoxPrimary : local.starterBoxSecondary]}>
                     <Text style={local.starterLabel}>{content.recommendation.starterLabel}</Text>
                     <Text style={local.starterName}>{starter.nameOriginal}</Text>
                     {starterTranslation ? (
@@ -252,7 +255,7 @@ export function RecommendationCard({
                       }
                       variant="secondary"
                       onPress={() => handleStarterSearch(rec)}
-                      style={local.starterActionButton}
+                      style={[local.starterActionButton, isPrimaryRecommendation && local.primaryInlineAction]}
                     />
                   </View>
                 ) : null}
@@ -261,11 +264,11 @@ export function RecommendationCard({
                   label={content.recommendation.acceptButton}
                   variant="secondary"
                   onPress={() => setSelectedDishId(dish.id)}
-                  style={local.acceptButton}
+                  style={[local.acceptButton, isPrimaryRecommendation && local.acceptButtonPrimary]}
                 />
 
                 {isSelected ? (
-                  <View style={local.ratingBox}>
+                  <View style={[local.ratingBox, isPrimaryRecommendation && local.ratingBoxPrimary]}>
                     <Text style={local.ratingTitle}>{content.recommendation.ratingTitle}</Text>
 
                     <View style={local.starRow}>
@@ -311,10 +314,16 @@ const local = StyleSheet.create({
   },
 
   topBox: {
-    backgroundColor: semanticColors.accentSoft,
-    borderColor: semanticColors.accent,
-    marginBottom: spacing.md,
-    padding: spacing.xxl
+    backgroundColor: premiumColors.surface,
+    borderColor: "rgba(200, 168, 90, 0.34)",
+    borderWidth: 1,
+    marginBottom: spacing.lg,
+    padding: spacing.xxl,
+    shadowColor: premiumColors.olive,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 2
   },
 
   unsafeBox: {
@@ -345,7 +354,7 @@ const local = StyleSheet.create({
   },
 
   kicker: {
-    color: semanticColors.textMuted,
+    color: premiumColors.bordeaux,
     fontSize: typography.label.fontSize,
     fontWeight: typography.label.fontWeight,
     lineHeight: typography.label.lineHeight,
@@ -354,139 +363,224 @@ const local = StyleSheet.create({
   },
 
   title: {
-    color: semanticColors.text,
+    color: premiumColors.text,
     fontSize: typography.screenTitle.fontSize,
-    fontWeight: typography.screenTitle.fontWeight,
+    fontWeight: "800",
     lineHeight: typography.screenTitle.lineHeight,
     marginBottom: spacing.xs
   },
 
   subtitle: {
-    color: semanticColors.text,
+    color: premiumColors.textMuted,
     fontSize: typography.body.fontSize,
-    fontWeight: typography.body.fontWeight,
+    fontWeight: "600",
     lineHeight: typography.body.lineHeight
   },
 
   list: {
-    gap: spacing.md,
+    gap: spacing.lg,
     marginBottom: spacing.lg
   },
 
   card: {
-    borderColor: semanticColors.border,
-    flexDirection: "row",
+    backgroundColor: premiumColors.surface,
+    borderColor: "rgba(231, 222, 210, 0.78)",
+    borderWidth: 1,
     gap: spacing.md,
     marginBottom: 0,
-    padding: spacing.lg
+    shadowColor: premiumColors.olive,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18
+  },
+
+  primaryCard: {
+    borderColor: "rgba(200, 168, 90, 0.38)",
+    borderRadius: radius.hero,
+    flexDirection: "column",
+    padding: 24,
+    shadowOpacity: 0.13,
+    shadowRadius: 26,
+    elevation: 4
+  },
+
+  secondaryCard: {
+    borderColor: "rgba(231, 222, 210, 0.82)",
+    borderRadius: radius.xl,
+    flexDirection: "row",
+    padding: spacing.lg,
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 1
   },
 
   rankBubble: {
     alignItems: "center",
-    backgroundColor: semanticColors.accentSoft,
-    borderColor: semanticColors.accent,
     borderRadius: radius.pill,
     borderWidth: 1,
-    height: 34,
     justifyContent: "center",
+    height: 34,
     width: 34
   },
 
+  rankBubblePrimary: {
+    backgroundColor: premiumColors.olive,
+    borderColor: premiumColors.olive,
+    height: 40,
+    width: 40
+  },
+
+  rankBubbleSecondary: {
+    backgroundColor: "rgba(200, 168, 90, 0.13)",
+    borderColor: "rgba(200, 168, 90, 0.35)"
+  },
+
   rankText: {
-    color: semanticColors.text,
+    color: premiumColors.text,
     fontSize: 16,
-    fontWeight: "900"
+    fontWeight: "800"
+  },
+
+  rankTextPrimary: {
+    color: premiumColors.surface
   },
 
   cardText: {
     flex: 1
   },
 
+  cardTextPrimary: {
+    paddingTop: spacing.xs
+  },
+
   dishName: {
-    color: semanticColors.text,
-    fontSize: 18,
-    fontWeight: "900",
+    color: premiumColors.text,
+    fontWeight: "800"
+  },
+
+  dishNamePrimary: {
+    fontSize: 26,
+    lineHeight: 31
+  },
+
+  dishNameSecondary: {
+    fontSize: 17,
     lineHeight: 22
   },
 
   translation: {
-    color: semanticColors.textMuted,
+    color: premiumColors.textMuted,
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 19,
     marginBottom: spacing.xs,
     marginTop: spacing.xxs
   },
 
+  translationPrimary: {
+    fontSize: 16,
+    lineHeight: 22,
+    marginTop: spacing.xs
+  },
+
   price: {
-    color: semanticColors.success,
+    color: premiumColors.bordeaux,
     fontSize: 15,
-    fontWeight: "900",
+    fontWeight: "800",
     marginTop: spacing.xxs
   },
 
+  pricePrimary: {
+    color: premiumColors.gold,
+    fontSize: 17,
+    marginTop: spacing.sm
+  },
+
   factsBox: {
-    backgroundColor: semanticColors.primarySoft,
-    borderColor: semanticColors.border,
-    borderRadius: radius.sm,
-    borderWidth: 1,
     marginTop: spacing.sm,
     padding: spacing.md
   },
 
-  sectionLabel: {
-    color: "#64748B",
-    fontSize: 12,
-    fontWeight: "900",
-    marginBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: 0.6
+  factsBoxPrimary: {
+    backgroundColor: "transparent",
+    borderColor: premiumColors.border,
+    borderRadius: 0,
+    borderTopWidth: 1,
+    marginTop: spacing.lg,
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+    paddingTop: spacing.lg
+  },
+
+  factsBoxSecondary: {
+    backgroundColor: "transparent",
+    borderColor: premiumColors.border,
+    borderRadius: 0,
+    borderTopWidth: 1,
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+    paddingTop: spacing.md
   },
 
   factsText: {
-    color: semanticColors.textMuted,
+    color: premiumColors.textMuted,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     lineHeight: 20
   },
 
+  factsTextPrimary: {
+    color: premiumColors.text,
+    fontSize: 15,
+    lineHeight: 23
+  },
+
   starterBox: {
-    backgroundColor: semanticColors.accentSoft,
-    borderColor: semanticColors.accent,
     borderRadius: radius.md,
-    borderWidth: 1,
     marginTop: spacing.sm,
     padding: spacing.md
   },
 
+  starterBoxPrimary: {
+    backgroundColor: "rgba(38, 54, 37, 0.06)",
+    borderColor: "rgba(38, 54, 37, 0.12)",
+    borderWidth: 1,
+    marginTop: spacing.lg
+  },
+
+  starterBoxSecondary: {
+    backgroundColor: "rgba(250, 247, 241, 0.82)",
+    borderWidth: 0
+  },
+
   starterLabel: {
-    color: semanticColors.textMuted,
+    color: premiumColors.bordeaux,
     fontSize: 12,
-    fontWeight: "900",
+    fontWeight: "800",
     lineHeight: 16,
     marginBottom: spacing.xxs,
     textTransform: "uppercase"
   },
 
   starterName: {
-    color: semanticColors.text,
+    color: premiumColors.text,
     fontSize: 14,
-    fontWeight: "900",
+    fontWeight: "800",
     lineHeight: 19
   },
 
   starterTranslation: {
-    color: semanticColors.textMuted,
+    color: premiumColors.textMuted,
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: 18,
     marginTop: spacing.xxs
   },
 
   starterPrice: {
-    color: semanticColors.success,
+    color: premiumColors.bordeaux,
     fontSize: 13,
-    fontWeight: "900",
+    fontWeight: "800",
     marginTop: spacing.xxs
   },
 
@@ -495,9 +589,9 @@ const local = StyleSheet.create({
   },
 
   starterActionText: {
-    color: semanticColors.textMuted,
+    color: premiumColors.textMuted,
     fontSize: typography.body.fontSize,
-    fontWeight: typography.body.fontWeight,
+    fontWeight: "600",
     lineHeight: typography.body.lineHeight,
     marginBottom: spacing.sm
   },
@@ -507,25 +601,38 @@ const local = StyleSheet.create({
     paddingVertical: spacing.md
   },
 
+  primaryInlineAction: {
+    backgroundColor: "rgba(231, 222, 210, 0.68)"
+  },
+
   acceptButton: {
     borderRadius: radius.pill,
     marginTop: spacing.md,
     paddingVertical: spacing.md
   },
 
+  acceptButtonPrimary: {
+    backgroundColor: "rgba(200, 168, 90, 0.22)",
+    marginTop: spacing.lg
+  },
+
   ratingBox: {
-    backgroundColor: semanticColors.primarySoft,
-    borderColor: semanticColors.border,
+    backgroundColor: "rgba(250, 247, 241, 0.86)",
+    borderColor: premiumColors.border,
     borderRadius: radius.md,
     borderWidth: 1,
     marginTop: spacing.md,
     padding: spacing.md
   },
 
+  ratingBoxPrimary: {
+    borderColor: "rgba(200, 168, 90, 0.32)"
+  },
+
   ratingTitle: {
-    color: semanticColors.text,
+    color: premiumColors.text,
     fontSize: typography.label.fontSize,
-    fontWeight: "900",
+    fontWeight: "800",
     lineHeight: typography.label.lineHeight,
     marginBottom: spacing.xs
   },
@@ -537,19 +644,19 @@ const local = StyleSheet.create({
   },
 
   star: {
-    color: semanticColors.textMuted,
+    color: premiumColors.textMuted,
     fontSize: 28,
-    fontWeight: "900"
+    fontWeight: "800"
   },
 
   starActive: {
-    color: semanticColors.accent
+    color: premiumColors.gold
   },
 
   savedText: {
-    color: semanticColors.textMuted,
+    color: premiumColors.textMuted,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     lineHeight: 18
   },
 

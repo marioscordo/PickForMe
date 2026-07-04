@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -41,19 +41,37 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [loadingMenu, setLoadingMenu] = useState(false);
   const [lastTap, setLastTap] = useState<{ id: string; time: number } | null>(null);
+  const sessionIdRef = useRef(0);
 
   useEffect(() => {
-    if (!visible) return;
+    sessionIdRef.current += 1;
+    resetDialogState();
+  }, [visible]);
+
+  function resetDialogState() {
     setRestaurantName("");
     setCity("");
     setCandidates([]);
     setSelectedCandidate(null);
     setMenuUrl("");
     setMessage("");
+    setLoadingCandidates(false);
+    setLoadingMenu(false);
     setLastTap(null);
-  }, [visible]);
+  }
+
+  function isCurrentSession(sessionId: number) {
+    return visible && sessionIdRef.current === sessionId;
+  }
+
+  function closeDialog() {
+    sessionIdRef.current += 1;
+    resetDialogState();
+    onClose();
+  }
 
   async function showCandidates() {
+    const sessionId = sessionIdRef.current;
     setLoadingCandidates(true);
     setSelectedCandidate(null);
     setMenuUrl("");
@@ -64,13 +82,17 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
         { restaurantName, city },
         gustaroaiRestaurantDiscoveryProvider
       );
+      if (!isCurrentSession(sessionId)) return;
       setCandidates(result);
       setMessage(result.length === 0 ? copy.noResults : "");
     } catch {
+      if (!isCurrentSession(sessionId)) return;
       setCandidates([]);
       setMessage(copy.noResults);
     } finally {
-      setLoadingCandidates(false);
+      if (isCurrentSession(sessionId)) {
+        setLoadingCandidates(false);
+      }
     }
   }
 
@@ -89,12 +111,14 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
   async function findMenuUrl() {
     if (!selectedCandidate) return;
 
+    const sessionId = sessionIdRef.current;
     setLoadingMenu(true);
     setMenuUrl("");
     setMessage("");
 
     try {
       const source = await resolveSelectedRestaurantSource(selectedCandidate, gustaroaiRestaurantDiscoveryProvider);
+      if (!isCurrentSession(sessionId)) return;
       if (source.menuUrl) {
         setMenuUrl(source.menuUrl);
         return;
@@ -102,19 +126,25 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
 
       setMessage(copy.noMenuUrl);
     } catch {
+      if (!isCurrentSession(sessionId)) return;
       setMessage(copy.noMenuUrl);
     } finally {
-      setLoadingMenu(false);
+      if (isCurrentSession(sessionId)) {
+        setLoadingMenu(false);
+      }
     }
   }
 
   function applyMenuUrl() {
     if (!menuUrl) return;
-    onApply(menuUrl);
+    const nextMenuUrl = menuUrl;
+    sessionIdRef.current += 1;
+    resetDialogState();
+    onApply(nextMenuUrl);
   }
 
   return (
-    <Modal animationType="slide" visible={visible} onRequestClose={onClose}>
+    <Modal animationType="slide" visible={visible} onRequestClose={closeDialog}>
       <Screen>
         <Text style={local.title}>{copy.title}</Text>
 
@@ -192,7 +222,7 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
           {message ? <Text style={local.message}>{message}</Text> : null}
 
           <View style={local.footerRow}>
-            <ActionButton label={copy.backButton} onPress={onClose} variant="secondary" style={local.footerButton} />
+            <ActionButton label={copy.backButton} onPress={closeDialog} variant="secondary" style={local.footerButton} />
             <ActionButton
               label={copy.applyButton}
               onPress={applyMenuUrl}

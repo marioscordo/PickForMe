@@ -15,7 +15,26 @@ export const palette = {
   orangeBody: "#7C2D12",
   green: "#047857",
   red: "#B91C1C",
-  black: "#000000"
+  black: "#000000",
+  creamWhite: "#FAF7F1",
+  warmWhite: "#FFFDF8",
+  warmBlack: "#171411",
+  warmGray: "#746D64",
+  darkOlive: "#263625",
+  bordeaux: "#6E2433",
+  champagneGold: "#C8A85A",
+  softLine: "#E7DED2"
+};
+
+export const premiumColors = {
+  background: palette.creamWhite,
+  surface: palette.warmWhite,
+  text: palette.warmBlack,
+  textMuted: palette.warmGray,
+  olive: palette.darkOlive,
+  bordeaux: palette.bordeaux,
+  gold: palette.champagneGold,
+  border: palette.softLine
 };
 
 export const semanticColors = {

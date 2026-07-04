@@ -110,6 +110,8 @@ function buildSystemPrompt() {
     "Wenn eine passende standalone MenuUnit vorhanden ist und die Karte wie ein Gesamtmenue strukturiert ist, markiere diese Menueauswahl als naheliegende Option.",
     "Wenn menuFacts eine standalone MenuUnit enthalten und die Items ueberwiegend course oder part_of_menu sind, fuehre zur MenuUnit statt zu einzelnen Courses.",
     "Wenn passende standalone dishes vorhanden sind, markiere bis zu 3 konkrete Optionen.",
+    "Die gelieferten standalone dishes sind bereits nach harten Filtern, Situation und aktiven starken Vorlieben priorisiert.",
+    "Rank 1 muss aus der hoechsten passenden Prioritaetsgruppe kommen, sofern keine harte Profilregel dagegen spricht.",
     "Harte Ausschluesse und Unvertraeglichkeiten aus dem Profil sind verbindlich.",
     "Das Nutzerprofil darf ausschliesslich das Ranking und die Auswahl beeinflussen.",
     "Das Profil ist nicht der Startpunkt der Sprache.",

@@ -53,7 +53,7 @@ function getAnalyzeMenuErrorMessage(error: unknown, content: MobileContent): str
       return content.analysisErrors.unsafeProfile;
 
     case "ANALYSIS_NOT_SAFE":
-      return content.analysisErrors.generic;
+      return error.message || content.analysisErrors.generic;
 
     default:
       if (error.message.includes("Profilregeln")) {

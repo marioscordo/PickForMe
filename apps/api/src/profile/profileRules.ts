@@ -32,6 +32,13 @@ type TextRecommendationInput = {
   nameOriginal?: string;
   descriptionOriginal?: string;
   category?: string;
+  itemType?: "dish" | "drink" | "unknown";
+  dishRole?: "starter" | "main" | "side" | "dessert" | "drink" | "unknown";
+  mealType?: "salad" | "pasta" | "pizza" | "meat" | "fish" | "vegetarian" | "dessert" | "unknown";
+  substanceLevel?: "light" | "medium" | "substantial" | "unknown";
+  isMainCourseCandidate?: boolean;
+  isLightDishCandidate?: boolean;
+  classificationConfidence?: number;
   sourceLine?: string;
   evidence?: string;
 };
@@ -42,6 +49,13 @@ type DishInput = {
   category?: string;
   sourceLine?: string;
   price?: number;
+  itemType?: "dish" | "drink" | "unknown";
+  dishRole?: "starter" | "main" | "side" | "dessert" | "drink" | "unknown";
+  mealType?: "salad" | "pasta" | "pizza" | "meat" | "fish" | "vegetarian" | "dessert" | "unknown";
+  substanceLevel?: "light" | "medium" | "substantial" | "unknown";
+  isMainCourseCandidate?: boolean;
+  isLightDishCandidate?: boolean;
+  classificationConfidence?: number;
 };
 
 const STOP_WORDS = new Set([
@@ -108,10 +122,22 @@ export function buildProfilePromptLines(profile: ProfileInput = {}, situation?: 
 }
 
 export function blockReasonForDish(dish: DishInput, profile: ProfileInput) {
+  const structuredReason = blockReasonForStructuredDish(dish, profile);
+
+  if (structuredReason) {
+    return structuredReason;
+  }
+
   return blockReasonForText(dishToText(dish), profile);
 }
 
 export function blockReasonForRecommendation(recommendation: TextRecommendationInput, profile: ProfileInput) {
+  const structuredReason = blockReasonForStructuredDish(recommendation, profile);
+
+  if (structuredReason) {
+    return structuredReason;
+  }
+
   return blockReasonForText(
     [
       recommendation.nameOriginal,
@@ -138,6 +164,10 @@ export function preferenceMatchesDish(dish: DishInput, preference: string) {
     return typeof dish.price === "number" && dish.price > 0 && dish.price <= 16;
   }
 
+  if (structuredPreferenceMatchesDish(dish, value)) {
+    return true;
+  }
+
   return preferenceTerms(preference).some((term) => textHasTerm(text, term));
 }
 
@@ -147,6 +177,12 @@ export function appetiteMoodScoreForDish(dish: DishInput, mood?: AppetiteMood) {
   if (!mood) return 0;
 
   if (mood === "richtig_hunger") {
+    const structuredScore = structuredAppetiteMoodScoreForDish(dish, mood);
+
+    if (structuredScore > 0) {
+      return structuredScore;
+    }
+
     return hasAnyTerm(text, ["braten", "steak", "burger", "pasta", "curry", "pfanne", "platte", "haehnchen", "rind", "lamm"])
       ? 5
       : 0;
@@ -396,6 +432,92 @@ function preferenceTerms(preference: string) {
   }
 
   return meaningfulTokens(preference);
+}
+
+function blockReasonForStructuredDish(dish: DishInput, profile: ProfileInput) {
+  if (!hasStructuredDishClasses(dish)) {
+    return undefined;
+  }
+
+  for (const rule of deriveCanonicalRules(profile)) {
+    if (structuredRuleBlocksDish(rule.id, dish)) {
+      return `Blockiert durch strukturierte Profilregel: ${rule.id}`;
+    }
+  }
+
+  return undefined;
+}
+
+function structuredRuleBlocksDish(rule: CanonicalRuleId, dish: DishInput) {
+  if (rule === "DIET_VEGETARIAN") {
+    return dish.mealType === "meat" || dish.mealType === "fish";
+  }
+
+  if (rule === "NO_SEAFOOD") {
+    return dish.mealType === "fish";
+  }
+
+  return false;
+}
+
+function structuredPreferenceMatchesDish(dish: DishInput, normalizedPreference: string) {
+  if (!hasStructuredDishClasses(dish)) {
+    return false;
+  }
+
+  if (normalizedPreference.includes("fleisch")) {
+    return dish.mealType === "meat";
+  }
+
+  if (normalizedPreference.includes("fisch")) {
+    return dish.mealType === "fish";
+  }
+
+  if (normalizedPreference.includes("protein")) {
+    return (
+      dish.mealType === "meat" ||
+      dish.mealType === "fish" ||
+      dish.substanceLevel === "medium" ||
+      dish.substanceLevel === "substantial"
+    );
+  }
+
+  if (normalizedPreference.includes("portion")) {
+    return dish.substanceLevel === "substantial" || dish.isMainCourseCandidate === true;
+  }
+
+  return false;
+}
+
+function structuredAppetiteMoodScoreForDish(dish: DishInput, mood: AppetiteMood) {
+  if (!hasStructuredDishClasses(dish)) {
+    return 0;
+  }
+
+  if (mood === "richtig_hunger") {
+    let score = 0;
+
+    if (dish.isMainCourseCandidate === true || dish.dishRole === "main") {
+      score += 2;
+    }
+
+    if (dish.substanceLevel === "substantial") {
+      score += 5;
+    } else if (dish.substanceLevel === "medium") {
+      score += 3;
+    }
+
+    return score;
+  }
+
+  return 0;
+}
+
+function hasStructuredDishClasses(dish: DishInput) {
+  return (
+    dish.classificationConfidence !== undefined &&
+    dish.classificationConfidence > 0
+  );
 }
 
 function matchesActiveException(normalizedText: string, profile: ProfileInput) {
