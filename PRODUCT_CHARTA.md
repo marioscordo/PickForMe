@@ -263,6 +263,22 @@ Lokale Vorabtest-Regel:
 - Ein neuer EAS-/TestFlight-Build wird erst angestossen, wenn die lokal sinnvollen Pruefungen erfolgreich waren oder ein verbleibender Test nur in TestFlight moeglich ist.
 - Ziel ist, unnoetige Build-Auftraege, Buildnummernverbrauch und Wartezeiten zu vermeiden.
 
+System-Synchronisations-Regel:
+
+- Alle fuer TestFlight/Store notwendigen Programmkomponenten muessen vor Build, Submit und Abnahme auf demselben fachlichen Stand sein.
+- Dazu gehoeren mindestens Mobile-App, API/Backend, Vercel Production Deployment, GitHub-Branch, Supabase-Konfiguration, EAS Production Environment und App Store Connect/TestFlight.
+- Neue App-Funktionen duerfen nicht in TestFlight eingereicht oder abgenommen werden, wenn die dazu benoetigten Backend-Endpunkte, Environment Variables, Datenbanktabellen oder Deployments fehlen oder nicht live sind.
+- Vor jedem Submit muss geprueft werden, ob der gebaute App-Stand zum live erreichbaren Backend-Stand passt.
+- Wenn ein notwendiges System nachhaengt, gilt der Build als nicht abnahmefaehig, bis alle betroffenen Systeme synchronisiert und live verifiziert wurden.
+
+Gefunden-heisst-analysierbar-Regel:
+
+- Ein von GustaroAI selbst gefundener Speisekartenlink gilt nur dann als gueltige `menuUrl`, wenn er mit der produktiven Analyse-Routine auswertbar ist.
+- Die Formate HTML, PDF, Text, Bild und digitale Speisekartenplattformen duerfen fuer Nutzer nicht zu unterschiedlichen Stoppern fuehren.
+- Format-Erkennung darf analysierbare Quellen nicht vor der gemeinsamen Auswertung blockieren; KI darf Fallback oder Qualitaetsverbesserung sein, aber kein vorgeschaltetes Pflicht-Gate fuer auswertbare Quellen.
+- "Speisekarte finden" und "Speisekarte analysieren" muessen denselben serverseitigen Quellen-/Analysevertrag verwenden.
+- Wenn ein gefundener Link nicht mit der produktiven Analyse-Routine validiert werden kann, darf er nicht als auswertbarer Speisekartenlink angeboten werden.
+
 Build-Regel:
 
 - Production-Builds werden nur mit dem Production-Profil erstellt.
