@@ -29,5 +29,12 @@
         "EXPO_PUBLIC_PICKFORME_DEV_MODE": "false"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6787099278"
+      }
+    }
   }
 }
