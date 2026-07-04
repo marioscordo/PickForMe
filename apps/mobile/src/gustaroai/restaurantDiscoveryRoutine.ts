@@ -153,7 +153,7 @@ export const gustaroaiRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
       return [{ url: candidate.menuUrl, kind: "menu" }];
     }
 
-    return nominatimRestaurantDiscoveryProvider.loadCandidateLinks(candidate);
+    return [];
   },
 
   async validateUrl(url) {

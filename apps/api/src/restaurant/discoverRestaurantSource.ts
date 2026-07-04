@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
+import { loadMenuTextFromUrl } from "../menu/loadMenuTextFromUrl";
+import { parseMenu } from "../menu/parseMenu";
 
 export type RestaurantDiscoveryCandidate = {
   id: string;
@@ -78,7 +80,59 @@ const REQUEST_HEADERS = {
 const MAX_CANDIDATES = 5;
 const MAX_LINKS_PER_PAGE = 60;
 const MAX_CRAWL_PAGES = 12;
-const NOMINATIM_QUERY_DELAY_MS = 1100;
+const MAX_ANALYZABILITY_CANDIDATES_PER_PAGE = 8;
+const MIN_ANALYZABLE_MENU_TEXT_LENGTH = 120;
+const LIKELY_MENU_PATHS = [
+  "/menu/",
+  "/speisekarte/",
+  "/menue/",
+  "/carta/",
+  "/carte/",
+  "/food-menu/",
+  "/dining/"
+];
+const MENU_SOURCE_PATH_PARTS = [
+  "menu",
+  "menue",
+  "speisekarte",
+  "karte",
+  "carta",
+  "carte",
+  "food",
+  "dining",
+  "gourmetkarte"
+];
+const MENU_TEXT_SIGNALS = [
+  "speisekarte",
+  "menu",
+  "carta",
+  "carte",
+  "antipasti",
+  "primi",
+  "secondi",
+  "dolci",
+  "vorspeisen",
+  "hauptgerichte",
+  "starter",
+  "starters",
+  "main course",
+  "mains",
+  "dessert",
+  "drinks",
+  "beverages",
+  "wein",
+  "wine",
+  "pizza",
+  "pasta",
+  "salad",
+  "salate",
+  "fish",
+  "fisch",
+  "meat",
+  "fleisch",
+  "vegetarian"
+];
+const LIKELY_OFFICIAL_DOMAIN_TLDS = ["com", "de"];const NOMINATIM_QUERY_DELAY_MS = 1100;
 const SECOND_LEVEL_DOMAIN_SUFFIXES = new Set([
   "co.uk",
   "org.uk",
@@ -98,6 +152,44 @@ export async function discoverRestaurantSources(input: DiscoverRestaurantSources
 
   const client = new OpenAI({ apiKey });
   const model = process.env.OPENAI_DISCOVERY_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const firstPassCandidates = await requestDiscoveryCandidates(client, model, buildDiscoveryPrompt(input));
+  const candidates: RestaurantDiscoveryCandidate[] = [];
+  const seen = new Set<string>();
+
+  for (const rawCandidate of firstPassCandidates.slice(0, MAX_CANDIDATES)) {
+    await addVerifiedCandidate(rawCandidate, candidates, seen);
+  }
+
+  if (!hasAnalyzableMenuCandidate(candidates)) {
+    const recoveryCandidates = await requestDiscoveryCandidates(
+      client,
+      model,
+      buildMenuRecoveryPrompt(input, candidates)
+    );
+
+    for (const rawCandidate of recoveryCandidates.slice(0, MAX_CANDIDATES)) {
+      await addVerifiedCandidate(rawCandidate, candidates, seen);
+    }
+  }
+
+  if (!hasAnalyzableMenuCandidate(candidates)) {
+    for (const rawCandidate of buildLikelyOfficialWebsiteCandidates(input)) {
+      await addVerifiedMenuCandidate(rawCandidate, candidates, seen);
+      if (hasAnalyzableMenuCandidate(candidates)) break;
+    }
+  }
+
+  if (candidates.length < MAX_CANDIDATES) {
+    for (const rawCandidate of await searchNominatimCandidates(input)) {
+      await addVerifiedCandidate(rawCandidate, candidates, seen);
+      if (candidates.length >= MAX_CANDIDATES) break;
+    }
+  }
+
+  return { candidates: orderCandidatesForDisplay(candidates).slice(0, MAX_CANDIDATES) };
+}
+
+async function requestDiscoveryCandidates(client: OpenAI, model: string, prompt: string) {
   const response = await client.responses.create({
     model,
     tools: [
@@ -112,29 +204,22 @@ export async function discoverRestaurantSources(input: DiscoverRestaurantSources
         content: [
           {
             type: "input_text",
-            text: buildDiscoveryPrompt(input)
+            text: prompt
           }
         ]
       }
     ]
   });
 
-  const parsed = DiscoveryResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "")));
-  const candidates: RestaurantDiscoveryCandidate[] = [];
-  const seen = new Set<string>();
+  return DiscoveryResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? ""))).candidates;
+}
 
-  for (const rawCandidate of parsed.candidates.slice(0, MAX_CANDIDATES)) {
-    await addVerifiedCandidate(rawCandidate, candidates, seen);
-  }
+function hasAnalyzableMenuCandidate(candidates: RestaurantDiscoveryCandidate[]) {
+  return candidates.some((candidate) => Boolean(candidate.menuUrl));
+}
 
-  if (candidates.length < MAX_CANDIDATES) {
-    for (const rawCandidate of await searchNominatimCandidates(input)) {
-      await addVerifiedCandidate(rawCandidate, candidates, seen);
-      if (candidates.length >= MAX_CANDIDATES) break;
-    }
-  }
-
-  return { candidates };
+function orderCandidatesForDisplay(candidates: RestaurantDiscoveryCandidate[]) {
+  return [...candidates].sort((left, right) => Number(Boolean(right.menuUrl)) - Number(Boolean(left.menuUrl)));
 }
 
 async function addVerifiedCandidate(
@@ -145,6 +230,25 @@ async function addVerifiedCandidate(
   const candidate = await verifyCandidate(rawCandidate);
   if (!candidate) return;
 
+  addCandidate(candidate, candidates, seen);
+}
+
+async function addVerifiedMenuCandidate(
+  rawCandidate: RawDiscoveryCandidate,
+  candidates: RestaurantDiscoveryCandidate[],
+  seen: Set<string>
+) {
+  const candidate = await verifyCandidate(rawCandidate);
+  if (!candidate?.menuUrl) return;
+
+  addCandidate(candidate, candidates, seen);
+}
+
+function addCandidate(
+  candidate: RestaurantDiscoveryCandidate,
+  candidates: RestaurantDiscoveryCandidate[],
+  seen: Set<string>
+) {
   const key = [candidate.name, candidate.city, candidate.address, candidate.websiteUrl].join("|").toLowerCase();
   if (seen.has(key)) return;
 
@@ -160,7 +264,7 @@ function buildDiscoveryPrompt(input: DiscoverRestaurantSourcesInput) {
     "Erfinde niemals URLs, Namen, Orte oder Speisekartenlinks.",
     "Akzeptiere als websiteUrl nur eine offizielle Restaurant-Website oder eine offizielle Betreiber-/Restaurantgruppen-Seite fuer genau dieses Restaurant.",
     "Keine Social-Media-, Bewertungs-, Karten-, Reservierungs-, Marketplace- oder Lieferdienstseiten als websiteUrl.",
-    "menuUrl nur setzen, wenn eine oeffentlich erreichbare Speisekarten- oder PDF-URL auf derselben registrierbaren Domain wie websiteUrl gefunden wurde.",
+    "menuUrl nur setzen, wenn eine oeffentlich erreichbare und durch GustaroAI probeweise auswertbare Speisekarten- oder PDF-URL auf derselben registrierbaren Domain wie websiteUrl gefunden wurde.",
     "Wenn keine sichere Speisekarten-URL gefunden wird, menuUrl leer lassen.",
     "Wenn keine offizielle Website gefunden wird, diesen Kandidaten nicht ausgeben.",
     "Gib hoechstens 5 Kandidaten zurueck, beste zuerst.",
@@ -170,6 +274,41 @@ function buildDiscoveryPrompt(input: DiscoverRestaurantSourcesInput) {
     "",
     `Restaurantname: ${input.restaurantName}`,
     `Stadt/Ort: ${input.city}`
+  ].join("\n");
+}
+
+function buildMenuRecoveryPrompt(
+  input: DiscoverRestaurantSourcesInput,
+  checkedCandidates: RestaurantDiscoveryCandidate[]
+) {
+  const checked = checkedCandidates.length
+    ? checkedCandidates
+      .map((candidate) => `- ${candidate.name}, ${candidate.city}, ${candidate.websiteUrl || "keine Website"}, menuUrl: ${candidate.menuUrl || "leer"}`)
+      .join("\n")
+    : "- keine verwertbaren Treffer";
+
+  return [
+    "Du bist GustaroAI Restaurant-Discovery Recovery.",
+    "Die erste Suche hat keinen analysierbaren Speisekartenlink geliefert.",
+    "Suche erneut gezielt nach alternativen offiziellen Websites und offiziellen Speisekarten fuer exakt dieses Restaurant.",
+    "Bleibe nicht beim ersten namensaehnlichen Treffer stehen, wenn dieser keine Speisekarte liefert.",
+    "Unterscheide aehnliche Restaurants mit Zusatzwoertern, anderer Domain oder anderem Betreiber anhand von Adresse, Ort, Seitentitel, Impressum und Speisekarte.",
+    "Bevorzuge Quellen, deren Domain, Seitentitel oder Speisekarte den gesuchten Restaurantnamen und den Ort bestaetigen.",
+    "Akzeptiere als websiteUrl nur eine offizielle Restaurant-Website oder eine offizielle Betreiber-/Restaurantgruppen-Seite fuer genau dieses Restaurant.",
+    "Keine Social-Media-, Bewertungs-, Karten-, Reservierungs-, Marketplace- oder Lieferdienstseiten als websiteUrl.",
+    "menuUrl nur setzen, wenn eine oeffentlich erreichbare Speisekarten- oder PDF-URL auf derselben registrierbaren Domain wie websiteUrl gefunden wurde.",
+    "Wenn keine sichere Speisekarten-URL gefunden wird, menuUrl leer lassen.",
+    "Wenn keine offizielle Website gefunden wird, diesen Kandidaten nicht ausgeben.",
+    "Gib hoechstens 5 Kandidaten zurueck, beste zuerst.",
+    "Antwort ausschliesslich als valides JSON ohne Markdown.",
+    "Schema:",
+    "{\"candidates\":[{\"name\":\"\",\"city\":\"\",\"address\":\"\",\"websiteUrl\":\"\",\"menuUrl\":\"\",\"evidence\":\"\"}]}",
+    "",
+    `Restaurantname: ${input.restaurantName}`,
+    `Stadt/Ort: ${input.city}`,
+    "",
+    "Bereits gepruefte Treffer ohne analysierbaren Speisekartenlink:",
+    checked
   ].join("\n");
 }
 
@@ -187,7 +326,10 @@ async function verifyCandidate(rawCandidate: RawDiscoveryCandidate): Promise<Res
   const verifiedRawMenuUrl = rawMenuUrl && canAcceptRawMenuUrl(rawMenuUrl, reachableWebsiteUrl, websiteDomain)
     ? await verifyReachableUrl(rawMenuUrl)
     : "";
-  const crawledMenuUrl = verifiedRawMenuUrl || await findSameDomainPdfMenuUrl(reachableWebsiteUrl);
+  const analyzableRawMenuUrl = verifiedRawMenuUrl
+    ? await verifyAnalyzableMenuUrl(verifiedRawMenuUrl, websiteDomain)
+    : "";
+  const crawledMenuUrl = analyzableRawMenuUrl || await findSameDomainAnalyzableMenuUrl(reachableWebsiteUrl);
   const menuUrl = crawledMenuUrl && getRegistrableDomain(crawledMenuUrl) === websiteDomain ? crawledMenuUrl : "";
 
   return {
@@ -200,6 +342,37 @@ async function verifyCandidate(rawCandidate: RawDiscoveryCandidate): Promise<Res
   };
 }
 
+function buildLikelyOfficialWebsiteCandidates(input: DiscoverRestaurantSourcesInput): RawDiscoveryCandidate[] {
+  const slug = slugifyDomainPart(input.restaurantName);
+  if (!slug) return [];
+
+  const domainPrefixes = uniqueStrings([
+    `restaurant-${slug}`,
+    slug,
+    `${slug}-restaurant`
+  ]);
+
+  return domainPrefixes.flatMap((domainPrefix) => LIKELY_OFFICIAL_DOMAIN_TLDS.flatMap((tld) => [
+    `https://www.${domainPrefix}.${tld}/`,
+    `https://${domainPrefix}.${tld}/`
+  ])).map((websiteUrl) => ({
+    name: input.restaurantName,
+    city: input.city,
+    address: "",
+    websiteUrl,
+    menuUrl: "",
+    evidence: "likely-official-domain"
+  }));
+}
+
+function slugifyDomainPart(value: string) {
+  return normalizeSearchText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 async function searchNominatimCandidates(input: DiscoverRestaurantSourcesInput): Promise<RawDiscoveryCandidate[]> {
   const places: NominatimPlace[] = [];
 
@@ -304,6 +477,44 @@ function sameUrlWithoutTrailingSlash(left: string, right: string) {
   return left.replace(/\/$/, "") === right.replace(/\/$/, "");
 }
 
+async function verifyAnalyzableMenuUrl(value: string, expectedDomain: string) {
+  const reachableUrl = await verifyReachableUrl(value);
+  if (!reachableUrl) return "";
+  if (getRegistrableDomain(reachableUrl) !== expectedDomain) return "";
+
+  try {
+    const menuText = await loadMenuTextFromUrl(reachableUrl);
+    return isAnalyzableMenuText(menuText) ? reachableUrl : "";
+  } catch {
+    return "";
+  }
+}
+
+function isAnalyzableMenuText(menuText: string) {
+  const trimmed = menuText.trim();
+  if (trimmed.length < MIN_ANALYZABLE_MENU_TEXT_LENGTH) return false;
+
+  if (parseMenu(menuText).length >= 2) return true;
+
+  const normalized = normalizeMenuProbeText(menuText);
+  const signalHits = countIncludedTerms(normalized, MENU_TEXT_SIGNALS);
+  const priceHits = (menuText.match(/(?:€|\bEUR\b|\bUSD\b|\bCHF\b|\$|£|\b\d{1,3}[,.]\d{2}\b)/gi) ?? []).length;
+
+  if (priceHits >= 2 && signalHits >= 1) return true;
+  return signalHits >= 3 && normalized.length >= 500;
+}
+
+function countIncludedTerms(value: string, terms: string[]) {
+  return terms.reduce((count, term) => count + (value.includes(term) ? 1 : 0), 0);
+}
+
+function normalizeMenuProbeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 async function verifyReachableUrl(value: string) {
   const normalized = normalizeOfficialUrl(value);
   if (!normalized) return "";
@@ -326,10 +537,10 @@ async function verifyReachableUrl(value: string) {
   }
 }
 
-async function findSameDomainPdfMenuUrl(websiteUrl: string) {
+async function findSameDomainAnalyzableMenuUrl(websiteUrl: string) {
   const websiteDomain = getRegistrableDomain(websiteUrl);
   const visited = new Set<string>();
-  const queue = [websiteUrl];
+  const queue = uniqueStrings([websiteUrl, ...buildLikelyMenuUrls(websiteUrl)]);
 
   for (const pageUrl of queue) {
     if (visited.size >= MAX_CRAWL_PAGES) break;
@@ -337,8 +548,13 @@ async function findSameDomainPdfMenuUrl(websiteUrl: string) {
     visited.add(pageUrl);
 
     const links = await loadSameDomainLinks(pageUrl, websiteDomain);
-    const pdfUrl = links.find((link) => isPdfUrl(link));
-    if (pdfUrl && await verifyReachableUrl(pdfUrl)) return pdfUrl;
+    const candidateLinks = orderMenuCandidateLinks(links.filter(looksLikeMenuSourceUrl))
+      .slice(0, MAX_ANALYZABILITY_CANDIDATES_PER_PAGE);
+
+    for (const candidateUrl of candidateLinks) {
+      const menuUrl = await verifyAnalyzableMenuUrl(candidateUrl, websiteDomain);
+      if (menuUrl) return menuUrl;
+    }
 
     for (const link of links) {
       if (queue.length >= MAX_CRAWL_PAGES) break;
@@ -347,6 +563,37 @@ async function findSameDomainPdfMenuUrl(websiteUrl: string) {
   }
 
   return "";
+}
+
+function buildLikelyMenuUrls(websiteUrl: string) {
+  try {
+    const origin = new URL(websiteUrl).origin;
+    return LIKELY_MENU_PATHS.map((pathname) => new URL(pathname, origin).toString());
+  } catch {
+    return [];
+  }
+}
+
+function orderMenuCandidateLinks(links: string[]) {
+  return uniqueStrings(links).sort((left, right) => scoreMenuSourceUrl(right) - scoreMenuSourceUrl(left));
+}
+
+function scoreMenuSourceUrl(value: string) {
+  const normalized = normalizeMenuProbeText(value);
+  const pathHits = countIncludedTerms(normalized, MENU_SOURCE_PATH_PARTS);
+  return (isPdfUrl(value) ? 10 : 0) + pathHits;
+}
+
+function looksLikeMenuSourceUrl(value: string) {
+  if (isPdfUrl(value)) return true;
+
+  try {
+    const url = new URL(value);
+    const normalizedPath = normalizeMenuProbeText(`${url.pathname} ${url.search}`);
+    return MENU_SOURCE_PATH_PARTS.some((part) => normalizedPath.includes(part));
+  } catch {
+    return false;
+  }
 }
 
 async function loadSameDomainLinks(pageUrl: string, websiteDomain: string) {

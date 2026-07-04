@@ -327,6 +327,6 @@
     "backButton": "zurück",
     "loading": "Bitte warten...",
     "noResults": "Keine Treffer gefunden",
-    "noMenuUrl": "Kein auswertbarer Speisekartenlink gefunden"
+    "noMenuUrl": "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen"
   }
 }

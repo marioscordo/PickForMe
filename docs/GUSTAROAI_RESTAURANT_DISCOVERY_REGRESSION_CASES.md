@@ -11,7 +11,7 @@
 - Die Trefferliste dient nur der Quellenauswahl.
 - Double-Tap auf einen Treffer übernimmt ihn in das Feld "Restaurant".
 - "Speisekarte" ist erst nach gewähltem Restaurant nutzbar.
-- Fehlende `menuUrl` zeigt exakt: "Kein auswertbarer Speisekartenlink gefunden".
+- Fehlende `menuUrl` zeigt exakt: "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen".
 - "Übernehmen" ist erst mit gefülltem Feld "Link" nutzbar.
 - "Übernehmen" schreibt den Link in das ursprüngliche Eingabefeld.
 - "zurück" schliesst den Dialog und kehrt zu "Was passt heute" zurück.
@@ -27,9 +27,9 @@
 - Eine nicht erreichbare `menuUrl` wird verworfen.
 - Wenn keine belastbare `menuUrl` gefunden wird, bleibt `menuUrl` leer.
 
-## Offener Stopper: Gefunden heisst analysierbar
+## Gefunden heisst analysierbar
 
-Status: offen, vor einem neuen Store-/TestFlight-Build zu loesen.
+Status: lokal gepatcht und mit 10er-Test nachgeprueft; vor Deploy/Build zu committen.
 
 Befund:
 
@@ -43,3 +43,54 @@ Akzeptanz:
 - Il Pozzetto, Rom ist Pflichtfall: der gefundene `menuUrl` muss direkt von `analyze-menu` verarbeitet werden.
 - HTML, PDF und Text laufen ueber denselben serverseitigen Quellenvertrag; KI-PDF ist hoechstens Fallback.
 - Die Regression muss den Uebergang von `restaurant-discovery` zu `analyze-menu` pruefen, nicht nur die Erreichbarkeit der URL.
+
+## Lokaler 10er-Test vom 2026-07-04
+
+Testpfad:
+
+- Lokaler Backend-Code mit `apps/api/.env.local`.
+- `discoverRestaurantSources` mit OpenAI-Websuche.
+- Gefundene `menuUrl` wird anschliessend mit `loadMenuTextFromUrl` und Analysierbarkeitsprobe geprueft.
+- Kein Link wird als PASS gewertet, wenn keine `menuUrl` vorhanden ist.
+
+Ergebnis vor Recovery-Verbesserung:
+
+| Fall | Ergebnis | Befund |
+| --- | --- | --- |
+| Il Pozzetto, Rom | PASS | Offizielle Website gefunden, Speisekartenquelle analysierbar. |
+| Antonella, Forchheim | fachlich analysierbar, Discovery falsch | OpenAI waehlt `trattoriadaantonella.de`; korrekter Link `restaurant-antonella.com` ist analysierbar. |
+| Le Calife, Paris | PASS | Offizielle PDF-Speisekarte analysierbar. |
+| Eight Am, San Francisco | PASS | Offizielle Menueseite analysierbar. |
+| Kyatcha, Rotterdam | PASS | Offizielle PDF-Speisekarte analysierbar. |
+| The Blackfriar, London | erwartete Meldung | Keine eigene offizielle Restaurant-Website im Testkontext. |
+| La Taberna De Penalver Cava Baja, Madrid | PASS | Offizielle Menueseite analysierbar. |
+| A Casa do Porco, Sao Paulo | erwartete Meldung | Keine eigene offizielle Restaurant-Website im Testkontext. |
+| Adobe Cocina Regional, Salta | erwartete Meldung | Keine eigene offizielle Restaurant-Website im Testkontext. |
+| Pils Kafejnica, Tukums | erwartete Meldung | Keine eigene offizielle Restaurant-Website im Testkontext. |
+
+Produktbewertung:
+
+- 6 Kandidaten sind mit konkreter Quelle analysierbar.
+- 4 Kandidaten haben im Testkontext keine eigene offizielle Website; dort ist die Nutzer-Meldung der korrekte Produktpfad.
+- Antonella ist der konkrete Discovery-Verbesserungsfall: bei namensnahen Treffern ohne analysierbare Speisekarte muss eine menu-fokussierte zweite Suche nach alternativen offiziellen Quellen erfolgen.
+
+Ergebnis nach Recovery-Verbesserung:
+
+| Fall | Ergebnis | Befund |
+| --- | --- | --- |
+| Il Pozzetto, Rom | PASS | Offizielle Website und analysierbare Speisekartenquelle gefunden. |
+| Antonella, Forchheim | PASS | `restaurant-antonella.com` wird vor dem namensnahen falschen Treffer einsortiert; `speisekarte/` ist analysierbar. |
+| Le Calife, Paris | PASS | Offizielle PDF-Speisekarte analysierbar. |
+| Eight Am, San Francisco | PASS | Offizielle Menueseite analysierbar. |
+| Kyatcha, Rotterdam | PASS | Offizielle PDF-Speisekarte analysierbar. |
+| The Blackfriar, London | erwartete Meldung | Keine eigene offizielle Restaurant-Website im Testkontext. |
+| La Taberna De Peñalver Cava Baja, Madrid | PASS | Offizielle Menueseite analysierbar. |
+| A Casa do Porco, Sao Paulo | erwartete Meldung | Keine eigene offizielle Restaurant-Website im Testkontext. |
+| Adobe Cocina Regional, Salta | erwartete Meldung | Keine eigene offizielle Restaurant-Website im Testkontext. |
+| Pils Kafejnīca, Tukums | erwartete Meldung | Keine eigene offizielle Restaurant-Website im Testkontext. |
+
+Finale lokale Bewertung:
+
+- 6/10 PASS mit konkretem analysierbarem Link.
+- 4/10 erwartete Meldung, weil im Testkontext keine eigene offizielle Website vorhanden ist.
+- Kein nicht analysierbarer Link wird an die App durchgereicht.

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "../../../src/auth/requireUser";
 import { askPickForMeAI } from "../../../src/ai/askPickForMeAI";
-import { askPickForMePdfUrlAI } from "../../../src/ai/askPickForMePdfUrlAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
 import { AppError } from "../../../src/errors/AppError";
@@ -108,102 +107,7 @@ export async function POST(request: Request) {
       outputLocale
     );
     const sourceInputAllergenWarningPayload = buildAllergenInfoWarningPayload(profile, rawMenuText);
-    if (pdfMenuUrl) {
-      if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
-        throw new AppError(400, "PDF_AI_DISABLED", "PDF-Speisekarten benötigen in V1 den KI-Modus.");
-      }
-
-      try {
-        const aiResult = await askPdfWithShortRateLimitRetry(
-          {
-            pdfUrl: pdfMenuUrl,
-            profile,
-            situation: body.situation,
-            userLocale: outputLocale
-          },
-          45000
-        );
-
-        if (aiResult.recommendations.length === 0) {
-          throw new AppError(
-            422,
-            "NO_SAFE_RECOMMENDATIONS",
-            "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
-          );
-        }
-
-        const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
-          officialWebsiteText: restaurantDescription?.text,
-          restaurantUrl: officialRestaurantUrl,
-          fallbackHero: buildFallbackConciergeHero({
-            dishes: aiResult.dishes,
-            restaurantContextText: rawMenuText
-          })
-        });
-
-        const recommendations = await localizeRecommendationsForPayload({
-          dishes: aiResult.dishes,
-          recommendations: aiResult.recommendations,
-          userLocale: outputLocale
-        });
-
-        return NextResponse.json({
-          ok: true,
-          data: {
-            mode: "ai_pdf",
-            dishes: aiResult.dishes,
-            recommendations,
-            conciergeHero,
-            ...sourceInputAllergenWarningPayload,
-            ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
-          }
-        });
-      } catch (pdfAiError) {
-        const message = pdfAiError instanceof Error ? pdfAiError.message : "";
-
-        if (isRateLimitError(pdfAiError)) {
-          throw new AppError(
-            429,
-            "AI_RATE_LIMIT",
-            "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
-          );
-        }
-
-        if (message.includes("PDF_LOCALIZATION_FAILED")) {
-          throw new AppError(
-            422,
-            "ANALYSIS_NOT_SAFE",
-            "Ich konnte diese PDF-Speisekarte nicht sicher auswerten."
-          );
-        }
-
-        if (
-          message.includes("PDF_AI_TIMEOUT") ||
-          message.includes("TEXT_AI_TIMEOUT")
-        ) {
-          return NextResponse.json({
-            ok: true,
-            data: buildPdfTimeoutAnalysisPayload(localizedRestaurantDescription)
-          });
-        }
-
-        if (
-          message.includes("Profilregeln") ||
-          message.includes("keine sicher") ||
-          message.includes("NO_SAFE")
-        ) {
-          throw new AppError(
-            422,
-            "NO_SAFE_RECOMMENDATIONS",
-            "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
-          );
-        }
-
-        console.error("GustaroAI PDF AI failed.", pdfAiError);
-
-        throw pdfAiError;
-      }
-    }
+    const menuTextUrl = pdfMenuUrl || rawMenuText;
 
     const directImageUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikeImageUrl(rawMenuText) ? rawMenuText : null;
 
@@ -325,7 +229,7 @@ export async function POST(request: Request) {
 
     try {
       effectiveMenuText = dynamicMenuText ?? htmlMenuText ?? (inputLooksLikeUrl
-        ? await loadMenuTextFromUrl(rawMenuText)
+        ? await loadMenuTextFromUrl(menuTextUrl)
         : rawMenuText);
     } catch {
       throw new AppError(422, "MENU_URL_LOAD_FAILED", "Diese Speisekarte konnte nicht geladen werden.");
@@ -821,18 +725,6 @@ function buildPartialAnalysisPayload(
     analysisWarning: "Ich konnte diese Speisekarte nicht sicher auswerten.",
     ...buildRestaurantDescriptionPayload(restaurantDescription),
     ...buildMenuExtractionPayload(htmlMenuExtraction)
-  };
-}
-
-function buildPdfTimeoutAnalysisPayload(restaurantDescription: LocalizedRestaurantDescriptionResult | null) {
-  return {
-    mode: "ai_pdf" as const,
-    dishes: [],
-    recommendations: [],
-    conciergeHero: "",
-    analysisStatus: "analysis_not_safe" as const,
-    analysisWarning: "Ich konnte diese PDF-Speisekarte nicht sicher auswerten.",
-    ...buildRestaurantDescriptionPayload(restaurantDescription)
   };
 }
 
@@ -1426,28 +1318,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorCode: strin
         reject(error);
       });
   });
-}
-
-async function askPdfWithShortRateLimitRetry(
-  input: Parameters<typeof askPickForMePdfUrlAI>[0],
-  timeoutMs: number
-) {
-  try {
-    return await withTimeout(askPickForMePdfUrlAI(input), timeoutMs, "PDF_AI_TIMEOUT");
-  } catch (error) {
-    if (!isRateLimitError(error)) {
-      throw error;
-    }
-
-    const retryDelayMs = getShortRetryDelayMs(error);
-
-    if (retryDelayMs === undefined) {
-      throw error;
-    }
-
-    await sleep(retryDelayMs);
-    return withTimeout(askPickForMePdfUrlAI(input), timeoutMs, "PDF_AI_TIMEOUT");
-  }
 }
 
 function isRateLimitError(error: unknown) {
