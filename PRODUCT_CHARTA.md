@@ -256,6 +256,13 @@ Vor jedem Production-Build muss geprueft werden:
    - Passwort ist bekannt oder neu gesetzt.
    - Email/Password Auth ist aktiv.
 
+Lokale Vorabtest-Regel:
+
+- Funktionale Aenderungen und Erweiterungen muessen vor einem neuen Production-Build soweit wie moeglich lokal geprueft werden.
+- Dazu gehoeren mindestens relevante Typechecks, vorhandene Regressionsskripte und bei Backend-/API-Funktionen ein lokaler Endpunkt- oder Integrationscheck, sofern technisch moeglich.
+- Ein neuer EAS-/TestFlight-Build wird erst angestossen, wenn die lokal sinnvollen Pruefungen erfolgreich waren oder ein verbleibender Test nur in TestFlight moeglich ist.
+- Ziel ist, unnoetige Build-Auftraege, Buildnummernverbrauch und Wartezeiten zu vermeiden.
+
 Build-Regel:
 
 - Production-Builds werden nur mit dem Production-Profil erstellt.

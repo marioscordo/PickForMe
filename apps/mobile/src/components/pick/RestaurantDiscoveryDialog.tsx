@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import {
   generateRestaurantCandidates,
-  nominatimRestaurantDiscoveryProvider,
+  gustaroaiRestaurantDiscoveryProvider,
   resolveSelectedRestaurantSource,
   type RestaurantCandidate
 } from "../../gustaroai/restaurantDiscoveryRoutine";
@@ -62,7 +62,7 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
     try {
       const result = await generateRestaurantCandidates(
         { restaurantName, city },
-        nominatimRestaurantDiscoveryProvider
+        gustaroaiRestaurantDiscoveryProvider
       );
       setCandidates(result);
       setMessage(result.length === 0 ? copy.noResults : "");
@@ -94,7 +94,7 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
     setMessage("");
 
     try {
-      const source = await resolveSelectedRestaurantSource(selectedCandidate, nominatimRestaurantDiscoveryProvider);
+      const source = await resolveSelectedRestaurantSource(selectedCandidate, gustaroaiRestaurantDiscoveryProvider);
       if (source.menuUrl) {
         setMenuUrl(source.menuUrl);
         return;
@@ -163,7 +163,7 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
                 style={[local.candidate, selectedCandidate?.id === item.id && local.candidateSelected]}
               >
                 <Text style={local.candidateName}>{item.name}</Text>
-                <Text style={local.candidateMeta}>{[item.address, item.websiteUrl].filter(Boolean).join(" · ")}</Text>
+                <Text style={local.candidateMeta}>{[item.address, item.websiteUrl].filter(Boolean).join(" Â· ")}</Text>
               </Pressable>
             )}
           />

@@ -1,4 +1,4 @@
-﻿import { apiPost } from "./apiClient";
+import { apiPost } from "./apiClient";
 import { DEFAULT_OUTPUT_LOCALE } from "../config/outputLocales";
 import type { UserProfile } from "../types/profile";
 import type { AnalyzeData } from "../types/recommendations";
@@ -27,6 +27,20 @@ type AnalyzeMenuApiBody = {
 type LogAllergyWarningConfirmationBody = {
   confirmationVersion: string;
   confirmationTimestamp: string;
+};
+
+export type RestaurantDiscoveryApiCandidate = {
+  id: string;
+  name: string;
+  city: string;
+  address?: string;
+  websiteUrl?: string;
+  menuUrl?: string;
+};
+
+type DiscoverRestaurantsBody = {
+  restaurantName: string;
+  city: string;
 };
 
 export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
@@ -65,6 +79,13 @@ export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
     {
       signal: args.signal
     }
+  );
+}
+
+export function discoverRestaurants(body: DiscoverRestaurantsBody) {
+  return apiPost<{ candidates: RestaurantDiscoveryApiCandidate[] }, DiscoverRestaurantsBody>(
+    "/api/restaurant-discovery",
+    body
   );
 }
 

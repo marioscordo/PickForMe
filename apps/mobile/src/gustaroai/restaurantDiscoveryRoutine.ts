@@ -1,3 +1,5 @@
+import { discoverRestaurants } from "../api/pickformeApi";
+
 export type RestaurantDiscoveryInput = {
   restaurantName: string;
   city: string;
@@ -9,6 +11,7 @@ export type RestaurantCandidate = {
   city: string;
   address?: string;
   websiteUrl?: string;
+  menuUrl?: string;
 };
 
 export type RestaurantSourceLink = {
@@ -66,10 +69,24 @@ const BLOCKED_HOST_PARTS = [
 ];
 
 const DISCOVERY_LIMIT = 8;
+const MAX_DISCOVERY_QUERIES = 6;
+const MAX_LINKS_PER_PAGE = 40;
+const MAX_CRAWL_PAGES = 12;
+const NOMINATIM_QUERY_DELAY_MS = 1100;
+const DISCOVERY_USER_AGENT = "GustaroAI/1.0 restaurant-discovery (kontakt@gustaroai.com)";
+const DISCOVERY_FETCH_HEADERS = {
+  Accept: "application/json",
+  "User-Agent": DISCOVERY_USER_AGENT
+};
+const SECOND_LEVEL_DOMAIN_SUFFIXES = new Set(["co.uk", "org.uk", "com.br", "com.ar", "com.au", "co.jp", "com.mx"]);
+const PAGE_FETCH_HEADERS = {
+  Accept: "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.2",
+  "User-Agent": DISCOVERY_USER_AGENT
+};
 
 export async function generateRestaurantCandidates(
   input: RestaurantDiscoveryInput,
-  provider: RestaurantDiscoveryProvider = nominatimRestaurantDiscoveryProvider
+  provider: RestaurantDiscoveryProvider = gustaroaiRestaurantDiscoveryProvider
 ): Promise<RestaurantCandidate[]> {
   const restaurantName = input.restaurantName.trim();
   const city = input.city.trim();
@@ -91,7 +108,7 @@ export async function generateRestaurantCandidates(
 
 export async function resolveSelectedRestaurantSource(
   candidate: RestaurantCandidate,
-  provider: RestaurantDiscoveryProvider = nominatimRestaurantDiscoveryProvider
+  provider: RestaurantDiscoveryProvider = gustaroaiRestaurantDiscoveryProvider
 ): Promise<SelectedRestaurantSource> {
   const websiteUrl = normalizeOfficialUrl(candidate.websiteUrl);
 
@@ -116,25 +133,63 @@ export async function resolveSelectedRestaurantSource(
   return { websiteUrl };
 }
 
+export const gustaroaiRestaurantDiscoveryProvider: RestaurantDiscoveryProvider = {
+  name: "gustaroai-api",
+
+  async searchRestaurants(input) {
+    const result = await discoverRestaurants(input);
+    return result.candidates.map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+      city: candidate.city,
+      address: candidate.address,
+      websiteUrl: candidate.websiteUrl,
+      menuUrl: candidate.menuUrl
+    }));
+  },
+
+  async loadCandidateLinks(candidate) {
+    if (candidate.menuUrl) {
+      return [{ url: candidate.menuUrl, kind: "menu" }];
+    }
+
+    return nominatimRestaurantDiscoveryProvider.loadCandidateLinks(candidate);
+  },
+
+  async validateUrl(url) {
+    return nominatimRestaurantDiscoveryProvider.validateUrl(url);
+  }
+};
+
 export const nominatimRestaurantDiscoveryProvider: RestaurantDiscoveryProvider = {
   name: "openstreetmap-nominatim",
 
   async searchRestaurants(input) {
-    const query = encodeURIComponent(`${input.restaurantName} ${input.city}`);
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${DISCOVERY_LIMIT}&addressdetails=1&extratags=1&q=${query}`;
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json"
-      }
-    });
+    const places: NominatimPlace[] = [];
 
-    if (!response.ok) {
-      return [];
+    const queries = buildRestaurantSearchQueries(input);
+
+    for (const [index, queryText] of queries.entries()) {
+      if (index > 0) {
+        await delay(NOMINATIM_QUERY_DELAY_MS);
+      }
+
+      const query = encodeURIComponent(queryText);
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${DISCOVERY_LIMIT}&addressdetails=1&extratags=1&q=${query}`;
+      const response = await fetch(url, { headers: DISCOVERY_FETCH_HEADERS });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      places.push(...((await response.json()) as NominatimPlace[]));
+      if (places.length >= DISCOVERY_LIMIT) break;
     }
 
-    const places = (await response.json()) as NominatimPlace[];
-
-    return places.map(mapNominatimPlace).filter((candidate): candidate is RestaurantCandidate => Boolean(candidate));
+    return places
+      .map(mapNominatimPlace)
+      .filter((candidate): candidate is RestaurantCandidate => Boolean(candidate))
+      .sort((a, b) => scoreCandidateMatch(b, input) - scoreCandidateMatch(a, input));
   },
 
   async loadCandidateLinks(candidate) {
@@ -142,23 +197,10 @@ export const nominatimRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
     if (!websiteUrl) return [];
 
     try {
-      const response = await fetch(websiteUrl, {
-        headers: {
-          Accept: "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.2"
-        }
-      });
-
+      const response = await fetch(websiteUrl, { headers: PAGE_FETCH_HEADERS });
       if (!response.ok) return [];
 
-      const contentType = response.headers.get("content-type") ?? "";
-      const finalUrl = response.url || websiteUrl;
-
-      if (contentType.includes("application/pdf")) {
-        return [{ url: finalUrl, kind: "menu" }];
-      }
-
-      const html = await response.text();
-      return extractStructuredMenuLinks(html, finalUrl);
+      return collectSameDomainMenuLinks(response, websiteUrl);
     } catch {
       return [];
     }
@@ -166,11 +208,11 @@ export const nominatimRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
 
   async validateUrl(url) {
     try {
-      const response = await fetch(url, { method: "HEAD" });
+      const response = await fetch(url, { method: "HEAD", headers: PAGE_FETCH_HEADERS });
       return response.ok;
     } catch {
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, { headers: PAGE_FETCH_HEADERS });
         return response.ok;
       } catch {
         return false;
@@ -209,6 +251,52 @@ function firstDisplayNamePart(displayName: string | undefined) {
   return displayName?.split(",")[0] ?? "";
 }
 
+function buildRestaurantSearchQueries(input: RestaurantDiscoveryInput) {
+  const restaurantName = input.restaurantName.trim();
+  const city = input.city.trim();
+  const normalizedRestaurantName = normalizeSearchText(restaurantName);
+  const normalizedCity = normalizeSearchText(city);
+  const shortenedNames = getShortenedRestaurantNames(restaurantName);
+  const cityAliases = getCityAliases(city);
+  const queries = [
+    `${restaurantName} ${city}`,
+    `Restaurant ${restaurantName} ${city}`,
+    `${normalizedRestaurantName} ${city}`,
+    ...shortenedNames.flatMap((name) => [`${name} ${city}`, `${normalizeSearchText(name)} ${city}`]),
+    `${restaurantName} ${normalizedCity}`,
+    `${normalizedRestaurantName} ${normalizedCity}`,
+    ...cityAliases.flatMap((cityAlias) => [`${restaurantName} ${cityAlias}`, `${normalizedRestaurantName} ${cityAlias}`])
+  ];
+
+  return uniqueStrings(queries).slice(0, MAX_DISCOVERY_QUERIES);
+}
+
+function getShortenedRestaurantNames(restaurantName: string) {
+  const words = restaurantName.split(/\s+/).filter(Boolean);
+  if (words.length <= 4) return [];
+
+  return [words.slice(0, 4).join(" "), words.slice(0, -1).join(" "), words.slice(0, -2).join(" ")];
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getCityAliases(city: string) {
+  const normalizedCity = normalizeSearchText(city).toLowerCase();
+  const aliases: Record<string, string[]> = {
+    rom: ["Roma", "Rome"],
+    rome: ["Roma", "Rom"],
+    "sao paulo": ["S\u00e3o Paulo"]
+  };
+
+  return aliases[normalizedCity] ?? [];
+}
+
 function normalizeOfficialUrl(value: string | undefined, baseUrl?: string) {
   const trimmed = value?.trim();
   if (!trimmed) return "";
@@ -236,12 +324,97 @@ function extractStructuredMenuLinks(html: string, baseUrl: string): RestaurantSo
     const url = normalizeOfficialUrl(rawUrl, baseUrl);
     if (!url) continue;
 
-    // The decision routine only consumes structured kind values. This default
-    // provider marks direct PDF targets as menu candidates without reading link text.
-    links.push({ url, kind: url.toLowerCase().split("?")[0]?.endsWith(".pdf") ? "menu" : "other" });
+    links.push({ url, kind: isPdfUrl(url) ? "menu" : "other" });
   }
 
-  return links;
+  return dedupeLinks(links).slice(0, MAX_LINKS_PER_PAGE);
+}
+
+async function collectSameDomainMenuLinks(initialResponse: Response, websiteUrl: string): Promise<RestaurantSourceLink[]> {
+  const websiteDomain = getRegistrableDomain(websiteUrl);
+  const initialUrl = initialResponse.url || websiteUrl;
+  const discoveredLinks = await linksFromResponse(initialResponse, initialUrl);
+  const menuLinks = discoveredLinks.filter((link) => link.kind === "menu" && getRegistrableDomain(link.url) === websiteDomain);
+  const crawlQueue = discoveredLinks
+    .filter((link) => link.kind === "other" && getRegistrableDomain(link.url) === websiteDomain)
+    .map((link) => link.url);
+  const visited = new Set<string>([initialUrl]);
+
+  for (const pageUrl of uniqueStrings(crawlQueue).slice(0, MAX_CRAWL_PAGES)) {
+    if (visited.has(pageUrl)) continue;
+    visited.add(pageUrl);
+
+    try {
+      const response = await fetch(pageUrl, { headers: PAGE_FETCH_HEADERS });
+      if (!response.ok) continue;
+
+      const links = await linksFromResponse(response, pageUrl);
+      menuLinks.push(...links.filter((link) => link.kind === "menu" && getRegistrableDomain(link.url) === websiteDomain));
+    } catch {
+      continue;
+    }
+  }
+
+  return dedupeLinks(menuLinks);
+}
+
+async function linksFromResponse(response: Response, fallbackUrl: string): Promise<RestaurantSourceLink[]> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const finalUrl = response.url || fallbackUrl;
+
+  if (contentType.includes("application/pdf")) {
+    return [{ url: finalUrl, kind: "menu" }];
+  }
+
+  if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+    return [];
+  }
+
+  const html = await response.text();
+  return extractStructuredMenuLinks(html, finalUrl);
+}
+
+function isPdfUrl(value: string) {
+  return value.toLowerCase().split("?")[0]?.endsWith(".pdf") ?? false;
+}
+
+function uniqueStrings(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
+function dedupeLinks(links: RestaurantSourceLink[]) {
+  const seen = new Set<string>();
+  return links.filter((link) => {
+    const key = link.url.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function scoreCandidateMatch(candidate: RestaurantCandidate, input: RestaurantDiscoveryInput) {
+  const candidateName = normalizeSearchText(candidate.name).toLowerCase();
+  const queryName = normalizeSearchText(input.restaurantName).toLowerCase();
+  const candidateCity = normalizeSearchText(candidate.city).toLowerCase();
+  const queryCity = normalizeSearchText(input.city).toLowerCase();
+  let score = 0;
+
+  if (candidateName === queryName) score += 4;
+  if (candidateName.includes(queryName) || queryName.includes(candidateName)) score += 2;
+  if (candidateCity === queryCity) score += 2;
+  if (candidate.websiteUrl) score += 1;
+
+  return score;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function getRegistrableDomain(value: string) {
@@ -249,7 +422,13 @@ function getRegistrableDomain(value: string) {
     const hostname = new URL(value).hostname.toLowerCase().replace(/^www\./, "");
     const parts = hostname.split(".").filter(Boolean);
     if (parts.length <= 2) return hostname;
-    return parts.slice(-2).join(".");
+
+    const lastTwo = parts.slice(-2).join(".");
+    if (SECOND_LEVEL_DOMAIN_SUFFIXES.has(lastTwo) && parts.length >= 3) {
+      return parts.slice(-3).join(".");
+    }
+
+    return lastTwo;
   } catch {
     return "";
   }
