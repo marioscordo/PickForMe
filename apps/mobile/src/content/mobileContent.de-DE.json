@@ -49,7 +49,8 @@
     "close": "Scanner schließen"
   },
   "permissions": {
-    "camera": "GustaroAI benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
+    "camera": "GustaroAI benötigt die Kamera, um QR-Codes von Speisekarten zu scannen.",
+    "location": "GustaroAI nutzt deinen Standort nur, wenn du aktiv nach dem Restaurant in deiner Nähe suchst."
   },
   "allergyWarning": {
     "title": "Wichtiger Hinweis zu Allergien und Unverträglichkeiten",
@@ -326,6 +327,12 @@
   },
   "restaurantDiscovery": {
     "title": "Speisekarte finden",
+    "detectNearbyButton": "Restaurant in meiner NÃ¤he erkennen",
+    "detectorConfirmHint": "antippen zum Ãœbernehmen",
+    "detectorApplied": "Restaurant Ã¼bernommen. Bitte prÃ¼fe die Angaben und starte dann die Suche.",
+    "detectorLowConfidence": "Ich konnte das Restaurant nicht sicher erkennen. Bitte wÃ¤hle einen Treffer oder suche manuell.",
+    "detectorFailed": "Standortsuche ist gerade nicht verfÃ¼gbar. Bitte suche das Restaurant manuell.",
+    "detectorUnavailable": "Standortsuche ist fÃ¼r diese App-Version noch nicht verbunden. Bitte suche das Restaurant manuell.",
     "restaurantNameLabel": "Restaurantname",
     "cityLabel": "Stadt",
     "showButton": "Zeigen",

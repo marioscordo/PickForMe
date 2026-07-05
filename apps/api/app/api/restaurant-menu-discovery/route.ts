@@ -9,11 +9,12 @@ import { discoverRestaurantSources, type RestaurantDiscoveryCandidate } from "..
 
 const MENU_DISCOVERY_TIMEOUT_MS = 20000;
 const PAGE_SOURCE_FETCH_TIMEOUT_MS = 4500;
+const PDF_LINK_FETCH_TIMEOUT_MS = 4500;
 const MIN_ANALYZABLE_MENU_ITEMS = 2;
 const MIN_LIKELY_MENU_TEXT_LENGTH = 500;
 const MIN_LIKELY_MENU_PRICE_COUNT = 2;
 const MAX_SOURCE_LINKS_TO_CHECK = 12;
-const MAX_LIKELY_ORIGINS_TO_CHECK = 10;
+const MAX_LIKELY_ORIGINS_TO_CHECK = 14;
 const SOURCE_FETCH_HEADERS = {
   Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.2",
   "User-Agent": "GustaroAI/1.0 restaurant-menu-discovery (kontakt@gustaroai.com)"
@@ -49,6 +50,17 @@ const GENERIC_RESTAURANT_WORDS = new Set([
   "bar"
 ]);
 const LIKELY_OFFICIAL_DOMAIN_TLDS = ["de", "com", "it", "fr", "es", "nl", "co.uk", "com.br"];
+const PARKED_WEBSITE_TERMS = [
+  "steht zum verkauf",
+  "domain zum verkauf",
+  "gebot abgeben",
+  "domaininhaber",
+  "marktplatzbroker",
+  "buy this domain",
+  "domain for sale",
+  "this domain is for sale",
+  "parking page"
+];
 
 const RestaurantMenuDiscoveryRequestSchema = z.object({
   candidate: z.object({
@@ -210,9 +222,49 @@ async function findAnalyzableMenuUrl(candidateUrls: string[]) {
 }
 
 async function isAnalyzableMenuUrl(candidateUrl: string) {
+  if (looksLikePdfUrl(candidateUrl) && await isReachablePdfUrl(candidateUrl)) {
+    return true;
+  }
+
   try {
     const menuText = await loadMenuTextFromUrl(candidateUrl);
     return parseMenu(menuText).length >= MIN_ANALYZABLE_MENU_ITEMS || isLikelyMenuText(menuText);
+  } catch {
+    return false;
+  }
+}
+
+async function isReachablePdfUrl(candidateUrl: string) {
+  const normalizedUrl = normalizeOfficialUrl(candidateUrl);
+  if (!normalizedUrl) return false;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PDF_LINK_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(normalizedUrl, {
+      headers: {
+        Accept: "application/pdf,*/*;q=0.2",
+        "User-Agent": SOURCE_FETCH_HEADERS["User-Agent"]
+      },
+      redirect: "follow",
+      signal: controller.signal
+    });
+    if (!response.ok) return false;
+
+    const finalUrl = normalizeOfficialUrl(response.url || normalizedUrl);
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    return looksLikePdfUrl(finalUrl) || contentType.includes("application/pdf");
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function looksLikePdfUrl(value: string) {
+  try {
+    return new URL(value).pathname.toLowerCase().endsWith(".pdf");
   } catch {
     return false;
   }
@@ -300,16 +352,33 @@ function scoreSourceMenuLink(link: SourceLink) {
 }
 
 function sourceMatchesRestaurant(html: string, finalUrl: string, candidate: RestaurantMenuDiscoveryRequest["candidate"]) {
-  const sourceText = normalizeSearchText(`${htmlToPlainText(html)} ${finalUrl}`).toLowerCase();
-  const domainText = normalizeSearchText(finalUrl).toLowerCase();
+  const pageText = normalizeDomainText(htmlToPlainText(html));
+  if (isLikelyParkedWebsiteSource(pageText, finalUrl)) return false;
+
+  const sourceText = `${pageText} ${normalizeDomainText(finalUrl)}`;
+  const domainText = normalizeDomainText(finalUrl);
   const nameTokens = meaningfulRestaurantTokens(candidate.name);
+  const addressTokens = meaningfulAddressTokens(candidate.address);
   const localityTokens = meaningfulLocalityTokens([candidate.city, candidate.address]);
 
   const hasNameToken = nameTokens.length === 0 || nameTokens.some((token) => sourceText.includes(token));
   const hasNameTokenInDomain = nameTokens.some((token) => domainText.includes(token));
-  const hasLocalityToken = localityTokens.length === 0 || localityTokens.some((token) => sourceText.includes(token));
+  const hasLocationToken = addressTokens.length > 0
+    ? addressTokens.some((token) => pageText.includes(token))
+    : localityTokens.length === 0 || localityTokens.some((token) => pageText.includes(token));
 
-  return hasNameToken && (hasLocalityToken || hasNameTokenInDomain);
+  return hasNameToken && (hasLocationToken || (addressTokens.length === 0 && hasNameTokenInDomain));
+}
+
+function isLikelyParkedWebsiteSource(pageText: string, finalUrl: string) {
+  const host = safeHostname(finalUrl);
+  const hits = PARKED_WEBSITE_TERMS.filter((term) => pageText.includes(term)).length;
+
+  return hits >= 2 ||
+    pageText.includes("steht zum verkauf") ||
+    pageText.includes("buy this domain") ||
+    pageText.includes("domain for sale") ||
+    (host.includes("domain") && hits >= 1);
 }
 
 function meaningfulRestaurantTokens(value: string) {
@@ -326,10 +395,18 @@ function meaningfulLocalityTokens(values: Array<string | undefined>) {
     .filter((token) => !/^\d+$/.test(token));
 }
 
+function meaningfulAddressTokens(value: string | undefined) {
+  const streetPart = value?.split(",")[0] ?? "";
+  return normalizeDomainText(streetPart)
+    .split(" ")
+    .filter((token) => token.length >= 4)
+    .filter((token) => !/^\d+$/.test(token));
+}
+
 function buildLikelyOfficialOrigins(candidateName: string) {
   const slugs = buildLikelyDomainSlugs(candidateName);
 
-  return slugs.flatMap((slug) => LIKELY_OFFICIAL_DOMAIN_TLDS.flatMap((tld) => [
+  return LIKELY_OFFICIAL_DOMAIN_TLDS.flatMap((tld) => slugs.flatMap((slug) => [
     `https://www.${slug}.${tld}/`,
     `https://${slug}.${tld}/`
   ]));
@@ -338,10 +415,21 @@ function buildLikelyOfficialOrigins(candidateName: string) {
 function buildLikelyDomainSlugs(candidateName: string) {
   const words = normalizeDomainText(candidateName).split(" ").filter(Boolean);
   const meaningfulWords = words.filter((word) => !GENERIC_RESTAURANT_WORDS.has(word));
+  const firstGenericWord = words.find((word) => GENERIC_RESTAURANT_WORDS.has(word));
+  const meaningfulSlug = meaningfulWords.join("-");
+  const compactMeaningfulSlug = meaningfulWords.join("");
+  const fullSlug = words.join("-");
+  const compactFullSlug = words.join("");
 
   return uniqueStrings([
-    meaningfulWords.join("-"),
-    words.join("-")
+    meaningfulSlug,
+    compactMeaningfulSlug,
+    meaningfulSlug ? `restaurant-${meaningfulSlug}` : "",
+    compactMeaningfulSlug ? `restaurant${compactMeaningfulSlug}` : "",
+    firstGenericWord && meaningfulSlug ? `${firstGenericWord}-${meaningfulSlug}` : "",
+    firstGenericWord && compactMeaningfulSlug ? `${firstGenericWord}${compactMeaningfulSlug}` : "",
+    fullSlug,
+    compactFullSlug
   ].filter(Boolean));
 }
 
@@ -424,6 +512,14 @@ function normalizeOfficialUrl(value: string | undefined, baseUrl?: string) {
     if (url.protocol !== "http:" && url.protocol !== "https:") return "";
     url.hash = "";
     return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function safeHostname(value: string) {
+  try {
+    return new URL(value).hostname.toLowerCase();
   } catch {
     return "";
   }

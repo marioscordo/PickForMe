@@ -1,0 +1,10 @@
+{
+  "name": "gustaroai-restaurant-detector",
+  "version": "1.0.0",
+  "private": true,
+  "expo-module": {
+    "platforms": [
+      "ios"
+    ]
+  }
+}

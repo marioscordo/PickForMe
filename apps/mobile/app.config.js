@@ -3,6 +3,7 @@ const IS_PROD = APP_VARIANT === "production";
 const mobileContent = require("./src/content/mobileContent.de-DE.json");
 
 const cameraUsageDescription = mobileContent.permissions.camera;
+const locationWhenInUseUsageDescription = mobileContent.permissions.location;
 
 module.exports = {
   expo: {
@@ -22,13 +23,14 @@ module.exports = {
 
     ios: {
       supportsTablet: false,
-      buildNumber: "1.0.8",
+      buildNumber: "1.0.9",
       bundleIdentifier: IS_PROD
         ? "com.marioscordo.gustaroai"
         : "com.marioscordo.gustaroai.dev",
 
       infoPlist: {
         NSCameraUsageDescription: cameraUsageDescription,
+        NSLocationWhenInUseUsageDescription: locationWhenInUseUsageDescription,
         ITSAppUsesNonExemptEncryption: false,
         ...(!IS_PROD
           ? {
@@ -65,6 +67,12 @@ module.exports = {
         {
           cameraPermission: cameraUsageDescription,
           recordAudioAndroid: false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          locationWhenInUsePermission: locationWhenInUseUsageDescription
         }
       ]
     ],
