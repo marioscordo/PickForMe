@@ -43,6 +43,15 @@ type DiscoverRestaurantsBody = {
   city: string;
 };
 
+type DiscoverRestaurantMenuBody = {
+  candidate: RestaurantDiscoveryApiCandidate;
+};
+
+export type RestaurantMenuDiscoveryApiResult = {
+  websiteUrl: string;
+  menuUrl?: string;
+};
+
 export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
   const body: AnalyzeMenuApiBody = {
     sourceKind: "text",
@@ -86,6 +95,13 @@ export function discoverRestaurants(body: DiscoverRestaurantsBody) {
   return apiPost<{ candidates: RestaurantDiscoveryApiCandidate[] }, DiscoverRestaurantsBody>(
     "/api/restaurant-discovery",
     body
+  );
+}
+
+export function discoverRestaurantMenu(candidate: RestaurantDiscoveryApiCandidate) {
+  return apiPost<RestaurantMenuDiscoveryApiResult, DiscoverRestaurantMenuBody>(
+    "/api/restaurant-menu-discovery",
+    { candidate }
   );
 }
 

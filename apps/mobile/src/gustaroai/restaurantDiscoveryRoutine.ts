@@ -1,4 +1,4 @@
-import { discoverRestaurants } from "../api/pickformeApi";
+import { discoverRestaurantMenu, discoverRestaurants } from "../api/pickformeApi";
 
 export type RestaurantDiscoveryInput = {
   restaurantName: string;
@@ -111,21 +111,18 @@ export async function resolveSelectedRestaurantSource(
   provider: RestaurantDiscoveryProvider = gustaroaiRestaurantDiscoveryProvider
 ): Promise<SelectedRestaurantSource> {
   const websiteUrl = normalizeOfficialUrl(candidate.websiteUrl);
-
-  if (!websiteUrl) {
-    return { websiteUrl: "" };
-  }
-
   const websiteDomain = getRegistrableDomain(websiteUrl);
-  const links = await provider.loadCandidateLinks({ ...candidate, websiteUrl });
+  const links = await provider.loadCandidateLinks({ ...candidate, ...(websiteUrl ? { websiteUrl } : {}) });
 
   for (const link of links) {
     if (link.kind !== "menu") continue;
 
-    const menuUrl = normalizeOfficialUrl(link.url, websiteUrl);
+    const menuUrl = normalizeOfficialUrl(link.url, websiteUrl || undefined);
     if (!menuUrl) continue;
-    if (getRegistrableDomain(menuUrl) !== websiteDomain) continue;
-    if (!(await provider.validateUrl(menuUrl))) continue;
+    if (websiteUrl) {
+      if (getRegistrableDomain(menuUrl) !== websiteDomain) continue;
+      if (!(await provider.validateUrl(menuUrl))) continue;
+    }
 
     return { websiteUrl, menuUrl };
   }
@@ -153,7 +150,8 @@ export const gustaroaiRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
       return [{ url: candidate.menuUrl, kind: "menu" }];
     }
 
-    return [];
+    const result = await discoverRestaurantMenu(candidate);
+    return result.menuUrl ? [{ url: result.menuUrl, kind: "menu" }] : [];
   },
 
   async validateUrl(url) {
