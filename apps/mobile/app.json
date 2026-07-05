@@ -14,7 +14,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.marioscordo.gustaroai",
-      "buildNumber": "1.0.7",
+      "buildNumber": "1.0.8",
       "supportsTablet": false
     },
     "android": {
