@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TextInput } from "react-native";
 import { useMobileContent } from "../../content/useMobileContent";
-import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
+import { premiumColors, radius, spacing } from "../../theme/tokens";
 import { Surface } from "../ui/Surface";
 
 export function MenuInputCard({
@@ -28,7 +28,7 @@ export function MenuInputCard({
         value={menuText}
         onChangeText={setMenuText}
         placeholder={content.menuInput.placeholder}
-        placeholderTextColor={semanticColors.textMuted}
+        placeholderTextColor={premiumColors.textMuted}
         textAlignVertical="top"
         autoCapitalize="sentences"
         autoCorrect={false}
@@ -39,38 +39,40 @@ export function MenuInputCard({
 
 const local = StyleSheet.create({
   card: {
-    marginBottom: spacing.md,
-    padding: spacing.lg
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    marginBottom: spacing.section,
+    padding: 0
   },
   kicker: {
-    color: semanticColors.text,
-    fontSize: typography.sectionTitle.fontSize,
-    fontWeight: typography.sectionTitle.fontWeight,
-    lineHeight: typography.sectionTitle.lineHeight,
+    color: premiumColors.text,
+    fontSize: 17,
+    fontWeight: "900",
+    lineHeight: 22,
     marginBottom: spacing.xs
   },
   hint: {
-    color: semanticColors.textMuted,
-    fontSize: typography.body.fontSize,
-    fontWeight: typography.body.fontWeight,
-    lineHeight: typography.body.lineHeight,
+    color: premiumColors.textMuted,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 21,
     marginBottom: spacing.sm
   },
   textArea: {
-    backgroundColor: semanticColors.surface,
-    borderColor: semanticColors.border,
-    borderRadius: radius.md,
+    backgroundColor: "rgba(255, 253, 248, 0.76)",
+    borderColor: "rgba(231, 222, 210, 0.82)",
+    borderRadius: radius.xl,
     borderWidth: 1,
-    color: semanticColors.text,
+    color: premiumColors.text,
     fontSize: 16,
     height: 124,
     lineHeight: 21,
     maxHeight: 124,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm
+    paddingVertical: spacing.md
   },
   textAreaCompact: {
-    height: 68,
-    maxHeight: 68
+    height: 88,
+    maxHeight: 88
   }
 });

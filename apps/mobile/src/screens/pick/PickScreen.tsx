@@ -9,11 +9,10 @@ import { RecommendationCard } from "../../components/pick/RecommendationCard";
 import { RestaurantDiscoveryDialog } from "../../components/pick/RestaurantDiscoveryDialog";
 import { SituationSelector } from "../../components/pick/SituationSelector";
 import { ActionButton } from "../../components/ui/ActionButton";
-import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { Surface } from "../../components/ui/Surface";
 import { useMobileContent } from "../../content/useMobileContent";
 import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
-import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
+import { premiumColors, radius, spacing, typography } from "../../theme/tokens";
 import type { Situation, UserProfile } from "../../types/profile";
 
 type PickScreenProps = {
@@ -165,8 +164,12 @@ export function PickScreen({
   }
 
   return (
-    <Screen>
-      <ScreenHeader title={content.pick.heroTitle} subtitle={content.pick.heroSubtitle} />
+    <Screen contentContainerStyle={local.entryScreenContent}>
+      <View style={local.conciergeIntro}>
+        <View style={local.introAccent} />
+        <Text style={local.introTitle}>{content.pick.heroTitle}</Text>
+        <Text style={local.introSubtitle}>{content.pick.heroSubtitle}</Text>
+      </View>
 
       <View style={local.quickRow}>
         <Pressable
@@ -257,7 +260,7 @@ export function PickScreen({
 
       <ActionButton
         label={analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}
-        variant="accent"
+        variant="primary"
         onPress={handleAnalyze}
         disabled={analyze.loading}
         style={local.mainButton}
@@ -267,6 +270,12 @@ export function PickScreen({
 }
 
 const local = StyleSheet.create({
+  entryScreenContent: {
+    backgroundColor: premiumColors.background,
+    paddingBottom: 168,
+    paddingTop: 26
+  },
+
   resultScreenContent: {
     paddingBottom: 640
   },
@@ -275,67 +284,115 @@ const local = StyleSheet.create({
     height: 420
   },
 
+  conciergeIntro: {
+    marginBottom: spacing.section,
+    paddingHorizontal: spacing.xs,
+    paddingTop: spacing.xs
+  },
+
+  introAccent: {
+    backgroundColor: premiumColors.gold,
+    borderRadius: radius.pill,
+    height: 2,
+    marginBottom: spacing.md,
+    opacity: 0.72,
+    width: 44
+  },
+
+  introTitle: {
+    color: premiumColors.text,
+    fontSize: 29,
+    fontWeight: "900",
+    lineHeight: 35,
+    marginBottom: spacing.sm
+  },
+
+  introSubtitle: {
+    color: premiumColors.textMuted,
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 23
+  },
+
   quickRow: {
+    backgroundColor: "rgba(255, 253, 248, 0.58)",
+    borderColor: "rgba(231, 222, 210, 0.62)",
+    borderRadius: radius.pill,
+    borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.sm,
-    marginBottom: spacing.md
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+    padding: spacing.xs
   },
 
   quickButton: {
     alignItems: "center",
-    backgroundColor: semanticColors.surface,
-    borderColor: semanticColors.border,
+    backgroundColor: "transparent",
     borderRadius: radius.pill,
-    borderWidth: 1,
     flex: 1,
-    paddingVertical: spacing.md
+    justifyContent: "center",
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
   },
 
   quickButtonActive: {
-    backgroundColor: semanticColors.accentSoft,
-    borderColor: semanticColors.accent
+    backgroundColor: premiumColors.olive,
+    shadowColor: premiumColors.olive,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 2
   },
 
   quickButtonText: {
-    color: semanticColors.textMuted,
-    fontSize: typography.button.fontSize,
-    fontWeight: typography.button.fontWeight,
-    lineHeight: typography.button.lineHeight
+    color: premiumColors.textMuted,
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 19
   },
 
   quickButtonTextActive: {
-    color: semanticColors.text
+    color: premiumColors.surface
   },
 
   discoveryButtonWrap: {
-    marginBottom: spacing.md
+    marginBottom: spacing.section
   },
 
   discoveryButton: {
+    backgroundColor: "rgba(255, 253, 248, 0.60)",
+    borderColor: "rgba(116, 109, 100, 0.16)",
+    borderWidth: 1,
     borderRadius: radius.pill,
     paddingVertical: spacing.md
   },
 
   moodCard: {
-    marginBottom: spacing.md,
-    padding: spacing.md
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    marginBottom: spacing.section,
+    padding: 0
   },
 
   moodTitle: {
-    color: semanticColors.text,
-    fontSize: typography.sectionTitle.fontSize,
-    fontWeight: typography.sectionTitle.fontWeight,
-    lineHeight: typography.sectionTitle.lineHeight,
+    color: premiumColors.text,
+    fontSize: 17,
+    fontWeight: "900",
+    lineHeight: 22,
     marginBottom: spacing.md
   },
 
   feedbackCard: {
-    marginBottom: spacing.md,
-    padding: spacing.lg
+    backgroundColor: "rgba(255, 253, 248, 0.84)",
+    borderColor: "rgba(200, 168, 90, 0.24)",
+    borderRadius: radius.hero,
+    marginBottom: spacing.lg,
+    padding: 20
   },
 
   loadingTitle: {
-    color: semanticColors.text,
+    color: premiumColors.olive,
     fontSize: typography.label.fontSize,
     fontWeight: typography.label.fontWeight,
     lineHeight: typography.label.lineHeight,
@@ -343,9 +400,9 @@ const local = StyleSheet.create({
   },
 
   loadingText: {
-    color: semanticColors.textMuted,
+    color: premiumColors.textMuted,
     fontSize: typography.body.fontSize,
-    fontWeight: typography.body.fontWeight,
+    fontWeight: "600",
     lineHeight: typography.body.lineHeight,
     marginBottom: spacing.md
   },
@@ -356,28 +413,28 @@ const local = StyleSheet.create({
   },
 
   loadingDot: {
+    backgroundColor: "rgba(116, 109, 100, 0.18)",
     height: 7,
-    width: 7,
     borderRadius: radius.pill,
-    backgroundColor: semanticColors.border
+    width: 7
   },
 
   loadingDotActive: {
-    backgroundColor: semanticColors.accentActive,
+    backgroundColor: premiumColors.gold,
     width: 18
   },
 
   feedbackErrorCard: {
-    backgroundColor: semanticColors.warningSurface,
-    borderColor: semanticColors.warningBorder,
-    borderRadius: radius.lg,
+    backgroundColor: "rgba(110, 36, 51, 0.08)",
+    borderColor: "rgba(110, 36, 51, 0.22)",
+    borderRadius: radius.hero,
     borderWidth: 1,
-    marginBottom: spacing.md,
-    padding: spacing.lg
+    marginBottom: spacing.lg,
+    padding: 20
   },
 
   errorTitle: {
-    color: semanticColors.warningText,
+    color: premiumColors.bordeaux,
     fontSize: typography.label.fontSize,
     fontWeight: typography.label.fontWeight,
     lineHeight: typography.label.lineHeight,
@@ -385,20 +442,22 @@ const local = StyleSheet.create({
   },
 
   errorText: {
-    color: semanticColors.warningBody,
+    color: premiumColors.textMuted,
     fontSize: typography.body.fontSize,
-    fontWeight: typography.body.fontWeight,
+    fontWeight: "600",
     lineHeight: typography.body.lineHeight
   },
 
   mainButton: {
+    backgroundColor: premiumColors.olive,
     borderRadius: radius.pill,
-    marginBottom: 20,
-    marginTop: spacing.xxs,
-    shadowColor: semanticColors.accent,
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
+    marginBottom: 24,
+    marginTop: spacing.sm,
+    paddingVertical: 17,
+    shadowColor: premiumColors.olive,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
     elevation: 5
   },
 

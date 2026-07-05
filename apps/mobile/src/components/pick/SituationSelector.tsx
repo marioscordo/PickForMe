@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useMobileContent } from "../../content/useMobileContent";
-import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
+import { premiumColors, radius, spacing, typography } from "../../theme/tokens";
 import type { Situation } from "../../types/profile";
 
 type SituationOption = {
@@ -46,29 +46,34 @@ const local = StyleSheet.create({
   },
   option: {
     alignItems: "center",
-    backgroundColor: semanticColors.surface,
-    borderColor: semanticColors.border,
+    backgroundColor: "rgba(250, 247, 241, 0.70)",
+    borderColor: "rgba(231, 222, 210, 0.84)",
     borderRadius: radius.pill,
     borderWidth: 1,
     flexBasis: "48%",
     flexGrow: 1,
     justifyContent: "center",
-    minHeight: 46,
+    minHeight: 50,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm
   },
   optionActive: {
-    backgroundColor: semanticColors.accentSoft,
-    borderColor: semanticColors.accent
+    backgroundColor: premiumColors.olive,
+    borderColor: premiumColors.olive,
+    shadowColor: premiumColors.olive,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2
   },
   optionText: {
-    color: semanticColors.textMuted,
+    color: premiumColors.textMuted,
     fontSize: typography.label.fontSize,
     fontWeight: typography.label.fontWeight,
     lineHeight: typography.label.lineHeight,
     textAlign: "center"
   },
   optionTextActive: {
-    color: semanticColors.text
+    color: premiumColors.surface
   }
 });
