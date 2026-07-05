@@ -24,6 +24,7 @@ type ProfileWithFeedback = {
 };
 
 type StarterRequestStatus = "loading" | "error";
+type PremiumActionTone = "primary" | "secondary";
 
 function buildDisplayTranslation(originalName: string, translatedName?: string) {
   const cleaned = translatedName?.trim() ?? "";
@@ -33,6 +34,67 @@ function buildDisplayTranslation(originalName: string, translatedName?: string) 
   }
 
   return "";
+}
+
+function formatEuroPrice(price: number) {
+  return `${price.toFixed(2).replace(".", ",")} €`;
+}
+
+function formatDisplayPrice(rawPrice?: string) {
+  const cleaned = rawPrice?.trim() ?? "";
+
+  if (!cleaned) {
+    return "";
+  }
+
+  if (/€|\bEUR\b/i.test(cleaned)) {
+    return cleaned.replace(/\s*€\s*/g, " €").replace(/\s+/g, " ").trim();
+  }
+
+  if (/^\d{1,4}(?:[.,]\d{1,2})?$/.test(cleaned)) {
+    return `${cleaned.replace(".", ",")} €`;
+  }
+
+  return cleaned;
+}
+
+function PremiumCardAction({
+  disabled,
+  hero,
+  label,
+  onPress,
+  tone
+}: {
+  disabled?: boolean;
+  hero?: boolean;
+  label: string;
+  onPress: () => void;
+  tone: PremiumActionTone;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={(state) => [
+        local.premiumAction,
+        tone === "primary" ? local.premiumActionPrimary : local.premiumActionSecondary,
+        hero && tone === "primary" ? local.premiumActionPrimaryHero : null,
+        hero && tone === "secondary" ? local.premiumActionSecondaryHero : null,
+        state.pressed && !disabled ? local.premiumActionPressed : null,
+        disabled ? local.premiumActionDisabled : null
+      ]}
+    >
+      <Text
+        style={[
+          local.premiumActionText,
+          tone === "primary" ? local.premiumActionPrimaryText : local.premiumActionSecondaryText
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
 }
 
 export function RecommendationCard({
@@ -64,6 +126,7 @@ export function RecommendationCard({
   const topBoxText = restaurantDescription || content.recommendation.fallbackText;
   const topBox = (
     <Surface style={local.topBox}>
+      <View style={local.topBoxAccent} />
       <Text style={local.title}>{topBoxTitle}</Text>
       <Text style={local.subtitle}>{topBoxText}</Text>
     </Surface>
@@ -197,11 +260,12 @@ export function RecommendationCard({
           const starterTranslation = starter
             ? buildDisplayTranslation(starter.nameOriginal, starter.translatedName)
             : "";
+          const starterPriceText = starter ? formatDisplayPrice(starter.priceRaw) : "";
           const starterRequestStatus = starterRequestStatusByDishId[rec.dishId];
           const shouldShowStarterButton = situation !== "leicht" && !starter;
           const isPrimaryRecommendation = index === 0;
 
-          const priceText = typeof dishData.price === "number" ? `${dishData.price.toFixed(2).replace(".", ",")} €` : "";
+          const priceText = typeof dishData.price === "number" ? formatEuroPrice(dishData.price) : "";
           const existingFeedback = feedbackByName.get(originalName.toLowerCase());
           const isSelected = selectedDishId === dish.id || Boolean(existingFeedback);
 
@@ -222,12 +286,6 @@ export function RecommendationCard({
 
                 {priceText ? <Text style={[local.price, isPrimaryRecommendation && local.pricePrimary]}>{priceText}</Text> : null}
 
-                {rec.facts?.trim() ? (
-                  <View style={[local.factsBox, isPrimaryRecommendation ? local.factsBoxPrimary : local.factsBoxSecondary]}>
-                    <Text style={[local.factsText, isPrimaryRecommendation && local.factsTextPrimary]}>{rec.facts.trim()}</Text>
-                  </View>
-                ) : null}
-
                 {starter ? (
                   <View style={[local.starterBox, isPrimaryRecommendation ? local.starterBoxPrimary : local.starterBoxSecondary]}>
                     <Text style={local.starterLabel}>{content.recommendation.starterLabel}</Text>
@@ -235,8 +293,8 @@ export function RecommendationCard({
                     {starterTranslation ? (
                       <Text style={local.starterTranslation}>{starterTranslation}</Text>
                     ) : null}
-                    {starter.priceRaw ? (
-                      <Text style={local.starterPrice}>{starter.priceRaw}</Text>
+                    {starterPriceText ? (
+                      <Text style={local.starterPrice}>{starterPriceText}</Text>
                     ) : null}
                   </View>
                 ) : null}
@@ -246,25 +304,25 @@ export function RecommendationCard({
                     {starterRequestStatus === "error" ? (
                       <Text style={local.starterActionText}>{content.recommendation.starterSearchError}</Text>
                     ) : null}
-                    <ActionButton
+                    <PremiumCardAction
                       disabled={isStarterSearchRunning}
                       label={
                         starterRequestStatus === "loading"
                           ? content.recommendation.starterSearchLoading
                           : content.recommendation.starterSearchButton
                       }
-                      variant="secondary"
                       onPress={() => handleStarterSearch(rec)}
-                      style={[local.starterActionButton, isPrimaryRecommendation && local.primaryInlineAction]}
+                      tone="secondary"
+                      hero={isPrimaryRecommendation}
                     />
                   </View>
                 ) : null}
 
-                <ActionButton
+                <PremiumCardAction
                   label={content.recommendation.acceptButton}
-                  variant="secondary"
                   onPress={() => setSelectedDishId(dish.id)}
-                  style={[local.acceptButton, isPrimaryRecommendation && local.acceptButtonPrimary]}
+                  tone="primary"
+                  hero={isPrimaryRecommendation}
                 />
 
                 {isSelected ? (
@@ -310,20 +368,31 @@ export function RecommendationCard({
 
 const local = StyleSheet.create({
   resultRoot: {
-    position: "relative"
+    position: "relative",
+    paddingBottom: 112
   },
 
   topBox: {
-    backgroundColor: premiumColors.surface,
-    borderColor: "rgba(200, 168, 90, 0.34)",
+    backgroundColor: "rgba(255, 253, 248, 0.74)",
+    borderColor: "rgba(200, 168, 90, 0.22)",
     borderWidth: 1,
-    marginBottom: spacing.lg,
-    padding: spacing.xxl,
+    marginBottom: spacing.xxl,
+    paddingHorizontal: 22,
+    paddingVertical: 20,
     shadowColor: premiumColors.olive,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 22,
-    elevation: 2
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.045,
+    shadowRadius: 20,
+    elevation: 1
+  },
+
+  topBoxAccent: {
+    backgroundColor: premiumColors.gold,
+    borderRadius: radius.pill,
+    height: 2,
+    marginBottom: spacing.md,
+    opacity: 0.72,
+    width: 40
   },
 
   unsafeBox: {
@@ -364,53 +433,61 @@ const local = StyleSheet.create({
 
   title: {
     color: premiumColors.text,
-    fontSize: typography.screenTitle.fontSize,
-    fontWeight: "800",
-    lineHeight: typography.screenTitle.lineHeight,
-    marginBottom: spacing.xs
+    fontSize: 23,
+    fontWeight: "900",
+    lineHeight: 29,
+    marginBottom: spacing.sm
   },
 
   subtitle: {
     color: premiumColors.textMuted,
-    fontSize: typography.body.fontSize,
+    fontSize: 14,
     fontWeight: "600",
-    lineHeight: typography.body.lineHeight
+    lineHeight: 22
   },
 
   list: {
-    gap: spacing.lg,
-    marginBottom: spacing.lg
+    gap: spacing.xxl,
+    marginBottom: spacing.section
   },
 
   card: {
     backgroundColor: premiumColors.surface,
-    borderColor: "rgba(231, 222, 210, 0.78)",
+    borderColor: "rgba(231, 222, 210, 0.72)",
     borderWidth: 1,
     gap: spacing.md,
     marginBottom: 0,
+    overflow: "hidden",
     shadowColor: premiumColors.olive,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.055,
     shadowRadius: 18
   },
 
   primaryCard: {
-    borderColor: "rgba(200, 168, 90, 0.38)",
+    backgroundColor: "#FFFDF8",
+    borderColor: "rgba(200, 168, 90, 0.46)",
     borderRadius: radius.hero,
     flexDirection: "column",
+    gap: spacing.lg,
     padding: 24,
-    shadowOpacity: 0.13,
-    shadowRadius: 26,
-    elevation: 4
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.16,
+    shadowRadius: 30,
+    elevation: 5
   },
 
   secondaryCard: {
-    borderColor: "rgba(231, 222, 210, 0.82)",
-    borderRadius: radius.xl,
+    backgroundColor: "rgba(255, 253, 248, 0.88)",
+    borderColor: "rgba(231, 222, 210, 0.72)",
+    borderRadius: radius.lg,
     flexDirection: "row",
-    padding: spacing.lg,
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.025,
+    shadowRadius: 10,
     elevation: 1
   },
 
@@ -419,30 +496,36 @@ const local = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     justifyContent: "center",
-    height: 34,
-    width: 34
+    height: 32,
+    width: 32
   },
 
   rankBubblePrimary: {
     backgroundColor: premiumColors.olive,
     borderColor: premiumColors.olive,
-    height: 40,
-    width: 40
+    height: 48,
+    shadowColor: premiumColors.olive,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    width: 48
   },
 
   rankBubbleSecondary: {
-    backgroundColor: "rgba(200, 168, 90, 0.13)",
-    borderColor: "rgba(200, 168, 90, 0.35)"
+    backgroundColor: "rgba(200, 168, 90, 0.10)",
+    borderColor: "rgba(200, 168, 90, 0.26)"
   },
 
   rankText: {
-    color: premiumColors.text,
-    fontSize: 16,
+    color: premiumColors.textMuted,
+    fontSize: 15,
     fontWeight: "800"
   },
 
   rankTextPrimary: {
-    color: premiumColors.surface
+    color: premiumColors.surface,
+    fontSize: 20,
+    fontWeight: "900"
   },
 
   cardText: {
@@ -450,142 +533,102 @@ const local = StyleSheet.create({
   },
 
   cardTextPrimary: {
-    paddingTop: spacing.xs
+    paddingTop: spacing.xxs
   },
 
   dishName: {
     color: premiumColors.text,
-    fontWeight: "800"
+    fontWeight: "900"
   },
 
   dishNamePrimary: {
-    fontSize: 26,
-    lineHeight: 31
+    fontSize: 30,
+    lineHeight: 36
   },
 
   dishNameSecondary: {
-    fontSize: 17,
-    lineHeight: 22
+    fontSize: 18,
+    lineHeight: 23
   },
 
   translation: {
     color: premiumColors.textMuted,
     fontSize: 14,
     fontWeight: "600",
-    lineHeight: 19,
+    lineHeight: 20,
     marginBottom: spacing.xs,
-    marginTop: spacing.xxs
+    marginTop: spacing.xs
   },
 
   translationPrimary: {
     fontSize: 16,
-    lineHeight: 22,
-    marginTop: spacing.xs
+    lineHeight: 23,
+    marginTop: spacing.sm
   },
 
   price: {
     color: premiumColors.bordeaux,
     fontSize: 15,
-    fontWeight: "800",
-    marginTop: spacing.xxs
+    fontWeight: "900",
+    marginTop: spacing.sm
   },
 
   pricePrimary: {
     color: premiumColors.gold,
-    fontSize: 17,
-    marginTop: spacing.sm
-  },
-
-  factsBox: {
-    marginTop: spacing.sm,
-    padding: spacing.md
-  },
-
-  factsBoxPrimary: {
-    backgroundColor: "transparent",
-    borderColor: premiumColors.border,
-    borderRadius: 0,
-    borderTopWidth: 1,
-    marginTop: spacing.lg,
-    paddingHorizontal: 0,
-    paddingBottom: 0,
-    paddingTop: spacing.lg
-  },
-
-  factsBoxSecondary: {
-    backgroundColor: "transparent",
-    borderColor: premiumColors.border,
-    borderRadius: 0,
-    borderTopWidth: 1,
-    paddingHorizontal: 0,
-    paddingBottom: 0,
-    paddingTop: spacing.md
-  },
-
-  factsText: {
-    color: premiumColors.textMuted,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20
-  },
-
-  factsTextPrimary: {
-    color: premiumColors.text,
-    fontSize: 15,
-    lineHeight: 23
+    fontSize: 21,
+    marginTop: spacing.md
   },
 
   starterBox: {
-    borderRadius: radius.md,
-    marginTop: spacing.sm,
-    padding: spacing.md
+    backgroundColor: "transparent",
+    borderRadius: 0,
+    borderTopWidth: 1,
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg
   },
 
   starterBoxPrimary: {
-    backgroundColor: "rgba(38, 54, 37, 0.06)",
-    borderColor: "rgba(38, 54, 37, 0.12)",
-    borderWidth: 1,
+    borderColor: "rgba(200, 168, 90, 0.32)",
     marginTop: spacing.lg
   },
 
   starterBoxSecondary: {
-    backgroundColor: "rgba(250, 247, 241, 0.82)",
-    borderWidth: 0
+    borderColor: "rgba(231, 222, 210, 0.68)",
+    marginTop: spacing.md
   },
 
   starterLabel: {
-    color: premiumColors.bordeaux,
-    fontSize: 12,
+    color: premiumColors.olive,
+    fontSize: 13,
     fontWeight: "800",
-    lineHeight: 16,
-    marginBottom: spacing.xxs,
-    textTransform: "uppercase"
+    lineHeight: 18,
+    marginBottom: spacing.sm
   },
 
   starterName: {
     color: premiumColors.text,
-    fontSize: 14,
-    fontWeight: "800",
-    lineHeight: 19
+    fontSize: 16,
+    fontWeight: "900",
+    lineHeight: 21
   },
 
   starterTranslation: {
     color: premiumColors.textMuted,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
-    lineHeight: 18,
+    lineHeight: 20,
     marginTop: spacing.xxs
   },
 
   starterPrice: {
-    color: premiumColors.bordeaux,
-    fontSize: 13,
-    fontWeight: "800",
-    marginTop: spacing.xxs
+    color: premiumColors.gold,
+    fontSize: 15,
+    fontWeight: "900",
+    marginTop: spacing.sm
   },
 
   starterActionBox: {
-    marginTop: spacing.md
+    marginTop: spacing.lg
   },
 
   starterActionText: {
@@ -596,24 +639,64 @@ const local = StyleSheet.create({
     marginBottom: spacing.sm
   },
 
-  starterActionButton: {
+  premiumAction: {
+    alignItems: "center",
     borderRadius: radius.pill,
-    paddingVertical: spacing.md
-  },
-
-  primaryInlineAction: {
-    backgroundColor: "rgba(231, 222, 210, 0.68)"
-  },
-
-  acceptButton: {
-    borderRadius: radius.pill,
+    borderWidth: 1,
+    justifyContent: "center",
     marginTop: spacing.md,
-    paddingVertical: spacing.md
+    paddingHorizontal: spacing.xl,
+    paddingVertical: 15
   },
 
-  acceptButtonPrimary: {
-    backgroundColor: "rgba(200, 168, 90, 0.22)",
-    marginTop: spacing.lg
+  premiumActionPrimary: {
+    backgroundColor: premiumColors.olive,
+    borderColor: premiumColors.olive,
+    shadowColor: premiumColors.olive,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14
+  },
+
+  premiumActionPrimaryHero: {
+    marginTop: spacing.lg,
+    paddingVertical: 17
+  },
+
+  premiumActionSecondary: {
+    backgroundColor: "rgba(250, 247, 241, 0.62)",
+    borderColor: "rgba(116, 109, 100, 0.18)"
+  },
+
+  premiumActionSecondaryHero: {
+    backgroundColor: "rgba(231, 222, 210, 0.42)",
+    marginTop: spacing.sm
+  },
+
+  premiumActionPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.99 }]
+  },
+
+  premiumActionDisabled: {
+    opacity: 0.48
+  },
+
+  premiumActionText: {
+    fontSize: 15,
+    fontWeight: "900",
+    lineHeight: 20,
+    textAlign: "center"
+  },
+
+  premiumActionPrimaryText: {
+    color: premiumColors.surface
+  },
+
+  premiumActionSecondaryText: {
+    color: premiumColors.textMuted,
+    fontSize: 14,
+    fontWeight: "800"
   },
 
   ratingBox: {

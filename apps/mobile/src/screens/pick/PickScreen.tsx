@@ -22,6 +22,7 @@ type PickScreenProps = {
 };
 
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
+const RESULT_BOTTOM_SCROLL_INSET = 420;
 
 export function PickScreen({
   resetSignal = 0,
@@ -153,7 +154,11 @@ export function PickScreen({
 
   if (analyze.result) {
     return (
-      <Screen>
+      <Screen
+        bottomScrollInset={RESULT_BOTTOM_SCROLL_INSET}
+        contentContainerStyle={local.resultScreenContent}
+        scrollToTopKey="analysis-result"
+      >
         <RecommendationCard
           result={analyze.result}
           menuText={menuText}
@@ -166,6 +171,8 @@ export function PickScreen({
             <ActionButton label={content.pick.openMenu} variant="secondary" onPress={openAnalyzedMenu} />
           </View>
         ) : null}
+
+        <View pointerEvents="none" style={local.resultBottomSpacer} />
       </Screen>
     );
   }
@@ -272,6 +279,14 @@ export function PickScreen({
 }
 
 const local = StyleSheet.create({
+  resultScreenContent: {
+    paddingBottom: 640
+  },
+
+  resultBottomSpacer: {
+    height: 420
+  },
+
   quickRow: {
     flexDirection: "row",
     gap: spacing.sm,
