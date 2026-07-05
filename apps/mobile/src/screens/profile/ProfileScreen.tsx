@@ -12,7 +12,7 @@ import { env } from "../../config/env";
 import { resolveOutputLocale } from "../../config/outputLocales";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
-import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
+import { premiumColors, radius, semanticColors, spacing, typography } from "../../theme/tokens";
 
 export type ProfileSection = "general" | ProfileEditorSection;
 
@@ -86,6 +86,14 @@ export function ProfileScreen({
 
     return (
       <Screen>
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() => setActiveSection(null)}
+          style={local.backButton}
+        >
+          <Text style={local.backButtonText}>{content.profileScreen.backToProfile}</Text>
+        </Pressable>
         <ScreenHeader title={activeTitle} subtitle={activeSubtitle} />
         {activeSection === "general" ? (
           <View style={local.detailStack}>
@@ -244,6 +252,19 @@ function getDisplayName(type: "language" | "region", code: string | undefined, d
 const local = StyleSheet.create({
   detailStack: {
     gap: spacing.lg
+  },
+  backButton: {
+    alignSelf: "flex-start",
+    marginBottom: spacing.md,
+    paddingBottom: spacing.xxs,
+    paddingRight: spacing.md,
+    paddingTop: spacing.xxs
+  },
+  backButtonText: {
+    color: premiumColors.olive,
+    fontSize: 15,
+    fontWeight: "800",
+    lineHeight: 20
   },
   settingsList: {
     backgroundColor: semanticColors.surface,
