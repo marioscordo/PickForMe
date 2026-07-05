@@ -4,8 +4,16 @@
     "delete": "Löschen"
   },
   "navigation": {
+    "home": "Zu GustaroAI",
     "menu": "Speisekarte",
     "profile": "Profil"
+  },
+  "conciergeStart": {
+    "title": "Willkommen bei GustaroAI",
+    "subtitle": "Ich helfe Dir, aus der Speisekarte die passende Wahl zu treffen.",
+    "primaryAction": "Empfehlung aus Speisekarte",
+    "secondaryAction": "Mein Profil anpassen",
+    "note": "Dein Geschmack bleibt gespeichert."
   },
   "pick": {
     "heroTitle": "Was passt heute?",

@@ -1,41 +1,31 @@
-﻿import React, { useCallback, useState } from "react";
+﻿import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { LoginScreen } from "../../screens/auth/LoginScreen";
+import { ConciergeStartScreen } from "../../screens/home/ConciergeStartScreen";
 import { PickScreen } from "../../screens/pick/PickScreen";
 import { ProfileScreen, type ProfileSection } from "../../screens/profile/ProfileScreen";
 import type { AuthState } from "../../types/auth";
 import { styles } from "../../theme/styles";
 import { BottomTabs } from "./PickTabs";
 
+type RootTab = "home" | "pick" | "profile";
+
 export function RootNavigator({ auth }: { auth: AuthState }) {
-  const [activeTab, setActiveTab] = useState<"pick" | "profile">("pick");
+  const [activeTab, setActiveTab] = useState<RootTab>("home");
   const [activeProfileSection, setActiveProfileSection] = useState<ProfileSection | null>(null);
-  const [pickResetSignal, setPickResetSignal] = useState(0);
-  const [pickResultVisible, setPickResultVisible] = useState(false);
+  function openPickFromStart() {
+    setActiveProfileSection(null);
+    setActiveTab("pick");
+  }
 
-  const visibleActiveTab =
-    activeTab === "profile" && activeProfileSection
-      ? null
-      : activeTab === "pick" && pickResultVisible
-        ? null
-        : activeTab;
-
-  const handlePickResultVisibleChange = useCallback((visible: boolean) => {
-    setPickResultVisible(visible);
-  }, []);
-
-  function handleTabPress(tab: "pick" | "profile") {
-    if (tab === "pick") {
-      setActiveProfileSection(null);
-      if (activeTab === "pick" && pickResultVisible) {
-        setPickResetSignal((current) => current + 1);
-      }
-      setActiveTab("pick");
-      return;
-    }
-
+  function openProfileFromStart() {
     setActiveProfileSection(null);
     setActiveTab("profile");
+  }
+
+  function goHome() {
+    setActiveProfileSection(null);
+    setActiveTab("home");
   }
 
   if (auth.status === "anonymous") {
@@ -44,10 +34,16 @@ export function RootNavigator({ auth }: { auth: AuthState }) {
 
   return (
     <View style={styles.appShell}>
+      <View style={[styles.flex, activeTab !== "home" && local.hiddenScreen]}>
+        <ConciergeStartScreen
+          onOpenProfile={openProfileFromStart}
+          onStartRecommendation={openPickFromStart}
+        />
+      </View>
+
       <View style={[styles.flex, activeTab !== "pick" && local.hiddenScreen]}>
         <PickScreen
-          resetSignal={pickResetSignal}
-          onResultVisibleChange={handlePickResultVisibleChange}
+          onGoHome={goHome}
         />
       </View>
 
@@ -55,7 +51,9 @@ export function RootNavigator({ auth }: { auth: AuthState }) {
         <ProfileScreen activeSection={activeProfileSection} setActiveSection={setActiveProfileSection} />
       </View>
 
-      <BottomTabs activeTab={visibleActiveTab} setActiveTab={handleTabPress} />
+      {activeTab === "home" ? null : (
+        <BottomTabs onGoHome={goHome} />
+      )}
     </View>
   );
 }

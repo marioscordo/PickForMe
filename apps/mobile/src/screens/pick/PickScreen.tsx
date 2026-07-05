@@ -17,16 +17,14 @@ import { radius, semanticColors, spacing, typography } from "../../theme/tokens"
 import type { Situation, UserProfile } from "../../types/profile";
 
 type PickScreenProps = {
-  resetSignal?: number;
-  onResultVisibleChange?: (visible: boolean) => void;
+  onGoHome?: () => void;
 };
 
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
 const RESULT_BOTTOM_SCROLL_INSET = 420;
 
 export function PickScreen({
-  resetSignal = 0,
-  onResultVisibleChange
+  onGoHome
 }: PickScreenProps) {
   const content = useMobileContent();
   const { profile } = useProfile();
@@ -38,17 +36,6 @@ export function PickScreen({
   const analyze = useAnalyzeMenu();
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
   const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
-
-  useEffect(() => {
-    onResultVisibleChange?.(Boolean(analyze.result));
-  }, [analyze.result, onResultVisibleChange]);
-
-  useEffect(() => {
-    if (resetSignal === 0) return;
-    analyze.reset();
-    setShowQrScanner(false);
-    setShowRestaurantDiscovery(false);
-  }, [resetSignal]);
 
   useEffect(() => {
     if (!analyze.loading) {
@@ -213,6 +200,7 @@ export function PickScreen({
       <RestaurantDiscoveryDialog
         visible={showRestaurantDiscovery}
         onClose={closeRestaurantDiscovery}
+        onGoHome={onGoHome}
         onApply={applyDiscoveredMenuUrl}
       />
 

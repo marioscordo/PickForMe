@@ -15,6 +15,7 @@ import {
   resolveSelectedRestaurantSource,
   type RestaurantCandidate
 } from "../../gustaroai/restaurantDiscoveryRoutine";
+import { BottomTabs } from "../../app/navigation/PickTabs";
 import { useMobileContent } from "../../content/useMobileContent";
 import { radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import { ActionButton } from "../ui/ActionButton";
@@ -22,6 +23,7 @@ import { Screen } from "../ui/Screen";
 import { Surface } from "../ui/Surface";
 
 type RestaurantDiscoveryDialogProps = {
+  onGoHome?: () => void;
   visible: boolean;
   onClose: () => void;
   onApply: (menuUrl: string) => void;
@@ -29,7 +31,7 @@ type RestaurantDiscoveryDialogProps = {
 
 const DOUBLE_TAP_WINDOW_MS = 500;
 
-export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: RestaurantDiscoveryDialogProps) {
+export function RestaurantDiscoveryDialog({ visible, onClose, onGoHome, onApply }: RestaurantDiscoveryDialogProps) {
   const content = useMobileContent();
   const copy = content.restaurantDiscovery;
   const [restaurantName, setRestaurantName] = useState("");
@@ -143,10 +145,16 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
     onApply(nextMenuUrl);
   }
 
+  function goHomeFromDialog() {
+    closeDialog();
+    onGoHome?.();
+  }
+
   return (
     <Modal animationType="slide" visible={visible} onRequestClose={closeDialog}>
-      <Screen>
-        <Text style={local.title}>{copy.title}</Text>
+      <View style={local.modalShell}>
+        <Screen>
+          <Text style={local.title}>{copy.title}</Text>
 
         <Surface style={local.panel}>
           <Text style={local.label}>{copy.restaurantNameLabel}</Text>
@@ -232,12 +240,18 @@ export function RestaurantDiscoveryDialog({ visible, onClose, onApply }: Restaur
             />
           </View>
         </Surface>
-      </Screen>
+        </Screen>
+
+        {onGoHome ? <BottomTabs onGoHome={goHomeFromDialog} /> : null}
+      </View>
     </Modal>
   );
 }
 
 const local = StyleSheet.create({
+  modalShell: {
+    flex: 1
+  },
   title: {
     color: semanticColors.text,
     fontSize: typography.screenTitle.fontSize,
