@@ -120,7 +120,7 @@
     "chevron": ">",
     "activeStatus": "{count} active",
     "emptyStatus": "not set",
-    "generalIcon": "*",
+    "generalIcon": "\u2699\uFE0F",
     "generalButton": "General",
     "backToProfile": "< Profile",
     "preferencesButton": "My preferences",
@@ -141,7 +141,7 @@
   "outputLocale": {
     "label": "Output language",
     "menuTitle": "Output language",
-    "chevron": "v"
+    "chevron": "\u2304"
   },
   "profileEditor": {
     "introTitle": "Tell me briefly what I should watch for",
@@ -178,10 +178,10 @@
     "deleteIntoleranceMessage": "\"{value}\" will be permanently removed from your allergies/intolerances.",
     "deleteExceptionTitle": "Delete exception?",
     "deleteExceptionMessage": "\"{value}\" will be permanently removed from your exceptions.",
-    "preferenceValueIcon": "+",
-    "exclusionValueIcon": "-",
-    "intoleranceValueIcon": "!",
-    "exceptionValueIcon": "ok",
+    "preferenceValueIcon": "\uD83D\uDC4D",
+    "exclusionValueIcon": "\uD83D\uDC4E",
+    "intoleranceValueIcon": "\uD83D\uDEAB",
+    "exceptionValueIcon": "\u2713",
     "preferenceOptions": [
       {
         "label": "Meat",
@@ -275,10 +275,22 @@
       }
     ],
     "quickExceptions": [
-      "Muscheln in Weißweinsoße",
-      "Muscheln in Tomatensoße",
-      "Garnelen als Vorspeise",
-      "Fisch ohne Gräten"
+      {
+        "label": "Mussels in white wine sauce",
+        "value": "Muscheln in Weißweinsoße"
+      },
+      {
+        "label": "Mussels in tomato sauce",
+        "value": "Muscheln in Tomatensoße"
+      },
+      {
+        "label": "Shrimp as a starter",
+        "value": "Garnelen als Vorspeise"
+      },
+      {
+        "label": "Fish without bones",
+        "value": "Fisch ohne Gräten"
+      }
     ],
     "allergyOptions": [
       {

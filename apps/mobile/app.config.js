@@ -29,6 +29,8 @@ module.exports = {
         : "com.marioscordo.gustaroai.dev",
 
       infoPlist: {
+        CFBundleDevelopmentRegion: "de",
+        CFBundleLocalizations: ["de", "en"],
         NSCameraUsageDescription: cameraUsageDescription,
         NSLocationWhenInUseUsageDescription: locationWhenInUseUsageDescription,
         ITSAppUsesNonExemptEncryption: false,
@@ -62,6 +64,7 @@ module.exports = {
 
     plugins: [
       ...(!IS_PROD ? ["expo-dev-client"] : []),
+      "expo-localization",
       [
         "expo-camera",
         {

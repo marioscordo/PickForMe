@@ -1,33 +1,23 @@
-import { NativeModules, Platform } from "react-native";
+import { getLocales } from "expo-localization";
 import type { GuiLanguage } from "./mobileContent";
 
-type I18nManagerSettings = {
-  localeIdentifier?: string;
-};
-
-type SettingsManagerSettings = {
-  AppleLanguages?: string[];
-  AppleLocale?: string;
-};
-
 export function resolveGuiLanguageFromDevice(): GuiLanguage {
-  const preferredDeviceLanguage = getFirstPreferredDeviceLanguage();
-  const normalized = preferredDeviceLanguage.toLowerCase();
+  const locales = getLocales().flatMap((locale) => [locale.languageTag, locale.languageCode]);
 
-  if (normalized.startsWith("de")) return "de-DE";
-  if (normalized.startsWith("en")) return "en-US";
-
-  return "en-US";
+  return resolveSupportedGuiLanguage(locales) ?? "en-US";
 }
 
-function getFirstPreferredDeviceLanguage() {
-  if (Platform.OS === "ios") {
-    const settings = (NativeModules.SettingsManager?.settings ?? {}) as SettingsManagerSettings;
-    const firstPreferredLanguage = settings.AppleLanguages?.[0];
+export function resolveSupportedGuiLanguage(locales: Array<string | null | undefined>): GuiLanguage | undefined {
+  for (const locale of locales) {
+    const normalized = normalizeLocale(locale);
 
-    return firstPreferredLanguage || settings.AppleLocale || "";
+    if (normalized.startsWith("de")) return "de-DE";
+    if (normalized.startsWith("en")) return "en-US";
   }
 
-  const i18nSettings = (NativeModules.I18nManager ?? {}) as I18nManagerSettings;
-  return i18nSettings.localeIdentifier || "";
+  return undefined;
+}
+
+function normalizeLocale(locale: string | null | undefined) {
+  return (locale ?? "").replace(/_/g, "-").trim().toLowerCase();
 }

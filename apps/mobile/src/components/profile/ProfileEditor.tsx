@@ -36,7 +36,7 @@ export function ProfileEditor({
   const editor = content.profileEditor;
   const preferenceOptions = editor.preferenceOptions as PreferenceOption[];
   const quickExclusions = editor.quickExclusions as ValueOption[];
-  const quickExceptions = editor.quickExceptions;
+  const quickExceptions = editor.quickExceptions as ValueOption[];
   const allergyOptions = editor.allergyOptions as ValueOption[];
   const normalDietPreferenceValues = editor.normalDietPreferenceValues;
   const exclusiveDietPreferenceValues = editor.exclusiveDietPreferenceValues;
@@ -61,6 +61,11 @@ export function ProfileEditor({
   const quickPreferenceValues = preferenceOptions.map((option) => option.value);
   const quickExclusionValues = quickExclusions.map((option) => optionValue(option));
   const quickIntoleranceValues = allergyOptions.map((option) => optionValue(option));
+  const quickExceptionValues = quickExceptions.map((option) => optionValue(option));
+  const preferenceLabels = createOptionLabelMap(preferenceOptions);
+  const exclusionLabels = createOptionLabelMap(quickExclusions);
+  const intoleranceLabels = createOptionLabelMap(allergyOptions);
+  const exceptionLabels = createOptionLabelMap(quickExceptions);
 
   const visiblePreferenceOptions = preferenceOptions.filter(
     (option) => !includesValue(hiddenPreferences, option.value)
@@ -90,12 +95,12 @@ export function ProfileEditor({
   ]).filter((value) => !includesValue(hiddenIntolerances, value));
 
   const visibleQuickExceptions = quickExceptions.filter(
-    (value) => !includesValue(hiddenExceptions, value)
+    (option) => !includesValue(hiddenExceptions, optionValue(option))
   );
 
   const visibleCustomExceptionValues = uniqueValues([
     ...customExceptions,
-    ...exceptions.filter((value) => !includesValue(quickExceptions, value))
+    ...exceptions.filter((value) => !includesValue(quickExceptionValues, value))
   ]).filter((value) => !includesValue(hiddenExceptions, value));
 
   function updateProfile(patch: Partial<UserProfile>) {
@@ -155,6 +160,7 @@ export function ProfileEditor({
 
   function deleteDietStyle() {
     const value = profile.dietStyle;
+    const displayValue = displayPreferenceValue(value);
 
     if (value === "normal") {
       return;
@@ -162,7 +168,7 @@ export function ProfileEditor({
 
     confirmDelete(
       editor.deletePreferenceTitle,
-      formatContent(editor.deletePreferenceMessage, { value }),
+      formatContent(editor.deletePreferenceMessage, { value: displayValue }),
       () =>
         updateProfile({
           dietStyle: "normal",
@@ -173,10 +179,11 @@ export function ProfileEditor({
 
   function deletePreference(value: string) {
     const isQuick = includesValue(quickPreferenceValues, value);
+    const displayValue = displayPreferenceValue(value);
 
     confirmDelete(
       editor.deletePreferenceTitle,
-      formatContent(editor.deletePreferenceMessage, { value }),
+      formatContent(editor.deletePreferenceMessage, { value: displayValue }),
       () =>
         updateProfile({
           primaryLikes: removeValue(profile.primaryLikes, value),
@@ -212,10 +219,11 @@ export function ProfileEditor({
 
   function deleteExclusion(value: string) {
     const isQuick = includesValue(quickExclusionValues, value);
+    const displayValue = displayExclusionValue(value);
 
     confirmDelete(
       editor.deleteExclusionTitle,
-      formatContent(editor.deleteExclusionMessage, { value }),
+      formatContent(editor.deleteExclusionMessage, { value: displayValue }),
       () =>
         updateProfile({
           dislikes: removeValue(profile.dislikes, value),
@@ -251,10 +259,11 @@ export function ProfileEditor({
 
   function deleteIntolerance(value: string) {
     const isQuick = includesValue(quickIntoleranceValues, value);
+    const displayValue = displayIntoleranceValue(value);
 
     confirmDelete(
       editor.deleteIntoleranceTitle,
-      formatContent(editor.deleteIntoleranceMessage, { value }),
+      formatContent(editor.deleteIntoleranceMessage, { value: displayValue }),
       () =>
         updateProfile({
           intolerances: removeValue(profile.intolerances, value),
@@ -277,7 +286,7 @@ export function ProfileEditor({
       return;
     }
 
-    const isQuick = includesValue(quickExceptions, value);
+    const isQuick = includesValue(quickExceptionValues, value);
 
     updateProfile({
       exceptions: addUnique(exceptions, value),
@@ -289,11 +298,12 @@ export function ProfileEditor({
   }
 
   function deleteException(value: string) {
-    const isQuick = includesValue(quickExceptions, value);
+    const isQuick = includesValue(quickExceptionValues, value);
+    const displayValue = displayExceptionValue(value);
 
     confirmDelete(
       editor.deleteExceptionTitle,
-      formatContent(editor.deleteExceptionMessage, { value }),
+      formatContent(editor.deleteExceptionMessage, { value: displayValue }),
       () =>
         updateProfile({
           exceptions: removeValue(exceptions, value),
@@ -301,6 +311,22 @@ export function ProfileEditor({
           hiddenExceptions: isQuick ? addUnique(hiddenExceptions, value) : hiddenExceptions
         })
     );
+  }
+
+  function displayPreferenceValue(value: string) {
+    return optionMapLabel(preferenceLabels, value);
+  }
+
+  function displayExclusionValue(value: string) {
+    return optionMapLabel(exclusionLabels, value);
+  }
+
+  function displayIntoleranceValue(value: string) {
+    return optionMapLabel(intoleranceLabels, value);
+  }
+
+  function displayExceptionValue(value: string) {
+    return optionMapLabel(exceptionLabels, value);
   }
 
   return (
@@ -336,7 +362,7 @@ export function ProfileEditor({
           {visibleCustomPreferenceValues.map((value) => (
             <Chip
               key={value}
-              label={value}
+              label={displayPreferenceValue(value)}
               icon={editor.preferenceValueIcon}
               active={profile.primaryLikes.includes(value)}
               onPress={() => toggleLike(value)}
@@ -367,11 +393,22 @@ export function ProfileEditor({
             <Text style={styles.label}>{editor.deleteActivePreferencesLabel}</Text>
             <View style={styles.chipRow}>
               {profile.dietStyle !== "normal" ? (
-                <Chip label={profile.dietStyle} icon={editor.preferenceValueIcon} active onPress={deleteDietStyle} />
+                <Chip
+                  label={displayPreferenceValue(profile.dietStyle)}
+                  icon={editor.preferenceValueIcon}
+                  active
+                  onPress={deleteDietStyle}
+                />
               ) : null}
 
               {profile.primaryLikes.map((value) => (
-                <Chip key={value} label={value} icon={editor.preferenceValueIcon} active onPress={() => deletePreference(value)} />
+                <Chip
+                  key={value}
+                  label={displayPreferenceValue(value)}
+                  icon={editor.preferenceValueIcon}
+                  active
+                  onPress={() => deletePreference(value)}
+                />
               ))}
             </View>
           </View>
@@ -401,7 +438,7 @@ export function ProfileEditor({
           {visibleCustomExclusionValues.map((value) => (
             <Chip
               key={value}
-              label={value}
+              label={displayExclusionValue(value)}
               icon={editor.exclusionValueIcon}
               active={profile.dislikes.includes(value)}
               onPress={() => toggleDislike(value)}
@@ -432,7 +469,13 @@ export function ProfileEditor({
             <Text style={styles.label}>{editor.deleteActiveExclusionsLabel}</Text>
             <View style={styles.chipRow}>
               {profile.dislikes.map((value) => (
-                <Chip key={value} label={value} icon={editor.exclusionValueIcon} active onPress={() => deleteExclusion(value)} />
+                <Chip
+                  key={value}
+                  label={displayExclusionValue(value)}
+                  icon={editor.exclusionValueIcon}
+                  active
+                  onPress={() => deleteExclusion(value)}
+                />
               ))}
             </View>
           </View>
@@ -445,20 +488,24 @@ export function ProfileEditor({
           </Text>
 
           <View style={styles.chipRow}>
-            {visibleQuickExceptions.map((value) => (
-              <Chip
-                key={value}
-                label={value}
-                icon={editor.exceptionValueIcon}
-                active={exceptions.includes(value)}
-                onPress={() => toggleException(value)}
-              />
-            ))}
+            {visibleQuickExceptions.map((option) => {
+              const value = optionValue(option);
+
+              return (
+                <Chip
+                  key={value}
+                  label={optionLabel(option)}
+                  icon={editor.exceptionValueIcon}
+                  active={exceptions.includes(value)}
+                  onPress={() => toggleException(value)}
+                />
+              );
+            })}
 
             {visibleCustomExceptionValues.map((value) => (
               <Chip
                 key={value}
-                label={value}
+                label={displayExceptionValue(value)}
                 icon={editor.exceptionValueIcon}
                 active={exceptions.includes(value)}
                 onPress={() => toggleException(value)}
@@ -486,7 +533,13 @@ export function ProfileEditor({
               <Text style={styles.label}>{editor.deleteActiveExceptionsLabel}</Text>
               <View style={styles.chipRow}>
                 {exceptions.map((value) => (
-                  <Chip key={value} label={value} icon={editor.exceptionValueIcon} active onPress={() => deleteException(value)} />
+                  <Chip
+                    key={value}
+                    label={displayExceptionValue(value)}
+                    icon={editor.exceptionValueIcon}
+                    active
+                    onPress={() => deleteException(value)}
+                  />
                 ))}
               </View>
             </View>
@@ -521,7 +574,7 @@ export function ProfileEditor({
           {visibleCustomIntoleranceValues.map((value) => (
             <Chip
               key={value}
-              label={value}
+              label={displayIntoleranceValue(value)}
               icon={editor.intoleranceValueIcon}
               active={profile.intolerances.includes(value)}
               onPress={() => toggleIntolerance(value)}
@@ -552,7 +605,13 @@ export function ProfileEditor({
             <Text style={styles.label}>{editor.deleteActiveIntolerancesLabel}</Text>
             <View style={styles.chipRow}>
               {profile.intolerances.map((value) => (
-                <Chip key={value} label={value} icon={editor.intoleranceValueIcon} active onPress={() => deleteIntolerance(value)} />
+                <Chip
+                  key={value}
+                  label={displayIntoleranceValue(value)}
+                  icon={editor.intoleranceValueIcon}
+                  active
+                  onPress={() => deleteIntolerance(value)}
+                />
               ))}
             </View>
           </View>
@@ -569,6 +628,14 @@ function optionLabel(option: ValueOption) {
 
 function optionValue(option: ValueOption) {
   return typeof option === "string" ? option : option.value;
+}
+
+function createOptionLabelMap(options: ValueOption[]) {
+  return new Map(options.map((option) => [normalizeValue(optionValue(option)), optionLabel(option)]));
+}
+
+function optionMapLabel(labels: Map<string, string>, value: string) {
+  return labels.get(normalizeValue(value)) ?? value;
 }
 
 function labelWithIcon(value: string, icon: string) {
@@ -592,11 +659,15 @@ function includesValue(values: string[], value: string) {
 }
 
 function sameValue(a: string, b: string) {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
+  return normalizeValue(a) === normalizeValue(b);
 }
 
 function uniqueValues(values: string[]) {
   return values.reduce<string[]>((result, value) => {
     return includesValue(result, value) ? result : [...result, value];
   }, []);
+}
+
+function normalizeValue(value: string) {
+  return value.trim().toLowerCase();
 }

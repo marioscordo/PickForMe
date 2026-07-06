@@ -275,10 +275,22 @@
       }
     ],
     "quickExceptions": [
-      "Muscheln in Weißweinsoße",
-      "Muscheln in Tomatensoße",
-      "Garnelen als Vorspeise",
-      "Fisch ohne Gräten"
+      {
+        "label": "Muscheln in Weißweinsoße",
+        "value": "Muscheln in Weißweinsoße"
+      },
+      {
+        "label": "Muscheln in Tomatensoße",
+        "value": "Muscheln in Tomatensoße"
+      },
+      {
+        "label": "Garnelen als Vorspeise",
+        "value": "Garnelen als Vorspeise"
+      },
+      {
+        "label": "Fisch ohne Gräten",
+        "value": "Fisch ohne Gräten"
+      }
     ],
     "allergyOptions": [
       {

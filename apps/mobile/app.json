@@ -15,7 +15,14 @@
     "ios": {
       "bundleIdentifier": "com.marioscordo.gustaroai",
       "buildNumber": "1.0.11",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "de",
+        "CFBundleLocalizations": [
+          "de",
+          "en"
+        ]
+      }
     },
     "android": {
       "package": "com.marioscordo.gustaroai",
@@ -28,6 +35,9 @@
         "backgroundColor": "#071B4A"
       }
     },
+    "plugins": [
+      "expo-localization"
+    ],
     "extra": {
       "eas": {
         "projectId": "7f45f9ad-456e-4ba2-b7c7-16c4edf44358"
