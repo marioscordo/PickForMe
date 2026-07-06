@@ -1,10 +1,11 @@
-import * as Location from "expo-location";
 import { createAppleMapsRestaurantDetectorProvider } from "./providers/appleMaps";
 import { getNativeRestaurantDetectorModule } from "./nativeRestaurantDetectorModule";
 import type { RestaurantDetectorRuntime } from "./types";
+import type * as ExpoLocation from "expo-location";
 
 export const appleMapsRestaurantDetectorRuntime: RestaurantDetectorRuntime = {
   async getCurrentLocation() {
+    const Location = await import("expo-location") as typeof ExpoLocation;
     const permission = await Location.requestForegroundPermissionsAsync();
     if (permission.status !== Location.PermissionStatus.GRANTED) {
       throw new Error("LOCATION_PERMISSION_DENIED");

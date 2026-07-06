@@ -12,6 +12,7 @@ import { ActionButton } from "../../components/ui/ActionButton";
 import { Surface } from "../../components/ui/Surface";
 import { useMobileContent } from "../../content/useMobileContent";
 import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
+import { appleMapsRestaurantDetectorRuntime } from "../../restaurant-detector/runtime";
 import { premiumColors, radius, spacing, typography } from "../../theme/tokens";
 import type { Situation, UserProfile } from "../../types/profile";
 
@@ -205,6 +206,7 @@ export function PickScreen({
         onClose={closeRestaurantDiscovery}
         onGoHome={onGoHome}
         onApply={applyDiscoveredMenuUrl}
+        restaurantDetector={appleMapsRestaurantDetectorRuntime}
       />
 
       {showQrScanner ? (
