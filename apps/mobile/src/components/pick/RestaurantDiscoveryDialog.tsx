@@ -21,11 +21,11 @@ import { radius, semanticColors, spacing, typography } from "../../theme/tokens"
 import { ActionButton } from "../ui/ActionButton";
 import { Screen } from "../ui/Screen";
 import { Surface } from "../ui/Surface";
-import {
-  detectRestaurant,
-  type RestaurantCandidate as DetectedRestaurantCandidate,
-  type RestaurantDetectorRuntime
-} from "../../restaurant-detector";
+import { detectRestaurant } from "../../restaurant-detector/detectRestaurant";
+import type {
+  RestaurantCandidate as DetectedRestaurantCandidate,
+  RestaurantDetectorRuntime
+} from "../../restaurant-detector/types";
 
 type RestaurantDiscoveryDialogProps = {
   onGoHome?: () => void;
@@ -223,6 +223,8 @@ export function RestaurantDiscoveryDialog({
           <Text style={local.title}>{copy.title}</Text>
 
         <Surface style={local.panel}>
+          {restaurantDetector ? (
+            <>
           <ActionButton
             label={loadingDetector ? copy.loading : copy.detectNearbyButton}
             onPress={detectNearbyRestaurant}
@@ -249,11 +251,13 @@ export function RestaurantDiscoveryDialog({
                   <Text style={local.candidateMeta}>
                     {[item.address, formatDetectorDistance(item.distanceMeters), copy.detectorConfirmHint]
                       .filter(Boolean)
-                      .join(" · ")}
+                      .join(" - ")}
                   </Text>
                 </Pressable>
               )}
             />
+          ) : null}
+            </>
           ) : null}
 
           <Text style={local.label}>{copy.restaurantNameLabel}</Text>
@@ -300,7 +304,7 @@ export function RestaurantDiscoveryDialog({
                 style={[local.candidate, selectedCandidate?.id === item.id && local.candidateSelected]}
               >
                 <Text style={local.candidateName}>{item.name}</Text>
-                <Text style={local.candidateMeta}>{[item.address, item.websiteUrl].filter(Boolean).join(" Â· ")}</Text>
+                <Text style={local.candidateMeta}>{[item.address, item.websiteUrl].filter(Boolean).join(" - ")}</Text>
               </Pressable>
             )}
           />
