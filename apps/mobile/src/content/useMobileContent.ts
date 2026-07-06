@@ -1,9 +1,7 @@
 import { useMemo } from "react";
-import { useProfile } from "../app/providers/ProfileProvider";
 import { getMobileContent } from "./mobileContent";
+import { resolveGuiLanguageFromDevice } from "./guiLanguage";
 
 export function useMobileContent() {
-  const { profile } = useProfile();
-
-  return useMemo(() => getMobileContent(profile.outputLocale), [profile.outputLocale]);
+  return useMemo(() => getMobileContent(resolveGuiLanguageFromDevice()), []);
 }

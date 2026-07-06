@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useProfile } from "../app/providers/ProfileProvider";
 import { PickForMeApiError } from "../api/apiClient";
 import { analyzeMenu } from "../api/pickformeApi";
-import { getMobileContent, type MobileContent } from "../content/mobileContent";
+import { useMobileContent } from "../content/useMobileContent";
+import type { MobileContent } from "../content/mobileContent";
 import type { Situation } from "../types/profile";
 import type { AnalyzeData } from "../types/recommendations";
 
@@ -66,7 +67,7 @@ function getAnalyzeMenuErrorMessage(error: unknown, content: MobileContent): str
 
 export function useAnalyzeMenu() {
   const { profile } = useProfile();
-  const content = useMemo(() => getMobileContent(profile.outputLocale), [profile.outputLocale]);
+  const content = useMobileContent();
   const [result, setResult] = useState<AnalyzeData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

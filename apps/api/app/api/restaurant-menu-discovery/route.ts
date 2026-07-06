@@ -4,11 +4,15 @@ import { z } from "zod";
 import { requireUser } from "../../../src/auth/requireUser";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
+import { loadMenuTextFromUrl } from "../../../src/menu/loadMenuTextFromUrl";
+import { parseMenu } from "../../../src/menu/parseMenu";
 
 const MENU_DISCOVERY_TIMEOUT_MS = 20000;
 const PAGE_SOURCE_FETCH_TIMEOUT_MS = 4500;
 const PDF_LINK_FETCH_TIMEOUT_MS = 4500;
 const MAX_SOURCE_LINKS_TO_CHECK = 12;
+const MAX_LINKED_MENU_ANALYSIS_CANDIDATES = 8;
+const MIN_ANALYZABLE_MENU_TEXT_LENGTH = 120;
 const MAX_LIKELY_ORIGINS_TO_CHECK = 14;
 const SOURCE_FETCH_HEADERS = {
   Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.2",
@@ -354,14 +358,90 @@ async function verifyOfficialMenuUrl(candidateUrl: string, websiteUrl: string) {
   const normalizedWebsiteUrl = normalizeOfficialUrl(websiteUrl);
   if (!normalizedUrl || !normalizedWebsiteUrl) return "";
   if (sameUrlWithoutTrailingSlash(normalizedUrl, normalizedWebsiteUrl)) return "";
-  if (getRegistrableDomain(normalizedUrl) !== getRegistrableDomain(normalizedWebsiteUrl)) return "";
+  const websiteDomain = getRegistrableDomain(normalizedWebsiteUrl);
+  if (getRegistrableDomain(normalizedUrl) !== websiteDomain) return "";
 
   const reachableUrl = looksLikePdfUrl(normalizedUrl)
     ? await verifyReachablePdfUrl(normalizedUrl)
     : await verifyReachablePageUrl(normalizedUrl);
 
   if (!reachableUrl) return "";
-  return getRegistrableDomain(reachableUrl) === getRegistrableDomain(normalizedWebsiteUrl) ? reachableUrl : "";
+  if (getRegistrableDomain(reachableUrl) !== websiteDomain) return "";
+
+  const analyzableUrl = await verifyAnalyzableMenuUrl(reachableUrl, websiteDomain);
+  return analyzableUrl;
+}
+
+async function verifyAnalyzableMenuUrl(candidateUrl: string, expectedDomain: string): Promise<string> {
+  const normalizedUrl = normalizeOfficialUrl(candidateUrl);
+  if (!normalizedUrl) return "";
+  if (getRegistrableDomain(normalizedUrl) !== expectedDomain) return "";
+
+  if (await isDirectlyAnalyzableMenuUrl(normalizedUrl)) {
+    return normalizedUrl;
+  }
+
+  if (looksLikePdfUrl(normalizedUrl)) {
+    return "";
+  }
+
+  const linkedMenuUrl = await findLinkedAnalyzableMenuUrl(normalizedUrl, expectedDomain);
+  return linkedMenuUrl;
+}
+
+async function isDirectlyAnalyzableMenuUrl(candidateUrl: string) {
+  try {
+    const menuText = await loadMenuTextFromUrl(candidateUrl);
+    return isAnalyzableMenuText(menuText);
+  } catch {
+    return false;
+  }
+}
+
+function isAnalyzableMenuText(menuText: string) {
+  const trimmed = menuText.trim();
+  if (trimmed.length < MIN_ANALYZABLE_MENU_TEXT_LENGTH) return false;
+
+  return parseMenu(trimmed).filter((dish) => dish.itemType !== "drink").length >= 2;
+}
+
+async function findLinkedAnalyzableMenuUrl(pageUrl: string, expectedDomain: string) {
+  const source = await loadPageSource(pageUrl);
+  if (!source) return "";
+  if (getRegistrableDomain(source.finalUrl) !== expectedDomain) return "";
+
+  const candidateUrls = extractSourceLinks(source.html, source.finalUrl)
+    .map((link) => link.url)
+    .filter((url) => getRegistrableDomain(url) === expectedDomain)
+    .filter((url) => !sameUrlWithoutTrailingSlash(url, pageUrl))
+    .filter(looksLikeMenuSourceUrl);
+
+  for (const candidateUrl of uniqueStrings(candidateUrls).slice(0, MAX_LINKED_MENU_ANALYSIS_CANDIDATES)) {
+    const reachableUrl = looksLikePdfUrl(candidateUrl)
+      ? await verifyReachablePdfUrl(candidateUrl)
+      : await verifyReachablePageUrl(candidateUrl);
+
+    if (!reachableUrl) continue;
+    if (getRegistrableDomain(reachableUrl) !== expectedDomain) continue;
+    if (await isDirectlyAnalyzableMenuUrl(reachableUrl)) {
+      return reachableUrl;
+    }
+  }
+
+  return "";
+}
+
+function looksLikeMenuSourceUrl(value: string) {
+  if (looksLikePdfUrl(value)) return true;
+
+  try {
+    const url = new URL(value);
+    const normalized = normalizeMenuProbeText(`${url.pathname} ${url.search}`);
+    return ["menu", "menue", "speisekarte", "karte", "carta", "carte", "food", "dining", "gourmetkarte"]
+      .some((term) => normalized.includes(term));
+  } catch {
+    return false;
+  }
 }
 
 async function verifyReachablePdfUrl(candidateUrl: string) {

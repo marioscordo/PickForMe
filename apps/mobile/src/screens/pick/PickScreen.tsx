@@ -88,12 +88,10 @@ export function PickScreen({
   }
 
   function closeRestaurantDiscovery() {
-    resetAnalysisState();
     setShowRestaurantDiscovery(false);
   }
 
   function applyDiscoveredMenuUrl(value: string) {
-    resetAnalysisState();
     setMenuText(value);
     setShowQrScanner(false);
     setShowRestaurantDiscovery(false);

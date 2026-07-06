@@ -18,6 +18,7 @@ import { findLinkedMenuImageUrls, looksLikeImageUrl } from "../../../src/menu/fi
 import { loadMenuTextFromMenury, looksLikeMenuryUrl } from "../../../src/menu/loadMenuTextFromMenury";
 import { loadRestaurantDescriptionFromOrigin } from "../../../src/restaurant/extractRestaurantDescription";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
+import { blockReasonForRecommendation } from "../../../src/profile/profileRules";
 import type { AnalyzeMenuRequest } from "../../../src/types/api";
 import type { MenuExtractionResult } from "../../../src/menu/extraction/types";
 import type { RestaurantDescriptionResult } from "../../../src/restaurant/extractRestaurantDescription";
@@ -148,9 +149,23 @@ export async function POST(request: Request) {
           })
         });
 
-        const recommendations = await localizeRecommendationsForPayload({
+        const allergySafeRecommendations = applyAllergySafetyGate({
           dishes: aiResult.dishes,
           recommendations: aiResult.recommendations,
+          profile
+        });
+
+        if (allergySafeRecommendations.length === 0) {
+          throw new AppError(
+            422,
+            "NO_SAFE_RECOMMENDATIONS",
+            "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+          );
+        }
+
+        const recommendations = await localizeRecommendationsForPayload({
+          dishes: aiResult.dishes,
+          recommendations: allergySafeRecommendations,
           userLocale: outputLocale
         });
 
@@ -238,9 +253,23 @@ export async function POST(request: Request) {
           })
         });
 
-        const recommendations = await localizeRecommendationsForPayload({
+        const allergySafeRecommendations = applyAllergySafetyGate({
           dishes: aiResult.dishes,
           recommendations: aiResult.recommendations,
+          profile
+        });
+
+        if (allergySafeRecommendations.length === 0) {
+          throw new AppError(
+            422,
+            "NO_SAFE_RECOMMENDATIONS",
+            "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+          );
+        }
+
+        const recommendations = await localizeRecommendationsForPayload({
+          dishes: aiResult.dishes,
+          recommendations: allergySafeRecommendations,
           userLocale: outputLocale
         });
 
@@ -366,9 +395,24 @@ export async function POST(request: Request) {
             })
           });
 
-          const recommendations = await localizeRecommendationsForPayload({
+          const allergySafeRecommendations = applyAllergySafetyGate({
             dishes: aiResult.dishes,
             recommendations: aiResult.recommendations,
+            profile
+          });
+
+          if (allergySafeRecommendations.length === 0) {
+            throw new AppError(
+              422,
+              "NO_SAFE_RECOMMENDATIONS",
+              "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
+              buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
+            );
+          }
+
+          const recommendations = await localizeRecommendationsForPayload({
+            dishes: aiResult.dishes,
+            recommendations: allergySafeRecommendations,
             userLocale: outputLocale
           });
 
@@ -465,9 +509,23 @@ export async function POST(request: Request) {
             })
           });
 
-          const recommendations = await localizeRecommendationsForPayload({
+          const allergySafeRecommendations = applyAllergySafetyGate({
             dishes: aiResult.dishes,
             recommendations: aiResult.recommendations,
+            profile
+          });
+
+          if (allergySafeRecommendations.length === 0) {
+            throw new AppError(
+              422,
+              "NO_SAFE_RECOMMENDATIONS",
+              "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+            );
+          }
+
+          const recommendations = await localizeRecommendationsForPayload({
+            dishes: aiResult.dishes,
+            recommendations: allergySafeRecommendations,
             userLocale: outputLocale
           });
 
@@ -579,9 +637,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const localizedRecommendations = await localizeRecommendationsForPayload({
+    const allergySafeRecommendations = applyAllergySafetyGate({
       dishes,
       recommendations,
+      profile
+    });
+
+    if (allergySafeRecommendations.length === 0) {
+      const partialData = buildPartialAnalysisPayload(localizedRestaurantDescription, htmlMenuExtraction, dishes);
+
+      if (partialData) {
+        return NextResponse.json({
+          ok: true,
+          data: partialData
+        });
+      }
+
+      throw new AppError(
+        422,
+        "NO_SAFE_RECOMMENDATIONS",
+        "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
+        buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
+      );
+    }
+
+    const localizedRecommendations = await localizeRecommendationsForPayload({
+      dishes,
+      recommendations: allergySafeRecommendations,
       userLocale: outputLocale
     });
 
@@ -622,6 +704,61 @@ async function localizeRecommendationsForPayload(
 
     return stripUnsafeRecommendationTranslations(input.recommendations, input.dishes, input.userLocale);
   }
+}
+
+function applyAllergySafetyGate({
+  dishes,
+  recommendations,
+  profile
+}: {
+  dishes: Dish[];
+  recommendations: Recommendation[];
+  profile: AnalyzeMenuRequest["profile"];
+}) {
+  const activeIntolerances = [
+    ...stringArrayValue(profile.intolerances),
+    ...stringArrayValue(profile.customIntolerances)
+  ];
+
+  if (activeIntolerances.length === 0) {
+    return recommendations;
+  }
+
+  const intoleranceOnlyProfile = {
+    intolerances: activeIntolerances,
+    exceptions: profile.exceptions
+  };
+  const dishesById = new Map(dishes.map((dish) => [dish.id, dish]));
+
+  return recommendations.filter((recommendation) => {
+    const dish = dishesById.get(recommendation.dishId);
+
+    if (!dish) {
+      return false;
+    }
+
+    return !blockReasonForRecommendation(
+      {
+        nameOriginal: dish.nameOriginal,
+        descriptionOriginal: dish.descriptionOriginal,
+        category: dish.category,
+        itemType: dish.itemType,
+        dishRole: dish.dishRole,
+        mealType: dish.mealType,
+        substanceLevel: dish.substanceLevel,
+        isMainCourseCandidate: dish.isMainCourseCandidate,
+        isLightDishCandidate: dish.isLightDishCandidate,
+        classificationConfidence: dish.classificationConfidence,
+        sourceLine: dish.sourceLine,
+        evidence: recommendation.facts
+      },
+      intoleranceOnlyProfile
+    );
+  });
+}
+
+function stringArrayValue(values?: string[]) {
+  return Array.isArray(values) ? values.filter((value) => value.trim().length > 0) : [];
 }
 
 function stripUnsafeRecommendationTranslations(

@@ -1,0 +1,348 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "delete": "Delete"
+  },
+  "navigation": {
+    "home": "To GustaroAI",
+    "menu": "Menu",
+    "profile": "Profile"
+  },
+  "conciergeStart": {
+    "title": "Welcome to GustaroAI",
+    "subtitle": "I help you choose from the menu with confidence.",
+    "primaryAction": "Recommendation from menu",
+    "secondaryAction": "Adjust my profile",
+    "note": "Your taste stays saved."
+  },
+  "pick": {
+    "heroTitle": "What fits today?",
+    "heroSubtitle": "Show me the menu. I will find something that fits you.",
+    "pasteTab": "Paste",
+    "qrTab": "QR code",
+    "moodTitle": "What are you in the mood for?",
+    "loadingTitle": "I am finding something good for you",
+    "loadingSteps": [
+      "I am reading the menu ...",
+      "I am recognizing the dishes ...",
+      "I am matching them with your profile ...",
+      "I am choosing suitable recommendations ..."
+    ],
+    "errorTitle": "Menu could not be evaluated safely",
+    "mainButtonIdle": "Find something for me",
+    "mainButtonLoading": "I am looking at the menu ...",
+    "openMenu": "Open menu",
+    "findMenuButton": "Find menu"
+  },
+  "menuInput": {
+    "kicker": "Send me the menu",
+    "title": "Paste",
+    "hint": "Link, PDF, or text. I will take care of the rest.",
+    "placeholder": "Paste a link or menu text..."
+  },
+  "qrScanner": {
+    "title": "Scan QR code",
+    "preparing": "Preparing camera...",
+    "permissionText": "GustaroAI needs the camera to scan menu QR codes.",
+    "allowCamera": "Allow camera",
+    "instruction": "Point the camera at the menu QR code.",
+    "close": "Close scanner"
+  },
+  "permissions": {
+    "camera": "GustaroAI needs the camera to scan menu QR codes.",
+    "location": "GustaroAI uses your location only when you actively search for a restaurant nearby."
+  },
+  "allergyWarning": {
+    "title": "Important note about allergies and intolerances",
+    "message": "You have entered allergies or intolerances. GustaroAI helps you choose dishes, but it does not replace medical advice or asking the restaurant staff.\n\nInformation may be incomplete or incorrect. Please check every dish yourself and do not rely only on the app.\n\nRecommendations can only be shown after you confirm this note.",
+    "confirmButton": "Confirm",
+    "rejectButton": "Do not confirm - delete recommendations",
+    "logFailedTitle": "Note could not be confirmed",
+    "logFailedMessage": "Please try again. Recommendations will only be shown after the note is confirmed."
+  },
+  "login": {
+    "title": "Welcome back",
+    "subtitle": "I know your preferences. Sign in and I will find something suitable again.",
+    "cardTitle": "Your access",
+    "emailLabel": "Email",
+    "emailPlaceholder": "name@example.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Password",
+    "continueButton": "Continue to GustaroAI",
+    "genericError": "Login failed."
+  },
+  "authErrors": {
+    "devNotConfigured": "Dev access is not configured.",
+    "devNotAllowed": "This access is not enabled.",
+    "loginFailed": "Login failed. Please check email and password.",
+    "accountDeleteDevUnavailable": "Account deletion is not available in the local test access.",
+    "accountDeleteFailed": "Account and data could not be deleted right now. Please try again later.",
+    "missingProvider": "useAuth must be used inside AuthProvider."
+  },
+  "situations": [
+    {
+      "value": "richtig_hunger",
+      "label": "Really hungry"
+    },
+    {
+      "value": "leicht",
+      "label": "Something light"
+    },
+    {
+      "value": "neues_probieren",
+      "label": "Try something new"
+    },
+    {
+      "value": "sicher",
+      "label": "Play it safe"
+    }
+  ],
+  "recommendation": {
+    "restaurantTitle": "About the restaurant",
+    "fallbackTitle": "This fits you today",
+    "fallbackText": "I am putting the recognized dishes into context for your moment.",
+    "warningTitle": "Important note",
+    "unsafeKicker": "This is too uncertain",
+    "unsafeTitle": "I cannot recommend anything from this reliably",
+    "unsafeText": "Please show me a clearer menu or paste the menu text.",
+    "resetButton": "Show a new menu",
+    "fallbackDishName": "Dish",
+    "starterLabel": "As a starter",
+    "starterSearchButton": "Find a matching starter?",
+    "starterSearchLoading": "I am looking for a matching starter...",
+    "starterSearchError": "I cannot safely choose a starter right now.",
+    "acceptButton": "I will take this",
+    "ratingTitle": "Did that fit well?",
+    "savedText": "I will remember this: {rating} out of 5 stars."
+  },
+  "profileScreen": {
+    "title": "Profile",
+    "chevron": ">",
+    "activeStatus": "{count} active",
+    "emptyStatus": "not set",
+    "generalIcon": "*",
+    "generalButton": "General",
+    "backToProfile": "< Profile",
+    "preferencesButton": "My preferences",
+    "exclusionsButton": "My exclusions",
+    "intolerancesButton": "Allergies and intolerances",
+    "subtitle": "GustaroAI remembers what matters to you - without a questionnaire.",
+    "signOut": "Sign out",
+    "deleteAccount": "Delete account and data",
+    "deleteAccountLoading": "Deleting account ...",
+    "deleteAccountConfirmTitle": "Delete account?",
+    "deleteAccountConfirmText": "Your account and saved GustaroAI data will be permanently deleted.",
+    "deleteAccountConfirmAction": "Delete permanently",
+    "deleteAccountFailed": "Account and data could not be deleted right now. Please try again later.",
+    "privacyPolicy": "Privacy",
+    "support": "Support",
+    "legalLinkFailed": "The link could not be opened right now."
+  },
+  "outputLocale": {
+    "label": "Output language",
+    "menuTitle": "Output language",
+    "chevron": "v"
+  },
+  "profileEditor": {
+    "introTitle": "Tell me briefly what I should watch for",
+    "introSubtitle": "Everything is optional. GustaroAI uses it immediately for better recommendations.",
+    "preferencesTitle": "My preferences",
+    "preferencesHint": "What GustaroAI should prefer in recommendations.",
+    "addPreferenceLabel": "Add preference",
+    "addPreferencePlaceholder": "e.g. steak, sushi, high-protein ...",
+    "addPreferenceButton": "Add preference",
+    "deleteActivePreferencesLabel": "Delete active preferences",
+    "exclusionsTitle": "My exclusions",
+    "exclusionsHint": "What GustaroAI must not recommend.",
+    "addExclusionLabel": "Add exclusion",
+    "addExclusionPlaceholder": "e.g. garlic, caraway, lamb ...",
+    "addExclusionButton": "Add exclusion",
+    "deleteActiveExclusionsLabel": "Delete active exclusions",
+    "exceptionsLabel": "Exceptions",
+    "exceptionsHint": "If an exclusion is too broad: what is still allowed?",
+    "addExceptionPlaceholder": "e.g. mussels in tomato sauce ...",
+    "addExceptionButton": "Add exception",
+    "deleteActiveExceptionsLabel": "Delete active exceptions",
+    "intolerancesTitle": "Allergies & intolerances",
+    "intolerancesHint": "These ingredients are considered especially strictly.",
+    "safetyHint": "Important note: GustaroAI helps you choose dishes based on your allergy and intolerance information. The app does not replace medical advice or asking the restaurant staff. Information may be incomplete or incorrect. Please check every dish yourself and do not rely only on the app. If you have known allergies or intolerances, you must check every dish yourself.",
+    "addIntoleranceLabel": "Add intolerance",
+    "addIntolerancePlaceholder": "e.g. histamine, onions, fructose ...",
+    "addIntoleranceButton": "Add intolerance",
+    "deleteActiveIntolerancesLabel": "Delete active intolerances",
+    "deletePreferenceTitle": "Delete preference?",
+    "deletePreferenceMessage": "\"{value}\" will be permanently removed from your preferences.",
+    "deleteExclusionTitle": "Delete exclusion?",
+    "deleteExclusionMessage": "\"{value}\" will be permanently removed from your exclusions.",
+    "deleteIntoleranceTitle": "Delete intolerance?",
+    "deleteIntoleranceMessage": "\"{value}\" will be permanently removed from your allergies/intolerances.",
+    "deleteExceptionTitle": "Delete exception?",
+    "deleteExceptionMessage": "\"{value}\" will be permanently removed from your exceptions.",
+    "preferenceValueIcon": "+",
+    "exclusionValueIcon": "-",
+    "intoleranceValueIcon": "!",
+    "exceptionValueIcon": "ok",
+    "preferenceOptions": [
+      {
+        "label": "Meat",
+        "value": "Fleisch",
+        "kind": "like"
+      },
+      {
+        "label": "Fish",
+        "value": "Fisch",
+        "kind": "like"
+      },
+      {
+        "label": "Vegetarian",
+        "value": "vegetarisch",
+        "kind": "diet"
+      },
+      {
+        "label": "Vegan",
+        "value": "vegan",
+        "kind": "diet"
+      },
+      {
+        "label": "Spicy",
+        "value": "Scharf",
+        "kind": "like"
+      },
+      {
+        "label": "Large portions",
+        "value": "Große Portionen",
+        "kind": "like"
+      },
+      {
+        "label": "Affordable",
+        "value": "Günstig",
+        "kind": "like"
+      },
+      {
+        "label": "High-protein",
+        "value": "Proteinreich",
+        "kind": "like"
+      }
+    ],
+    "normalDietPreferenceValues": [
+      "Fleisch",
+      "Fisch"
+    ],
+    "exclusiveDietPreferenceValues": [
+      "vegetarisch",
+      "vegan"
+    ],
+    "quickExclusions": [
+      {
+        "label": "Pork",
+        "value": "Kein Schweinefleisch"
+      },
+      {
+        "label": "Alcohol in food",
+        "value": "Kein Alkohol im Essen"
+      },
+      {
+        "label": "Beef",
+        "value": "Kein Rindfleisch"
+      },
+      {
+        "label": "Lamb",
+        "value": "Kein Lamm"
+      },
+      {
+        "label": "Seafood",
+        "value": "Keine Meeresfrüchte"
+      },
+      {
+        "label": "Mushrooms",
+        "value": "Keine Pilze"
+      },
+      {
+        "label": "Cilantro",
+        "value": "Kein Koriander"
+      },
+      {
+        "label": "Offal",
+        "value": "Keine Innereien"
+      },
+      {
+        "label": "Fish with bones",
+        "value": "Kein Grätenfisch"
+      },
+      {
+        "label": "Liver",
+        "value": "Keine Leber"
+      }
+    ],
+    "quickExceptions": [
+      "Muscheln in Weißweinsoße",
+      "Muscheln in Tomatensoße",
+      "Garnelen als Vorspeise",
+      "Fisch ohne Gräten"
+    ],
+    "allergyOptions": [
+      {
+        "label": "Lactose",
+        "value": "Laktose"
+      },
+      {
+        "label": "Gluten",
+        "value": "Gluten"
+      },
+      {
+        "label": "Nuts",
+        "value": "Nüsse"
+      },
+      {
+        "label": "Egg",
+        "value": "Ei"
+      },
+      {
+        "label": "Soy",
+        "value": "Soja"
+      },
+      {
+        "label": "Celery",
+        "value": "Sellerie"
+      },
+      {
+        "label": "Fructose",
+        "value": "Fructose"
+      }
+    ]
+  },
+  "analysisErrors": {
+    "unsafeProfile": "I could not evaluate this menu safely with your current profile.",
+    "generic": "I could not evaluate this menu safely.",
+    "auth": "Your session is not active. Please sign in again or reload the app.",
+    "devAuth": "The local test access is not active. Please restart app and API.",
+    "apiConnection": "I cannot reach the API right now. Please check whether the local server is running.",
+    "dynamicMenuUnsupported": "This digital menu platform is not supported in V1 yet. Please use a PDF menu or paste the menu text.",
+    "menuUrlLoadFailed": "This menu could not be loaded. Please check the link or use a PDF menu.",
+    "aiRateLimit": "I cannot evaluate the menu right now. Please try again in a moment.",
+    "menuTooShort": "Please paste a menu or scan a QR code.",
+    "sourceKindUnsupported": "This kind of menu is not supported in V1 yet.",
+    "pdfAiDisabled": "PDF menus require AI mode.",
+    "noDishesFound": "I could not recognize any dishes in this input yet."
+  },
+  "restaurantDiscovery": {
+    "title": "Find menu",
+    "detectNearbyButton": "Detect restaurant nearby",
+    "detectorConfirmHint": "tap to apply",
+    "detectorApplied": "Restaurant applied. Please check the details and then start the search.",
+    "detectorLowConfidence": "I could not detect the restaurant safely. Please choose a result or search manually.",
+    "detectorFailed": "Location search is not available right now. Please search for the restaurant manually.",
+    "detectorUnavailable": "Location search is not connected in this app version yet. Please search manually.",
+    "restaurantNameLabel": "Restaurant name",
+    "cityLabel": "City",
+    "showButton": "Show",
+    "restaurantOutputLabel": "Restaurant",
+    "menuButton": "Menu",
+    "linkOutputLabel": "Link",
+    "applyButton": "Apply",
+    "backButton": "back",
+    "loading": "Please wait...",
+    "noResults": "No results found",
+    "noMenuUrl": "No evaluable menu link found. Please paste a link, text, or photo manually"
+  }
+}

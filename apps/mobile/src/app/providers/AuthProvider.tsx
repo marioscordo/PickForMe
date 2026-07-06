@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { deleteAccount as deleteAccountRequest } from "../../api/pickformeApi";
 import { env } from "../../config/env";
 import { getMobileContent } from "../../content/mobileContent";
+import { resolveGuiLanguageFromDevice } from "../../content/guiLanguage";
 import { supabase } from "../../services/supabaseClient";
 import type { AuthState } from "../../types/auth";
 
@@ -13,7 +14,7 @@ type AuthContextValue = {
   deleteAccount: () => Promise<void>;
 };
 
-const authContent = getMobileContent(undefined).authErrors;
+const authContent = getMobileContent(resolveGuiLanguageFromDevice()).authErrors;
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

@@ -1,16 +1,17 @@
 import deDEContent from "./mobileContent.de-DE.json";
-import { resolveOutputLocale } from "../config/outputLocales";
+import enUSContent from "./mobileContent.en-US.json";
+
+export type GuiLanguage = "de-DE" | "en-US";
 
 const contentByLocale = {
-  "de-DE": deDEContent
+  "de-DE": deDEContent,
+  "en-US": enUSContent
 } as const;
 
 export type MobileContent = typeof deDEContent;
 
-export function getMobileContent(outputLocale: string | undefined): MobileContent {
-  const locale = resolveOutputLocale(outputLocale);
-
-  return contentByLocale[locale as keyof typeof contentByLocale] ?? deDEContent;
+export function getMobileContent(guiLanguage: GuiLanguage = "de-DE"): MobileContent {
+  return contentByLocale[guiLanguage] ?? enUSContent;
 }
 
 export function formatContent(template: string, values: Record<string, string | number>) {
