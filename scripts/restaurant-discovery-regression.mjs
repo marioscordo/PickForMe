@@ -19,10 +19,48 @@ const textAiFacts = read("apps/api/src/ai/extractMenuFactsFromTextAI.ts");
 const analyzeRoute = read("apps/api/app/api/analyze-menu/route.ts");
 const content = JSON.parse(read("apps/mobile/src/content/mobileContent.de-DE.json"));
 
+function extractStyleNumber(source, styleName, propertyName) {
+  const styleMatch = new RegExp(`${styleName}:\\s*{([\\s\\S]*?)\\n\\s*}`, "m").exec(source);
+  if (!styleMatch) return null;
+
+  const propertyMatch = new RegExp(`${propertyName}:\\s*(\\d+)`).exec(styleMatch[1]);
+  return propertyMatch ? Number(propertyMatch[1]) : null;
+}
+
+function extractFunctionBody(source, functionName) {
+  const start = source.indexOf(`function ${functionName}(`);
+  if (start < 0) return "";
+
+  const openBrace = source.indexOf("{", start);
+  if (openBrace < 0) return "";
+
+  let depth = 0;
+  for (let index = openBrace; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(openBrace + 1, index);
+      }
+    }
+  }
+
+  return "";
+}
+
+const baseInputHeight = extractStyleNumber(menuInput, "textArea", "height");
+const compactInputHeight = extractStyleNumber(menuInput, "textAreaCompact", "height");
+const compactInputMaxHeight = extractStyleNumber(menuInput, "textAreaCompact", "maxHeight");
+const closeRestaurantDiscoveryBody = extractFunctionBody(pickScreen, "closeRestaurantDiscovery");
+const applyDiscoveredMenuUrlBody = extractFunctionBody(pickScreen, "applyDiscoveredMenuUrl");
+
 assert(content.pick.findMenuButton === "Speisekarte finden", "Button text missing");
 assert(pickScreen.includes("content.pick.findMenuButton"), "PickScreen does not render discovery button");
 assert(pickScreen.includes("<MenuInputCard menuText={menuText} setMenuText={setMenuText} compact />"), "Menu input is not compacted");
-assert(menuInput.includes("textAreaCompact") && menuInput.includes("height: 68"), "Compact input height missing");
+assert(menuInput.includes("textAreaCompact"), "Compact input style missing");
+assert(baseInputHeight && compactInputHeight, "Menu input heights missing");
+assert(compactInputHeight < baseInputHeight, "Compact input height is not smaller than default input height");
+assert(compactInputMaxHeight === compactInputHeight, "Compact input maxHeight must match compact height");
 assert(dialog.includes("generateRestaurantCandidates") && dialog.includes("showCandidates"), "Candidate search binding missing");
 assert(dialog.includes("gustaroaiRestaurantDiscoveryProvider"), "Dialog does not use GustaroAI backend discovery provider");
 assert(mobileApi.includes('"/api/restaurant-discovery"'), "Mobile API does not call restaurant discovery backend");
@@ -54,9 +92,11 @@ assert(content.restaurantDiscovery.noMenuUrl === "Kein auswertbarer Speisekarten
 assert(dialog.includes("const nextMenuUrl = menuUrl") && dialog.includes("onApply(nextMenuUrl)"), "Apply does not preserve and return the menu URL");
 assert(dialog.includes("resetDialogState()") && dialog.includes("sessionIdRef.current += 1"), "Dialog state reset/session invalidation missing");
 assert(dialog.includes("onRequestClose={closeDialog}") && dialog.includes("onPress={closeDialog}") && content.restaurantDiscovery.backButton === "zur\u00fcck", "Back flow reset missing");
-assert(pickScreen.includes("function resetAnalysisState()") && pickScreen.includes("setLastAnalyzedMenuUrl(\"\")"), "Discovery exit does not reset analysis state");
+assert(pickScreen.includes("function resetAnalysisState()") && pickScreen.includes("setLastAnalyzedMenuUrl(\"\")"), "Explicit analysis reset function missing");
+assert(closeRestaurantDiscoveryBody && !closeRestaurantDiscoveryBody.includes("resetAnalysisState"), "Closing discovery must preserve existing analysis state");
+assert(applyDiscoveredMenuUrlBody && !applyDiscoveredMenuUrlBody.includes("resetAnalysisState"), "Applying discovered menu URL must preserve existing analysis state until a new analysis starts");
 assert(routine.includes("gustaroai-api"), "GustaroAI backend provider missing");
-assert(/async loadCandidateLinks\(candidate\) {\s+if \(candidate\.menuUrl\) {\s+return \[\{ url: candidate\.menuUrl, kind: "menu" \}\];\s+}\s+return \[\];\s+},/.test(routine), "GustaroAI backend provider must not bypass backend analyzability checks with local crawling");
+assert(routine.includes("const result = await discoverRestaurantMenu(candidate)") && routine.includes("return result.menuUrl ? [{ url: result.menuUrl, kind: \"menu\" }] : []"), "GustaroAI backend provider must use backend menu discovery instead of local crawling");
 assert(routine.includes("getRegistrableDomain(menuUrl) !== websiteDomain"), "Same-domain guard missing");
 assert(routine.includes("kind !== \"menu\""), "Structured menu kind guard missing");
 
