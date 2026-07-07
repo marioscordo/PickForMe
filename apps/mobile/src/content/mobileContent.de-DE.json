@@ -340,6 +340,8 @@
   },
   "restaurantDiscovery": {
     "title": "Speisekarte finden",
+    "searchCardTitle": "Restaurant finden",
+    "applyCardTitle": "Speisekarte übernehmen",
     "detectNearbyButton": "Restaurant in meiner Nähe erkennen",
     "detectorConfirmHint": "antippen zum Übernehmen",
     "detectorApplied": "Restaurant übernommen. Bitte prüfe die Angaben und starte dann die Suche.",

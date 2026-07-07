@@ -340,6 +340,8 @@
   },
   "restaurantDiscovery": {
     "title": "Find menu",
+    "searchCardTitle": "Find restaurant",
+    "applyCardTitle": "Apply menu",
     "detectNearbyButton": "Detect restaurant nearby",
     "detectorConfirmHint": "tap to apply",
     "detectorApplied": "Restaurant applied. Please check the details and then start the search.",
