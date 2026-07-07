@@ -1,8 +1,9 @@
 import { Dimensions, Image, Platform, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMobileContent } from "../../content/useMobileContent";
 import { premiumColors, radius } from "../../theme/tokens";
 
-const conciergeImage = require("../../../assets/concierge/gustaroai-concierge-premium.png");
+const conciergeImage = require("../../../assets/concierge/gustaroai-concierge-premium-fade.png");
 
 const BASE_WIDTH = 393;
 
@@ -38,12 +39,8 @@ export function ConciergeStartScreen({
         <View style={local.card}>
           <View style={local.topAccent}>
             <View style={local.accentLine} />
-            <View style={local.chefBadge}>
-              <View style={local.chefBubbleLeft} />
-              <View style={local.chefBubbleCenter} />
-              <View style={local.chefBubbleRight} />
-              <View style={local.chefBase} />
-              <Text style={local.chefStar}>{"\u2605"}</Text>
+            <View style={local.headerIcon}>
+              <MaterialCommunityIcons color={premiumPalette.gold} name="chef-hat" size={s(29)} />
             </View>
             <View style={local.accentLine} />
           </View>
@@ -53,7 +50,10 @@ export function ConciergeStartScreen({
           </View>
 
           <View style={local.textBlock}>
-            <Text style={local.title}>{content.conciergeStart.title}</Text>
+            <View style={local.titleWrap}>
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={local.titleLineTop}>Willkommen bei</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9} style={local.titleLineBrand}>GustaroAI</Text>
+            </View>
             <View style={local.titleAccent}>
               <View style={local.titleLine} />
               <Text style={local.titleStar}>{"\u2605"}</Text>
@@ -64,15 +64,15 @@ export function ConciergeStartScreen({
 
           <View style={local.actions}>
             <Pressable accessibilityRole="button" onPress={onStartRecommendation} style={({ pressed }) => [local.primaryButton, pressed ? local.pressed : null]}>
-              <Text style={local.primaryIcon}>{"\u{1F37D}"}</Text>
+              <View style={local.primaryIcon}><MaterialCommunityIcons color={premiumPalette.gold} name="room-service-outline" size={s(28)} /></View>
               <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.86} style={local.primaryButtonText}>{content.conciergeStart.primaryAction}</Text>
-              <Text style={local.primaryChevron}>{"\u203A"}</Text>
+              <Feather color={premiumPalette.body} name="chevron-right" size={s(28)} style={local.primaryChevron} />
             </Pressable>
 
             <Pressable accessibilityRole="button" onPress={onOpenProfile} style={({ pressed }) => [local.secondaryButton, pressed ? local.pressed : null]}>
-              <Text style={local.secondaryIcon}>{"\u{1F464}"}</Text>
+              <View style={local.secondaryIcon}><Feather color="#AA7C1E" name="user" size={s(25)} /></View>
               <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={local.secondaryButtonText}>{content.conciergeStart.secondaryAction}</Text>
-              <Text style={local.secondaryChevron}>{"\u203A"}</Text>
+              <Feather color={premiumPalette.body} name="chevron-right" size={s(30)} style={local.secondaryChevron} />
             </Pressable>
           </View>
 
@@ -105,21 +105,21 @@ const local = StyleSheet.create({
   screen: {
     backgroundColor: premiumPalette.background,
     flex: 1,
-    paddingBottom: s(10),
-    paddingHorizontal: s(16),
-    paddingTop: s(10)
+    paddingBottom: s(8),
+    paddingHorizontal: s(12),
+    paddingTop: s(8)
   },
   card: {
     alignItems: "center",
     backgroundColor: premiumPalette.surface,
     borderColor: premiumPalette.goldBorder,
-    borderRadius: s(28),
+    borderRadius: s(30),
     borderWidth: 1,
     flex: 1,
     overflow: "hidden",
     paddingBottom: s(10),
-    paddingHorizontal: s(24),
-    paddingTop: s(22),
+    paddingHorizontal: s(16),
+    paddingTop: s(18),
     shadowColor: "#6F5522",
     shadowOffset: { width: 0, height: s(16) },
     shadowOpacity: 0.1,
@@ -130,18 +130,20 @@ const local = StyleSheet.create({
     alignSelf: "stretch",
     flexDirection: "row",
     justifyContent: "center",
-    marginBottom: s(5)
+    marginBottom: s(0)
   },
   accentLine: {
     backgroundColor: premiumPalette.gold,
     flex: 1,
     height: 1,
-    opacity: 0.75
+    opacity: 0.62
   },
-  chefBadge: {
-    height: s(34),
-    marginHorizontal: s(18),
-    width: s(34)
+  headerIcon: {
+    alignItems: "center",
+    height: s(30),
+    justifyContent: "center",
+    marginHorizontal: s(15),
+    width: s(30)
   },
   chefBubbleLeft: {
     borderColor: premiumPalette.gold,
@@ -193,38 +195,52 @@ const local = StyleSheet.create({
   imageStage: {
     alignItems: "center",
     alignSelf: "stretch",
-    height: s(324),
+    height: s(258),
     justifyContent: "flex-start",
-    marginBottom: s(3),
+    marginBottom: s(0),
     overflow: "visible",
     zIndex: 0
   },
   conciergeImage: {
     aspectRatio: 1086 / 1448,
-    height: s(438),
-    marginTop: s(-11)
+    height: s(350),
+    marginTop: s(-2)
   },
   textBlock: {
     alignItems: "center",
-    zIndex: 2,
     alignSelf: "stretch",
-    marginBottom: s(11)
+    marginBottom: s(8),
+    marginTop: s(34),
+    zIndex: 2
   },
-  title: {
+  titleWrap: {
+    alignItems: "center",
+    alignSelf: "stretch"
+  },
+  titleLineTop: {
     color: premiumPalette.olive,
     fontFamily: premiumFont,
-    fontSize: fs(33),
+    fontSize: fs(34),
     fontWeight: "700",
     letterSpacing: 0,
-    lineHeight: fs(38),
+    lineHeight: fs(40),
+    textAlign: "center"
+  },
+  titleLineBrand: {
+    color: premiumPalette.olive,
+    fontFamily: premiumFont,
+    fontSize: fs(38),
+    fontWeight: "700",
+    letterSpacing: 0,
+    lineHeight: fs(44),
     textAlign: "center"
   },
   titleAccent: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
-    marginBottom: s(7),
-    marginTop: s(7)
+    marginBottom: s(6),
+    marginTop: s(4)
   },
   titleLine: {
     backgroundColor: premiumPalette.gold,
@@ -239,45 +255,42 @@ const local = StyleSheet.create({
   },
   subtitle: {
     color: premiumPalette.body,
-    fontSize: fs(13),
+    fontSize: fs(16),
     fontWeight: "500",
-    lineHeight: fs(17),
-    maxWidth: s(298),
+    lineHeight: fs(23),
+    maxWidth: s(302),
     textAlign: "center"
   },
   actions: {
     alignSelf: "stretch",
-    gap: s(9),
-    marginBottom: s(9)
+    gap: s(10),
+    marginBottom: s(8)
   },
   primaryButton: {
     alignItems: "center",
-    backgroundColor: premiumPalette.olive,
+    backgroundColor: "rgba(255, 253, 248, 0.82)",
+    borderColor: premiumPalette.goldBorder,
     borderRadius: radius.pill,
+    borderWidth: 1,
     flexDirection: "row",
-    minHeight: s(54),
-    paddingHorizontal: s(15),
-    shadowColor: "#172316",
-    shadowOffset: { width: 0, height: s(10) },
-    shadowOpacity: 0.24,
-    shadowRadius: s(16)
+    minHeight: s(62),
+    paddingHorizontal: s(16),
+    shadowColor: "#6F5522",
+    shadowOffset: { width: 0, height: s(8) },
+    shadowOpacity: 0.1,
+    shadowRadius: s(14)
   },
   primaryButtonText: {
-    color: premiumPalette.white,
+    color: premiumPalette.olive,
     flex: 1,
     fontFamily: premiumFont,
     fontSize: fs(18),
     fontWeight: "700",
-    lineHeight: fs(20),
+    lineHeight: fs(21),
     marginLeft: s(9),
     textAlign: "center"
   },
   primaryChevron: {
-    color: premiumPalette.white,
-    fontSize: fs(32),
-    fontWeight: "300",
-    lineHeight: fs(34),
-    textAlign: "center",
     width: s(30)
   },
   secondaryButton: {
@@ -287,8 +300,8 @@ const local = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     flexDirection: "row",
-    minHeight: s(54),
-    paddingHorizontal: s(19)
+    minHeight: s(58),
+    paddingHorizontal: s(18)
   },
   secondaryButtonText: {
     color: premiumPalette.olive,
@@ -296,34 +309,27 @@ const local = StyleSheet.create({
     fontFamily: premiumFont,
     fontSize: fs(18),
     fontWeight: "700",
-    lineHeight: fs(20),
+    lineHeight: fs(21),
     marginLeft: s(9)
   },
   secondaryChevron: {
-    color: premiumPalette.body,
-    fontSize: fs(32),
-    fontWeight: "300",
-    lineHeight: fs(34)
+    width: s(30)
   },
   note: {
     color: premiumPalette.body,
     fontSize: fs(13),
     fontWeight: "500",
-    lineHeight: fs(17),
+    lineHeight: fs(18),
     textAlign: "center"
   },
   primaryIcon: {
-    color: premiumPalette.gold,
-    fontSize: fs(22),
-    lineHeight: fs(24),
-    textAlign: "center",
+    alignItems: "center",
+    justifyContent: "center",
     width: s(30)
   },
   secondaryIcon: {
-    color: premiumPalette.gold,
-    fontSize: fs(22),
-    lineHeight: fs(24),
-    textAlign: "center",
+    alignItems: "center",
+    justifyContent: "center",
     width: s(30)
   },
   pressed: {
