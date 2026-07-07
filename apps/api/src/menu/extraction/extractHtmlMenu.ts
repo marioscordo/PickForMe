@@ -3,6 +3,7 @@ import type {
   MenuExtractionItem,
   MenuExtractionResult
 } from "./types";
+import { applyCategoryRoleMetadataToDish } from "../categoryRoleRules";
 import htmlCategoryTaxonomy from "./htmlCategoryTaxonomy.json";
 import type {
   Dish,
@@ -254,22 +255,26 @@ export function htmlMenuExtractionToMenuText(result: MenuExtractionResult): stri
 }
 
 export function htmlMenuExtractionToDishes(result: MenuExtractionResult): Dish[] {
-  return result.items.map((item, index) => ({
-    id: `dish_${String(index + 1).padStart(3, "0")}`,
-    nameOriginal: item.title,
-    descriptionOriginal: item.description,
-    price: parsePrice(item.price),
-    category: item.sourceCategory ?? item.category,
-    sourceFormat: item.sourceFormat,
-    sourceCategory: item.sourceCategory ?? item.category,
-    dishRole: item.dishRole,
-    mealType: item.mealType,
-    substanceLevel: item.substanceLevel,
-    isMainCourseCandidate: item.isMainCourseCandidate,
-    isLightDishCandidate: item.isLightDishCandidate,
-    classificationConfidence: item.classificationConfidence,
-    sourceLine: item.sourceText
-  }));
+  return result.items.map((item, index) => {
+    const sourceCategory = item.sourceCategory ?? item.category;
+
+    return applyCategoryRoleMetadataToDish({
+      id: `dish_${String(index + 1).padStart(3, "0")}`,
+      nameOriginal: item.title,
+      descriptionOriginal: item.description,
+      price: parsePrice(item.price),
+      category: sourceCategory,
+      sourceFormat: item.sourceFormat,
+      sourceCategory,
+      dishRole: item.dishRole,
+      mealType: item.mealType,
+      substanceLevel: item.substanceLevel,
+      isMainCourseCandidate: item.isMainCourseCandidate,
+      isLightDishCandidate: item.isLightDishCandidate,
+      classificationConfidence: item.classificationConfidence,
+      sourceLine: item.sourceText
+    });
+  });
 }
 
 function htmlToLines(html: string): string[] {

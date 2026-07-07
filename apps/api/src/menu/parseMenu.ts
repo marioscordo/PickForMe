@@ -1,3 +1,4 @@
+import { applyCategoryRoleMetadataToDish } from "./categoryRoleRules";
 import type { Dish } from "../types/menu";
 
 const PRICE_PATTERN = /\d{1,3}(?:[.,]\d{2})/g;
@@ -50,7 +51,7 @@ export function parseMenu(menuText: string): Dish[] {
     const { nameOriginal, descriptionOriginal } = splitNameAndDescription(namePart);
     const isDrink = isDrinkEntry({ namePart, rawNamePart, category: currentCategory, sourceLine: line });
 
-    dishes.push({
+    const dish: Dish = {
       id: `dish_${String(dishes.length + 1).padStart(3, "0")}`,
       nameOriginal,
       descriptionOriginal: categoryAsName ? rawNamePart : descriptionOriginal,
@@ -59,7 +60,9 @@ export function parseMenu(menuText: string): Dish[] {
       itemType: isDrink ? "drink" : "dish",
       dishRole: isDrink ? "drink" : undefined,
       sourceLine: line
-    });
+    };
+
+    dishes.push(applyCategoryRoleMetadataToDish(dish));
 
     if (categoryAsName) {
       currentCategory = undefined;
