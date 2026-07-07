@@ -32,7 +32,13 @@ export function Screen({
 
   useEffect(() => {
     if (scrollToTopKey) {
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      setScrollY(0);
+      const frame = requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        setScrollY(0);
+      });
+
+      return () => cancelAnimationFrame(frame);
     }
   }, [scrollToTopKey]);
 

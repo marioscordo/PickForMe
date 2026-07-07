@@ -177,7 +177,7 @@ export function PickScreen({
   }
 
   return (
-    <Screen bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET} contentContainerStyle={local.entryScreenContent}>
+    <Screen bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET} contentContainerStyle={local.entryScreenContent} scrollToTopKey="pick-entry">
       <View style={local.conciergeIntro}>
         <View style={local.introAccentRow}>
           <View style={local.introAccentLine} />
