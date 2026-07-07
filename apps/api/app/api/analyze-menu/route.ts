@@ -1880,12 +1880,15 @@ function scorePdfCandidate(value: string): number {
   if (normalized.includes("deutsch")) score += 5;
   if (normalized.includes("german")) score += 5;
   if (normalized.includes("speisekarte")) score += 6;
+  if (normalized.includes("restaurantkarte")) score += 6;
+  if (normalized.includes("a-la-carte") || normalized.includes("alacarte") || normalized.includes("la-carte")) score += 5;
   if (normalized.includes("menu")) score += 3;
   if (normalized.includes("menue")) score += 3;
   if (normalized.includes("menü")) score += 3;
   if (normalized.includes("food")) score += 3;
   if (normalized.includes("essen")) score += 3;
   if (normalized.includes("speisen")) score += 4;
+  if (normalized.includes("karte")) score += 2;
 
   if (normalized.includes("weinkarte")) score -= 10;
   if (normalized.includes("wine")) score -= 10;
@@ -1893,6 +1896,10 @@ function scorePdfCandidate(value: string): number {
   if (normalized.includes("getränk")) score -= 10;
   if (normalized.includes("drinks")) score -= 10;
   if (normalized.includes("cocktail")) score -= 10;
+  if (normalized.includes("fruehstueck")) score -= 1;
+  if (normalized.includes("fruhstuck")) score -= 1;
+  if (normalized.includes("breakfast")) score -= 1;
+  if (normalized.includes("brunch")) score -= 1;
 
   if (normalized.includes("english")) score -= 3;
   if (normalized.includes("englisch")) score -= 3;

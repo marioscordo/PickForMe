@@ -343,7 +343,7 @@ async function findMenuFromOfficialSource(
 }
 
 async function findVerifiedMenuUrl(candidateUrls: string[], websiteUrl: string) {
-  for (const candidateUrl of uniqueStrings(candidateUrls).slice(0, MAX_SOURCE_LINKS_TO_CHECK)) {
+  for (const candidateUrl of orderMenuCandidateUrls(candidateUrls).slice(0, MAX_SOURCE_LINKS_TO_CHECK)) {
     const verifiedUrl = await verifyOfficialMenuUrl(candidateUrl, websiteUrl);
     if (verifiedUrl) {
       return verifiedUrl;
@@ -416,7 +416,7 @@ async function findLinkedAnalyzableMenuUrl(pageUrl: string, expectedDomain: stri
     .filter((url) => !sameUrlWithoutTrailingSlash(url, pageUrl))
     .filter(looksLikeMenuSourceUrl);
 
-  for (const candidateUrl of uniqueStrings(candidateUrls).slice(0, MAX_LINKED_MENU_ANALYSIS_CANDIDATES)) {
+  for (const candidateUrl of orderMenuCandidateUrls(candidateUrls).slice(0, MAX_LINKED_MENU_ANALYSIS_CANDIDATES)) {
     const reachableUrl = looksLikePdfUrl(candidateUrl)
       ? await verifyReachablePdfUrl(candidateUrl)
       : await verifyReachablePageUrl(candidateUrl);
@@ -442,6 +442,32 @@ function looksLikeMenuSourceUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+function orderMenuCandidateUrls(values: string[]) {
+  return uniqueStrings(values).sort((left, right) => scoreMenuCandidateUrl(right) - scoreMenuCandidateUrl(left));
+}
+
+function scoreMenuCandidateUrl(value: string) {
+  const normalized = normalizeMenuProbeText(decodeURIComponent(value));
+  let score = looksLikePdfUrl(value) ? 2 : 0;
+
+  if (normalized.includes("speisekarte")) score += 12;
+  if (normalized.includes("restaurantkarte")) score += 10;
+  if (normalized.includes("a-la-carte") || normalized.includes("alacarte") || normalized.includes("la-carte")) score += 10;
+  if (normalized.includes("menu")) score += 6;
+  if (normalized.includes("menue")) score += 6;
+  if (normalized.includes("food")) score += 5;
+  if (normalized.includes("essen")) score += 5;
+  if (normalized.includes("speisen")) score += 5;
+  if (normalized.includes("karte")) score += 2;
+
+  if (normalized.includes("fruehstueck")) score -= 4;
+  if (normalized.includes("fruhstuck")) score -= 4;
+  if (normalized.includes("breakfast")) score -= 4;
+  if (normalized.includes("brunch")) score -= 4;
+
+  return score;
 }
 
 async function verifyReachablePdfUrl(candidateUrl: string) {
