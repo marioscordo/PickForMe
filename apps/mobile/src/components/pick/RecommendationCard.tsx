@@ -23,7 +23,7 @@ type ProfileWithFeedback = {
   recommendationFeedback?: RecommendationFeedback[];
 };
 
-type StarterRequestStatus = "loading" | "error";
+type StarterRequestStatus = "loading" | "error" | "empty";
 type PremiumActionTone = "primary" | "secondary";
 
 function buildDisplayTranslation(originalName: string, translatedName?: string) {
@@ -203,7 +203,11 @@ export function RecommendationCard({
       const updatedRecommendation = data.recommendations.find((item) => item.dishId === recommendation.dishId);
 
       if (!updatedRecommendation?.starter) {
-        throw new Error("STARTER_NOT_FOUND");
+        setStarterRequestStatusByDishId((current) => ({
+          ...current,
+          [recommendation.dishId]: "empty"
+        }));
+        return;
       }
 
       setRecommendationsWithStarters((current) =>
@@ -309,7 +313,8 @@ export function RecommendationCard({
             : "";
           const starterPriceText = starter ? formatDisplayPrice(starter.priceRaw) : "";
           const starterRequestStatus = starterRequestStatusByDishId[rec.dishId];
-          const shouldShowStarterButton = situation !== "leicht" && !starter;
+          const shouldShowStarterButton = situation !== "leicht" && !starter && starterRequestStatus !== "empty";
+          const shouldShowStarterAction = shouldShowStarterButton || starterRequestStatus === "empty";
           const isPrimaryRecommendation = index === 0;
 
           const priceText = typeof dishData.price === "number" ? formatEuroPrice(dishData.price) : "";
@@ -346,22 +351,29 @@ export function RecommendationCard({
                   </View>
                 ) : null}
 
-                {shouldShowStarterButton ? (
+                {shouldShowStarterAction ? (
                   <View style={local.starterActionBox}>
                     {starterRequestStatus === "error" ? (
                       <Text style={local.starterActionText}>{content.recommendation.starterSearchError}</Text>
                     ) : null}
-                    <PremiumCardAction
-                      disabled={isStarterSearchRunning}
-                      label={
-                        starterRequestStatus === "loading"
-                          ? content.recommendation.starterSearchLoading
-                          : content.recommendation.starterSearchButton
-                      }
-                      onPress={() => handleStarterSearch(rec)}
-                      tone="secondary"
-                      hero={isPrimaryRecommendation}
-                    />
+                    {starterRequestStatus === "empty" ? (
+                      <View style={local.starterEmptyHintBox}>
+                        <Text style={local.starterActionText}>{content.recommendation.starterSearchEmpty}</Text>
+                      </View>
+                    ) : null}
+                    {shouldShowStarterButton ? (
+                      <PremiumCardAction
+                        disabled={isStarterSearchRunning}
+                        label={
+                          starterRequestStatus === "loading"
+                            ? content.recommendation.starterSearchLoading
+                            : content.recommendation.starterSearchButton
+                        }
+                        onPress={() => handleStarterSearch(rec)}
+                        tone="secondary"
+                        hero={isPrimaryRecommendation}
+                      />
+                    ) : null}
                   </View>
                 ) : null}
 
@@ -676,6 +688,10 @@ const local = StyleSheet.create({
 
   starterActionBox: {
     marginTop: spacing.lg
+  },
+
+  starterEmptyHintBox: {
+    paddingBottom: spacing.sm
   },
 
   starterActionText: {

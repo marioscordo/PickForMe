@@ -43,11 +43,17 @@ type MainPairingItem = {
   rank?: number;
 };
 
+type StarterValidationContext = {
+  mainItems: MainPairingItem[];
+  usedStarterNames: string[];
+};
+
 type ProfileInput = Partial<UserProfile>;
 
 export async function addStarterPairingsFromCandidatesAI({
   dishes,
   recommendations,
+  allRecommendations,
   candidates,
   profile,
   userLocale,
@@ -55,14 +61,16 @@ export async function addStarterPairingsFromCandidatesAI({
 }: {
   dishes: Dish[];
   recommendations: Recommendation[];
+  allRecommendations?: Recommendation[];
   candidates: StarterPairingCandidate[];
   profile: ProfileInput;
   userLocale?: string;
   signal?: AbortSignal;
 }): Promise<Recommendation[]> {
   const mains = buildMainItems(dishes, recommendations);
+  const validationContext = buildStarterValidationContext({ dishes, recommendations, allRecommendations });
   const candidateItems = candidates
-    .filter((candidate) => isSafeStarterCandidate(candidate, profile))
+    .filter((candidate) => isSafeStarterCandidate(candidate, profile, validationContext))
     .slice(0, 80);
 
   if (mains.length === 0 || candidateItems.length === 0) {
@@ -108,6 +116,7 @@ export async function addStarterPairingsFromCandidatesAI({
   const candidateById = new Map(candidateItems.map((candidate) => [candidate.id, candidate]));
   const mainIds = new Set(mains.map((main) => main.dishId));
   const usedStarterIds = new Set<string>();
+  const usedStarterNames = [...validationContext.usedStarterNames];
   const pairings = new Map<string, StarterPairing>();
 
   for (const pairing of parsed.pairings) {
@@ -117,11 +126,12 @@ export async function addStarterPairingsFromCandidatesAI({
 
     const candidate = candidateById.get(pairing.starterCandidateId);
 
-    if (!candidate || !isSafeStarterCandidate(candidate, profile)) {
+    if (!candidate || !isSafeStarterCandidate(candidate, profile, validationContext, usedStarterNames)) {
       continue;
     }
 
     usedStarterIds.add(pairing.starterCandidateId);
+    addStarterComparisonNames(usedStarterNames, candidate);
     pairings.set(pairing.dishId, candidateToStarterPairing(candidate, pairing.translatedName));
   }
 
@@ -132,16 +142,19 @@ export async function addStarterPairingsFromPdfUrlAI({
   pdfUrl,
   dishes,
   recommendations,
+  allRecommendations,
   profile,
   userLocale
 }: {
   pdfUrl: string;
   dishes: Dish[];
   recommendations: Recommendation[];
+  allRecommendations?: Recommendation[];
   profile: ProfileInput;
   userLocale?: string;
 }): Promise<Recommendation[]> {
   const mains = buildMainItems(dishes, recommendations);
+  const validationContext = buildStarterValidationContext({ dishes, recommendations, allRecommendations });
 
   if (mains.length === 0) {
     return recommendations;
@@ -154,6 +167,7 @@ export async function addStarterPairingsFromPdfUrlAI({
     },
     mains,
     recommendations,
+    validationContext,
     profile,
     userLocale
   });
@@ -163,16 +177,19 @@ export async function addStarterPairingsFromImageUrlsAI({
   imageUrls,
   dishes,
   recommendations,
+  allRecommendations,
   profile,
   userLocale
 }: {
   imageUrls: string[];
   dishes: Dish[];
   recommendations: Recommendation[];
+  allRecommendations?: Recommendation[];
   profile: ProfileInput;
   userLocale?: string;
 }): Promise<Recommendation[]> {
   const mains = buildMainItems(dishes, recommendations);
+  const validationContext = buildStarterValidationContext({ dishes, recommendations, allRecommendations });
   const usableImageUrls = imageUrls.filter((value) => value.trim().length > 0).slice(0, 8);
 
   if (mains.length === 0 || usableImageUrls.length === 0) {
@@ -186,6 +203,7 @@ export async function addStarterPairingsFromImageUrlsAI({
     },
     mains,
     recommendations,
+    validationContext,
     profile,
     userLocale
   });
@@ -195,16 +213,19 @@ export async function addStarterPairingsFromMenuTextAI({
   menuText,
   dishes,
   recommendations,
+  allRecommendations,
   profile,
   userLocale
 }: {
   menuText: string;
   dishes: Dish[];
   recommendations: Recommendation[];
+  allRecommendations?: Recommendation[];
   profile: ProfileInput;
   userLocale?: string;
 }): Promise<Recommendation[]> {
   const mains = buildMainItems(dishes, recommendations);
+  const validationContext = buildStarterValidationContext({ dishes, recommendations, allRecommendations });
   const sourceText = menuText.trim();
 
   if (mains.length === 0 || sourceText.length < 20) {
@@ -275,6 +296,7 @@ export async function addStarterPairingsFromMenuTextAI({
     parsed,
     mains,
     recommendations,
+    validationContext,
     profile
   });
 }
@@ -283,12 +305,14 @@ async function addStarterPairingsFromSourceAI({
   source,
   mains,
   recommendations,
+  validationContext,
   profile,
   userLocale
 }: {
   source: { kind: "pdf"; pdfUrl: string } | { kind: "images"; imageUrls: string[] };
   mains: MainPairingItem[];
   recommendations: Recommendation[];
+  validationContext: StarterValidationContext;
   profile: ProfileInput;
   userLocale?: string;
 }) {
@@ -344,6 +368,7 @@ async function addStarterPairingsFromSourceAI({
     parsed,
     mains,
     recommendations,
+    validationContext,
     profile
   });
 }
@@ -352,29 +377,31 @@ function applySourcePairingResult({
   parsed,
   mains,
   recommendations,
+  validationContext,
   profile
 }: {
   parsed: z.infer<typeof SourcePairingsSchema>;
   mains: MainPairingItem[];
   recommendations: Recommendation[];
+  validationContext: StarterValidationContext;
   profile: ProfileInput;
 }) {
   const mainIds = new Set(mains.map((main) => main.dishId));
   const pairings = new Map<string, StarterPairing>();
-  const usedOriginalNames = new Set<string>();
+  const usedStarterNames = [...validationContext.usedStarterNames];
 
   for (const pairing of parsed.pairings) {
-    const originalKey = normalizeKey(pairing.nameOriginal);
-
-    if (!mainIds.has(pairing.dishId) || usedOriginalNames.has(originalKey)) {
+    if (!mainIds.has(pairing.dishId)) {
       continue;
     }
 
-    if (!isSafeStarterCandidate(pairingToCandidate(pairing), profile)) {
+    const candidate = pairingToCandidate(pairing);
+
+    if (!isSafeStarterCandidate(candidate, profile, validationContext, usedStarterNames)) {
       continue;
     }
 
-    usedOriginalNames.add(originalKey);
+    addStarterComparisonNames(usedStarterNames, candidate);
     pairings.set(pairing.dishId, {
       nameOriginal: pairing.nameOriginal,
       translatedName: pairing.translatedName,
@@ -408,6 +435,23 @@ function buildMainItems(dishes: Dish[], recommendations: Recommendation[]): Main
     })
     .filter((item): item is MainPairingItem => Boolean(item))
     .slice(0, 3);
+}
+
+function buildStarterValidationContext({
+  dishes,
+  recommendations,
+  allRecommendations
+}: {
+  dishes: Dish[];
+  recommendations: Recommendation[];
+  allRecommendations?: Recommendation[];
+}): StarterValidationContext {
+  const recommendationScope = allRecommendations?.length ? allRecommendations : recommendations;
+
+  return {
+    mainItems: buildMainItems(dishes, recommendationScope),
+    usedStarterNames: buildUsedStarterNames(recommendationScope)
+  };
 }
 
 function buildCandidateSystemPrompt(targetLanguage: string, targetLocale: string) {
@@ -508,7 +552,20 @@ function applyStarterPairings(
   }));
 }
 
-function isSafeStarterCandidate(candidate: StarterPairingCandidate, profile: ProfileInput) {
+function isSafeStarterCandidate(
+  candidate: StarterPairingCandidate,
+  profile: ProfileInput,
+  validationContext?: StarterValidationContext,
+  usedStarterNames = validationContext?.usedStarterNames ?? []
+) {
+  if (validationContext && isCandidateTooSimilarToAnyMain(candidate, validationContext.mainItems)) {
+    return false;
+  }
+
+  if (hasSimilarStarterName(candidate, usedStarterNames)) {
+    return false;
+  }
+
   return !blockReasonForRecommendation(
     {
       nameOriginal: candidate.nameOriginal,
@@ -518,6 +575,62 @@ function isSafeStarterCandidate(candidate: StarterPairingCandidate, profile: Pro
       evidence: candidate.evidence
     },
     profile
+  );
+}
+
+function buildUsedStarterNames(recommendations: Recommendation[]) {
+  const names: string[] = [];
+
+  for (const recommendation of recommendations) {
+    const starter = recommendation.starter;
+
+    if (!starter) {
+      continue;
+    }
+
+    addComparisonName(names, starter.nameOriginal);
+    addComparisonName(names, starter.translatedName);
+  }
+
+  return names;
+}
+
+function isCandidateTooSimilarToAnyMain(candidate: StarterPairingCandidate, mains: MainPairingItem[]) {
+  return mains.some((main) =>
+    getStarterComparisonNames(candidate).some((starterName) =>
+      getMainComparisonNames(main).some((mainName) => areDishNamesTooSimilar(starterName, mainName))
+    )
+  );
+}
+
+function hasSimilarStarterName(candidate: StarterPairingCandidate, usedStarterNames: string[]) {
+  return getStarterComparisonNames(candidate).some((starterName) =>
+    usedStarterNames.some((usedName) => areDishNamesTooSimilar(starterName, usedName))
+  );
+}
+
+function addStarterComparisonNames(names: string[], candidate: StarterPairingCandidate) {
+  addComparisonName(names, candidate.nameOriginal);
+  addComparisonName(names, candidate.translatedName);
+}
+
+function addComparisonName(names: string[], value: string | undefined) {
+  const normalized = normalizeKey(value ?? "");
+
+  if (normalized) {
+    names.push(value ?? "");
+  }
+}
+
+function getStarterComparisonNames(candidate: StarterPairingCandidate) {
+  return [candidate.nameOriginal, candidate.translatedName].filter((value): value is string =>
+    Boolean(value?.trim())
+  );
+}
+
+function getMainComparisonNames(main: MainPairingItem) {
+  return [main.nameOriginal, main.translatedName].filter((value): value is string =>
+    Boolean(value?.trim())
   );
 }
 
@@ -555,11 +668,99 @@ function getLanguageNameForLocale(locale: string) {
 function normalizeKey(value: string) {
   return value
     .toLowerCase()
+    .replace(/ß/g, "ss")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/["'`´‘’‚“”„«»]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
+
+function normalizeCoreKey(value: string) {
+  return normalizeKey(value)
+    .split(" ")
+    .filter((token) => token && !DISH_NAME_VARIANT_TOKENS.has(token))
+    .join(" ");
+}
+
+function areDishNamesTooSimilar(left: string, right: string) {
+  const normalizedLeft = normalizeKey(left);
+  const normalizedRight = normalizeKey(right);
+
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+
+  if (normalizedLeft === normalizedRight) {
+    return true;
+  }
+
+  const coreLeft = normalizeCoreKey(left);
+  const coreRight = normalizeCoreKey(right);
+
+  return Boolean(coreLeft && coreRight && coreLeft === coreRight);
+}
+
+const DISH_NAME_VARIANT_TOKENS = new Set([
+  "a",
+  "al",
+  "alla",
+  "alle",
+  "allo",
+  "an",
+  "and",
+  "auf",
+  "au",
+  "aux",
+  "baked",
+  "braten",
+  "con",
+  "das",
+  "de",
+  "dem",
+  "den",
+  "der",
+  "di",
+  "die",
+  "e",
+  "et",
+  "forno",
+  "fried",
+  "fritta",
+  "fritte",
+  "frittiert",
+  "fritto",
+  "gebraten",
+  "gebratene",
+  "gebratenem",
+  "gebratenen",
+  "gebratener",
+  "gebratenes",
+  "gegrillt",
+  "gegrillte",
+  "gegrilltem",
+  "gegrillten",
+  "gegrillter",
+  "gegrilltes",
+  "griglia",
+  "grill",
+  "grilled",
+  "grille",
+  "grillee",
+  "grigliata",
+  "grigliato",
+  "in",
+  "la",
+  "le",
+  "mit",
+  "on",
+  "roasted",
+  "vom",
+  "von",
+  "with",
+  "und"
+]);
 
 function stripJsonFence(value: string) {
   return value

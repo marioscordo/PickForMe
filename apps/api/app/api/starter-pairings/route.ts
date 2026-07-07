@@ -58,6 +58,7 @@ export async function POST(request: Request) {
         menuText,
         dishes: body.dishes,
         recommendations: targetRecommendations,
+        allRecommendations: body.recommendations,
         profile: body.profile,
         userLocale: outputLocale
       }),
@@ -96,12 +97,14 @@ async function addStarterPairingsForSource({
   menuText,
   dishes,
   recommendations,
+  allRecommendations,
   profile,
   userLocale
 }: {
   menuText: string;
   dishes: Dish[];
   recommendations: Recommendation[];
+  allRecommendations: Recommendation[];
   profile: AnalyzeMenuRequest["profile"];
   userLocale: string;
 }) {
@@ -111,6 +114,7 @@ async function addStarterPairingsForSource({
     return addStarterPairingsFromCandidatesAI({
       dishes,
       recommendations,
+      allRecommendations,
       candidates: structuredCandidates,
       profile,
       userLocale
@@ -124,6 +128,7 @@ async function addStarterPairingsForSource({
       pdfUrl: menuText,
       dishes,
       recommendations,
+      allRecommendations,
       profile,
       userLocale
     });
@@ -134,6 +139,7 @@ async function addStarterPairingsForSource({
       imageUrls: [menuText],
       dishes,
       recommendations,
+      allRecommendations,
       profile,
       userLocale
     });
@@ -151,6 +157,7 @@ async function addStarterPairingsForSource({
           return addStarterPairingsFromCandidatesAI({
             dishes,
             recommendations,
+            allRecommendations,
             candidates: htmlCandidates,
             profile,
             userLocale
@@ -161,6 +168,7 @@ async function addStarterPairingsForSource({
           menuText: htmlMenuExtractionToMenuText(htmlMenuExtraction),
           dishes,
           recommendations,
+          allRecommendations,
           profile,
           userLocale
         });
@@ -176,6 +184,7 @@ async function addStarterPairingsForSource({
         imageUrls: linkedImageUrls,
         dishes,
         recommendations,
+        allRecommendations,
         profile,
         userLocale
       });
@@ -185,6 +194,7 @@ async function addStarterPairingsForSource({
       menuText: await loadMenuTextFromUrl(menuText),
       dishes,
       recommendations,
+      allRecommendations,
       profile,
       userLocale
     });
@@ -194,6 +204,7 @@ async function addStarterPairingsForSource({
     menuText,
     dishes,
     recommendations,
+    allRecommendations,
     profile,
     userLocale
   });

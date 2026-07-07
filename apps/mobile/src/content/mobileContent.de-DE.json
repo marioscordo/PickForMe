@@ -112,6 +112,7 @@
     "starterSearchButton": "Passende Vorspeise suchen?",
     "starterSearchLoading": "Ich suche eine passende Vorspeise...",
     "starterSearchError": "Ich kann die Vorspeise gerade nicht sicher raussuchen.",
+    "starterSearchEmpty": "Ich kann gerade keine sichere Vorspeise automatisch auswählen. Öffne bitte die Speisekarte, um selbst eine Vorspeise zu wählen.",
     "acceptButton": "Das nehme ich",
     "ratingTitle": "Hat das gut gepasst?",
     "savedText": "Merke ich mir: {rating} von 5 Sternen."
