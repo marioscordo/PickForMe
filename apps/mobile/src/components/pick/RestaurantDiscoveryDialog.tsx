@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Dimensions,
-  FlatList,
   Modal,
   Pressable,
   type StyleProp,
@@ -330,13 +329,13 @@ export function RestaurantDiscoveryDialog({
                 {loadingDetector ? <ActivityIndicator color={premiumPalette.gold} style={local.loader} /> : null}
 
                 {detectedCandidates.length > 0 ? (
-                  <FlatList
+                  <View
                     testID="restaurant-detector-candidate-list"
-                    data={detectedCandidates}
-                    keyExtractor={(item, index) => item.externalId ?? `${item.source}-${item.name}-${index}`}
                     style={local.list}
-                    renderItem={({ item }) => (
+                  >
+                    {detectedCandidates.map((item, index) => (
                       <Pressable
+                        key={item.externalId ?? `${item.source}-${item.name}-${index}`}
                         testID="restaurant-detector-candidate"
                         onPress={() => applyDetectedRestaurant(item)}
                         style={local.candidate}
@@ -348,8 +347,8 @@ export function RestaurantDiscoveryDialog({
                             .join(" - ")}
                         </Text>
                       </Pressable>
-                    )}
-                  />
+                    ))}
+                  </View>
                 ) : null}
               </>
             ) : null}
@@ -391,13 +390,13 @@ export function RestaurantDiscoveryDialog({
             {loadingCandidates ? <ActivityIndicator color={premiumPalette.gold} style={local.loader} /> : null}
 
             {candidates.length > 0 ? (
-              <FlatList
+              <View
                 testID="restaurant-discovery-candidate-list"
-                data={candidates}
-                keyExtractor={(item) => item.id}
                 style={local.list}
-                renderItem={({ item }) => (
+              >
+                {candidates.map((item) => (
                   <Pressable
+                    key={item.id}
                     testID="restaurant-discovery-candidate"
                     onPress={() => handleCandidatePress(item)}
                     style={[local.candidate, selectedCandidate?.id === item.id && local.candidateSelected]}
@@ -405,8 +404,8 @@ export function RestaurantDiscoveryDialog({
                     <Text style={local.candidateName}>{item.name}</Text>
                     <Text style={local.candidateMeta}>{[item.address, item.websiteUrl].filter(Boolean).join(" - ")}</Text>
                   </Pressable>
-                )}
-              />
+                ))}
+              </View>
             ) : null}
           </View>
 
