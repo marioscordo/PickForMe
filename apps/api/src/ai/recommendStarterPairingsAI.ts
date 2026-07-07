@@ -71,10 +71,15 @@ export async function addStarterPairingsFromCandidatesAI({
   const validationContext = buildStarterValidationContext({ dishes, recommendations, allRecommendations });
   const candidateItems = candidates
     .filter((candidate) => isSafeStarterCandidate(candidate, profile, validationContext))
+    .sort((left, right) => compareStarterReusePreference(left, right, validationContext.usedStarterNames))
     .slice(0, 80);
 
   if (mains.length === 0 || candidateItems.length === 0) {
     return recommendations;
+  }
+
+  if (candidateItems.length === 1) {
+    return applySingleStarterCandidate(recommendations, mains, candidateItems[0]!);
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -115,23 +120,19 @@ export async function addStarterPairingsFromCandidatesAI({
   );
   const candidateById = new Map(candidateItems.map((candidate) => [candidate.id, candidate]));
   const mainIds = new Set(mains.map((main) => main.dishId));
-  const usedStarterIds = new Set<string>();
-  const usedStarterNames = [...validationContext.usedStarterNames];
   const pairings = new Map<string, StarterPairing>();
 
   for (const pairing of parsed.pairings) {
-    if (!mainIds.has(pairing.dishId) || usedStarterIds.has(pairing.starterCandidateId)) {
+    if (!mainIds.has(pairing.dishId)) {
       continue;
     }
 
     const candidate = candidateById.get(pairing.starterCandidateId);
 
-    if (!candidate || !isSafeStarterCandidate(candidate, profile, validationContext, usedStarterNames)) {
+    if (!candidate || !isSafeStarterCandidate(candidate, profile, validationContext)) {
       continue;
     }
 
-    usedStarterIds.add(pairing.starterCandidateId);
-    addStarterComparisonNames(usedStarterNames, candidate);
     pairings.set(pairing.dishId, candidateToStarterPairing(candidate, pairing.translatedName));
   }
 
@@ -388,7 +389,6 @@ function applySourcePairingResult({
 }) {
   const mainIds = new Set(mains.map((main) => main.dishId));
   const pairings = new Map<string, StarterPairing>();
-  const usedStarterNames = [...validationContext.usedStarterNames];
 
   for (const pairing of parsed.pairings) {
     if (!mainIds.has(pairing.dishId)) {
@@ -397,11 +397,10 @@ function applySourcePairingResult({
 
     const candidate = pairingToCandidate(pairing);
 
-    if (!isSafeStarterCandidate(candidate, profile, validationContext, usedStarterNames)) {
+    if (!isSafeStarterCandidate(candidate, profile, validationContext)) {
       continue;
     }
 
-    addStarterComparisonNames(usedStarterNames, candidate);
     pairings.set(pairing.dishId, {
       nameOriginal: pairing.nameOriginal,
       translatedName: pairing.translatedName,
@@ -552,17 +551,30 @@ function applyStarterPairings(
   }));
 }
 
+function applySingleStarterCandidate(
+  recommendations: Recommendation[],
+  mains: MainPairingItem[],
+  candidate: StarterPairingCandidate
+) {
+  const mainIds = new Set(mains.map((main) => main.dishId));
+  const starter = candidateToStarterPairing(candidate);
+
+  return applyStarterPairings(
+    recommendations,
+    new Map(
+      recommendations
+        .filter((recommendation) => mainIds.has(recommendation.dishId))
+        .map((recommendation) => [recommendation.dishId, starter])
+    )
+  );
+}
+
 function isSafeStarterCandidate(
   candidate: StarterPairingCandidate,
   profile: ProfileInput,
-  validationContext?: StarterValidationContext,
-  usedStarterNames = validationContext?.usedStarterNames ?? []
+  validationContext?: StarterValidationContext
 ) {
   if (validationContext && isCandidateTooSimilarToAnyMain(candidate, validationContext.mainItems)) {
-    return false;
-  }
-
-  if (hasSimilarStarterName(candidate, usedStarterNames)) {
     return false;
   }
 
@@ -576,6 +588,21 @@ function isSafeStarterCandidate(
     },
     profile
   );
+}
+
+function compareStarterReusePreference(
+  left: StarterPairingCandidate,
+  right: StarterPairingCandidate,
+  usedStarterNames: string[]
+) {
+  const leftUsed = hasSimilarStarterName(left, usedStarterNames);
+  const rightUsed = hasSimilarStarterName(right, usedStarterNames);
+
+  if (leftUsed === rightUsed) {
+    return 0;
+  }
+
+  return leftUsed ? 1 : -1;
 }
 
 function buildUsedStarterNames(recommendations: Recommendation[]) {

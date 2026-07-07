@@ -4,6 +4,7 @@ import type {
   MenuExtractionResult
 } from "./types";
 import { applyCategoryRoleMetadataToDish } from "../categoryRoleRules";
+import { isMenuMarkerLine } from "../menuMarkers";
 import htmlCategoryTaxonomy from "./htmlCategoryTaxonomy.json";
 import type {
   Dish,
@@ -479,7 +480,7 @@ function isLikelyDescriptionNoise(line: string) {
 }
 
 function isAllergenCodeLine(line: string) {
-  return /^[A-Z](?:\s*,\s*[A-Z]){0,8}$/.test(line.trim());
+  return isMenuMarkerLine(line);
 }
 
 function looksLikeStandaloneDishTitle(line: string) {

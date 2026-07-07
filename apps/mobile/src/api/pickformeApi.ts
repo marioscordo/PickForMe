@@ -78,6 +78,7 @@ export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
       outputLocale: args.profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE
     },
     dishes: args.result.dishes,
+    starterCandidateDishes: args.result.starterCandidateDishes,
     recommendations: args.result.recommendations,
     targetDishId: args.targetDishId
   };

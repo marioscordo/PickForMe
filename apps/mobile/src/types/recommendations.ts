@@ -19,6 +19,7 @@ export type Recommendation = {
 export type AnalyzeData = {
   mode: "ai" | "ai_pdf" | "fallback";
   dishes: Dish[];
+  starterCandidateDishes?: Dish[];
   recommendations: Recommendation[];
   conciergeHero?: string;
   analysisStatus?: "analysis_not_safe";

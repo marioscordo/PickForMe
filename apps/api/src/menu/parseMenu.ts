@@ -1,4 +1,5 @@
 import { applyCategoryRoleMetadataToDish } from "./categoryRoleRules";
+import { isMenuMarkerLine } from "./menuMarkers";
 import type { Dish } from "../types/menu";
 
 const PRICE_PATTERN = /\d{1,3}(?:[.,]\d{2})/g;
@@ -28,7 +29,7 @@ export function parseMenu(menuText: string): Dish[] {
     const priceInfo = extractLastPrice(line);
 
     if (!priceInfo) {
-      if (looksLikeCategory(line)) {
+      if (!isMenuMarkerLine(line) && looksLikeCategory(line)) {
         currentCategory = line;
       }
       continue;

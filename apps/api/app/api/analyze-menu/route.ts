@@ -68,6 +68,7 @@ const SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE =
 const TEXT_AI_TIMEOUT_MS = 90000;
 const PDF_AI_TIMEOUT_MS = 90000;
 const DISH_ROLE_CLASSIFICATION_TIMEOUT_MS = 30000;
+const STARTER_CANDIDATE_DISH_LIMIT = 20;
 
 export async function POST(request: Request) {
   try {
@@ -193,6 +194,7 @@ export async function POST(request: Request) {
           recommendations: allergySafeRecommendations,
           userLocale: outputLocale
         });
+        const starterCandidateDishes = await buildStarterCandidateDishesFromSourceUrls(pdfMenuUrls);
 
         return NextResponse.json({
           ok: true,
@@ -201,6 +203,7 @@ export async function POST(request: Request) {
             dishes: aiResult.dishes,
             recommendations,
             conciergeHero,
+            ...buildStarterCandidateDishesPayload(starterCandidateDishes),
             ...sourceInputAllergenWarningPayload,
             ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
           }
@@ -885,6 +888,88 @@ function buildMenuExtractionPayload(htmlMenuExtraction: MenuExtractionResult | n
         menuExtraction: htmlMenuExtraction
       }
     : {};
+}
+
+function buildStarterCandidateDishesPayload(starterCandidateDishes: Dish[]) {
+  return starterCandidateDishes.length > 0
+    ? { starterCandidateDishes }
+    : {};
+}
+
+async function buildStarterCandidateDishesFromSourceUrls(sourceUrls: string[]) {
+  const candidates: Dish[] = [];
+
+  for (const sourceUrl of uniqueStrings(sourceUrls)) {
+    try {
+      const menuText = await loadMenuTextFromUrl(sourceUrl);
+      const sourceCandidates = parseMenu(menuText)
+        .filter(isStarterCandidateDish)
+        .map((dish) => ({
+          ...dish,
+          sourceFormat: dish.sourceFormat ?? (looksLikePdfUrl(sourceUrl) ? "pdf" as const : dish.sourceFormat),
+          sourceUrl: dish.sourceUrl ?? sourceUrl
+        }));
+
+      candidates.push(...sourceCandidates);
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("GustaroAI starter candidate catalog source failed.", error);
+      }
+    }
+  }
+
+  return dedupeStarterCandidateDishes(candidates).slice(0, STARTER_CANDIDATE_DISH_LIMIT);
+}
+
+function dedupeStarterCandidateDishes(dishes: Dish[]) {
+  const seen = new Set<string>();
+
+  return dishes.filter((dish) => {
+    const key = normalizeStarterCandidateName(dish.nameOriginal);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function isStarterCandidateDish(dish: Dish) {
+  const roles = dish.dishRoles ?? [];
+  const primaryRole = dish.primaryRole;
+  const explicitRoles = [
+    ...roles,
+    ...(primaryRole && !roles.includes(primaryRole) ? [primaryRole] : [])
+  ];
+
+  if (explicitRoles.some((role) => ["main", "side", "dessert", "drink", "breakfast", "brunch", "kids", "menuSet"].includes(role))) {
+    return false;
+  }
+
+  if (primaryRole === "starter" || primaryRole === "soup" || roles.includes("starter") || roles.includes("soup")) {
+    return true;
+  }
+
+  if (roles.includes("salad")) {
+    return dish.isStarterCandidate === true;
+  }
+
+  if (dish.dishRole !== "starter") {
+    return false;
+  }
+
+  return explicitRoles.length === 0 || explicitRoles.every((role) => role === "unknown");
+}
+
+function normalizeStarterCandidateName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function buildAllergenInfoWarningPayload(profile: AnalyzeMenuRequest["profile"], sourceText: string) {

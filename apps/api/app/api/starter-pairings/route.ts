@@ -23,6 +23,7 @@ import type { Recommendation } from "../../../src/types/recommendations";
 
 type StarterPairingsRequest = AnalyzeMenuRequest & {
   dishes: Dish[];
+  starterCandidateDishes?: Dish[];
   recommendations: Recommendation[];
   targetDishId?: string;
 };
@@ -58,12 +59,13 @@ export async function POST(request: Request) {
       addStarterPairingsForSource({
         menuText,
         dishes: body.dishes,
+        starterCandidateDishes: body.starterCandidateDishes ?? [],
         recommendations: targetRecommendations,
         allRecommendations: body.recommendations,
         profile: body.profile,
         userLocale: outputLocale
       }),
-      getStarterPairingTimeoutMs(menuText, body.dishes),
+      getStarterPairingTimeoutMs(menuText, [...(body.starterCandidateDishes ?? []), ...body.dishes]),
       "STARTER_PAIRING_TIMEOUT"
     );
 
@@ -97,6 +99,7 @@ export async function POST(request: Request) {
 async function addStarterPairingsForSource({
   menuText,
   dishes,
+  starterCandidateDishes,
   recommendations,
   allRecommendations,
   profile,
@@ -104,12 +107,13 @@ async function addStarterPairingsForSource({
 }: {
   menuText: string;
   dishes: Dish[];
+  starterCandidateDishes: Dish[];
   recommendations: Recommendation[];
   allRecommendations: Recommendation[];
   profile: AnalyzeMenuRequest["profile"];
   userLocale: string;
 }) {
-  const structuredCandidates = buildStarterCandidatesFromDishes(dishes);
+  const structuredCandidates = buildStructuredStarterCandidates(starterCandidateDishes, dishes);
 
   if (structuredCandidates.length > 0) {
     return addStarterPairingsFromCandidatesAI({
@@ -224,6 +228,37 @@ function buildStarterCandidatesFromDishes(dishes: Dish[]): StarterPairingCandida
       evidence: dish.sourceLine
     }))
     .slice(0, 80);
+}
+
+function buildStructuredStarterCandidates(starterCandidateDishes: Dish[], dishes: Dish[]) {
+  return dedupeStarterPairingCandidates([
+    ...buildStarterCandidatesFromDishes(starterCandidateDishes),
+    ...buildStarterCandidatesFromDishes(dishes)
+  ]).slice(0, 80);
+}
+
+function dedupeStarterPairingCandidates(candidates: StarterPairingCandidate[]) {
+  const seen = new Set<string>();
+
+  return candidates.filter((candidate) => {
+    const key = normalizeStarterCandidateName(candidate.nameOriginal);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeStarterCandidateName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function isStarterPairingCandidate(dish: Dish): boolean {

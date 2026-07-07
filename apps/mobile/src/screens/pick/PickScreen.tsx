@@ -23,6 +23,7 @@ type PickScreenProps = {
 };
 
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
+const ANALYSIS_LOADING_STEP_INTERVAL_MS = 1500;
 const RESULT_BOTTOM_SCROLL_INSET = 0;
 const ENTRY_BOTTOM_SCROLL_INSET = 190;
 const BASE_WIDTH = 393;
@@ -66,7 +67,7 @@ export function PickScreen({
       setLoadingStepIndex((current) =>
         Math.min(current + 1, loadingSteps.length - 1)
       );
-    }, 7000);
+    }, ANALYSIS_LOADING_STEP_INTERVAL_MS);
 
     return () => clearInterval(timer);
   }, [analyze.loading, loadingSteps.length]);
