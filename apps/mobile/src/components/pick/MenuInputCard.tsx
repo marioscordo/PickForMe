@@ -1,7 +1,22 @@
-import { StyleSheet, Text, TextInput } from "react-native";
+import { Dimensions, StyleSheet, TextInput } from "react-native";
 import { useMobileContent } from "../../content/useMobileContent";
-import { premiumColors, radius, spacing } from "../../theme/tokens";
-import { Surface } from "../ui/Surface";
+
+const BASE_WIDTH = 393;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+const screenWidth = Dimensions.get("window").width;
+const scale = clamp(screenWidth / BASE_WIDTH, 0.92, 1.08);
+
+function s(value: number) {
+  return Math.round(value * scale);
+}
+
+function fs(value: number) {
+  return Math.round(value * clamp(scale, 0.94, 1.03));
+}
 
 export function MenuInputCard({
   menuText,
@@ -15,64 +30,43 @@ export function MenuInputCard({
   const content = useMobileContent();
 
   return (
-    <Surface style={local.card}>
-      <Text style={local.kicker}>{content.menuInput.kicker}</Text>
-
-      <Text style={local.hint}>{content.menuInput.hint}</Text>
-
-      <TextInput
-        testID="menu-input-textarea"
-        multiline
-        scrollEnabled
-        style={[local.textArea, compact && local.textAreaCompact]}
-        value={menuText}
-        onChangeText={setMenuText}
-        placeholder={content.menuInput.placeholder}
-        placeholderTextColor={premiumColors.textMuted}
-        textAlignVertical="top"
-        autoCapitalize="sentences"
-        autoCorrect={false}
-      />
-    </Surface>
+    <TextInput
+      testID="menu-input-textarea"
+      multiline
+      scrollEnabled
+      style={[local.textArea, compact && local.textAreaCompact]}
+      value={menuText}
+      onChangeText={setMenuText}
+      placeholder={content.menuInput.placeholder}
+      placeholderTextColor={premiumPalette.placeholder}
+      textAlignVertical="top"
+      autoCapitalize="sentences"
+      autoCorrect={false}
+    />
   );
 }
 
+const premiumPalette = {
+  surfaceSoft: "#F7F1E7",
+  olive: "#1F3B24",
+  border: "#E4D4B6",
+  placeholder: "#8A8378"
+};
+
 const local = StyleSheet.create({
-  card: {
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    marginBottom: spacing.section,
-    padding: 0
-  },
-  kicker: {
-    color: premiumColors.text,
-    fontSize: 17,
-    fontWeight: "900",
-    lineHeight: 22,
-    marginBottom: spacing.xs
-  },
-  hint: {
-    color: premiumColors.textMuted,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 21,
-    marginBottom: spacing.sm
-  },
   textArea: {
-    backgroundColor: "rgba(255, 253, 248, 0.76)",
-    borderColor: "rgba(231, 222, 210, 0.82)",
-    borderRadius: radius.xl,
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.border,
+    borderRadius: s(20),
     borderWidth: 1,
-    color: premiumColors.text,
-    fontSize: 16,
-    height: 124,
-    lineHeight: 21,
-    maxHeight: 124,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md
+    color: premiumPalette.olive,
+    fontSize: fs(16),
+    lineHeight: fs(22),
+    minHeight: s(124),
+    paddingHorizontal: s(16),
+    paddingVertical: s(14)
   },
   textAreaCompact: {
-    height: 88,
-    maxHeight: 88
+    minHeight: s(104)
   }
 });

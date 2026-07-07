@@ -16,11 +16,11 @@
     "note": "Dein Geschmack bleibt gespeichert."
   },
   "pick": {
-    "heroTitle": "Was passt heute?",
-    "heroSubtitle": "Zeig mir kurz die Karte. Ich suche Dir etwas, das zu Dir passt.",
+    "heroTitle": "Was darf ich Dir heute\nempfehlen?",
+    "heroSubtitle": "Zeig mir kurz die Speisekarte. Ich suche Dir etwas, das heute zu Dir passt.",
     "pasteTab": "Einfügen",
     "qrTab": "QR-Code",
-    "moodTitle": "Wonach ist Dir gerade?",
+    "moodTitle": "Wonach ist Dir heute?",
     "loadingTitle": "Ich suche Dir etwas Gutes raus",
     "loadingSteps": [
       "Ich lese kurz die Speisekarte ...",
@@ -32,13 +32,14 @@
     "mainButtonIdle": "Such mir etwas Passendes",
     "mainButtonLoading": "Ich schaue auf die Karte ...",
     "openMenu": "Speisekarte öffnen",
-    "findMenuButton": "Speisekarte finden"
+    "findMenuButton": "Speisekarte finden",
+    "moodHint": "Wähle, wonach Dir gerade ist."
   },
   "menuInput": {
-    "kicker": "Schick mir die Speisekarte",
+    "kicker": "Speisekarte",
     "title": "Einfügen",
-    "hint": "Link, PDF oder Text. Ich kümmere mich um den Rest.",
-    "placeholder": "Link oder Speisekartentext einfügen..."
+    "hint": "Link, PDF oder Text einfügen.",
+    "placeholder": "Speisekartenlink oder Text einfügen …"
   },
   "qrScanner": {
     "title": "QR-Code scannen",
@@ -82,19 +83,19 @@
   "situations": [
     {
       "value": "richtig_hunger",
-      "label": "😋 Richtig Hunger"
+      "label": "Richtig Hunger"
     },
     {
       "value": "leicht",
-      "label": "🤏 Etwas Leichtes"
+      "label": "Etwas Leichtes"
     },
     {
       "value": "neues_probieren",
-      "label": "🧪 Etwas Neues probieren"
+      "label": "Etwas Neues"
     },
     {
       "value": "sicher",
-      "label": "🛡️ Auf Nummer sicher gehen"
+      "label": "Auf Nummer sicher"
     }
   ],
   "recommendation": {

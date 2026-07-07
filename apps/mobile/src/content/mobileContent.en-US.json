@@ -16,10 +16,10 @@
     "note": "Your taste stays saved."
   },
   "pick": {
-    "heroTitle": "What fits today?",
-    "heroSubtitle": "Show me the menu. I will find something that fits you.",
+    "heroTitle": "What would you like me\nto recommend today?",
+    "heroSubtitle": "Show me the menu. I'll find something that suits you today.",
     "pasteTab": "Paste",
-    "qrTab": "QR code",
+    "qrTab": "QR Code",
     "moodTitle": "What are you in the mood for?",
     "loadingTitle": "I am finding something good for you",
     "loadingSteps": [
@@ -32,13 +32,14 @@
     "mainButtonIdle": "Find something for me",
     "mainButtonLoading": "I am looking at the menu ...",
     "openMenu": "Open menu",
-    "findMenuButton": "Find menu"
+    "findMenuButton": "Find menu",
+    "moodHint": "Choose what you feel like today."
   },
   "menuInput": {
-    "kicker": "Send me the menu",
+    "kicker": "Menu",
     "title": "Paste",
-    "hint": "Link, PDF, or text. I will take care of the rest.",
-    "placeholder": "Paste a link or menu text..."
+    "hint": "Paste a link, PDF, or text.",
+    "placeholder": "Paste menu link or text …"
   },
   "qrScanner": {
     "title": "Scan QR code",
@@ -90,7 +91,7 @@
     },
     {
       "value": "neues_probieren",
-      "label": "Try something new"
+      "label": "Something new"
     },
     {
       "value": "sicher",

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Dimensions, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { logAllergyWarningConfirmation } from "../../api/pickformeApi";
 import { Screen } from "../../components/ui/Screen";
@@ -22,6 +23,23 @@ type PickScreenProps = {
 
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
 const RESULT_BOTTOM_SCROLL_INSET = 420;
+const ENTRY_BOTTOM_SCROLL_INSET = 190;
+const BASE_WIDTH = 393;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+const screenWidth = Dimensions.get("window").width;
+const scale = clamp(screenWidth / BASE_WIDTH, 0.92, 1.08);
+
+function s(value: number) {
+  return Math.round(value * scale);
+}
+
+function fs(value: number) {
+  return Math.round(value * clamp(scale, 0.94, 1.03));
+}
 
 export function PickScreen({
   onGoHome
@@ -163,40 +181,68 @@ export function PickScreen({
   }
 
   return (
-    <Screen contentContainerStyle={local.entryScreenContent}>
+    <Screen bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET} contentContainerStyle={local.entryScreenContent}>
       <View style={local.conciergeIntro}>
-        <View style={local.introAccent} />
+        <View style={local.introAccentRow}>
+          <View style={local.introAccentLine} />
+          <MaterialCommunityIcons color={premiumPalette.gold} name="room-service-outline" size={s(24)} />
+          <View style={local.introAccentLine} />
+        </View>
         <Text style={local.introTitle}>{content.pick.heroTitle}</Text>
         <Text style={local.introSubtitle}>{content.pick.heroSubtitle}</Text>
       </View>
 
-      <View style={local.quickRow}>
-        <Pressable
-          style={[local.quickButton, !showQrScanner && local.quickButtonActive]}
-          onPress={() => setShowQrScanner(false)}
-        >
-          <Text style={[local.quickButtonText, !showQrScanner && local.quickButtonTextActive]}>
-            {content.pick.pasteTab}
-          </Text>
-        </Pressable>
+      <View style={local.premiumCard}>
+        <View style={local.cardHeader}>
+          <View style={local.cardIcon}>
+            <MaterialCommunityIcons color={premiumPalette.gold} name="book-open-variant" size={s(21)} />
+          </View>
+          <View style={local.cardHeaderText}>
+            <Text style={local.cardTitle}>{content.menuInput.kicker}</Text>
+            <Text style={local.cardHint}>{content.menuInput.hint}</Text>
+          </View>
+        </View>
 
-        <Pressable
-          style={[local.quickButton, showQrScanner && local.quickButtonActive]}
-          onPress={() => setShowQrScanner(true)}
-        >
-          <Text style={[local.quickButtonText, showQrScanner && local.quickButtonTextActive]}>
-            {content.pick.qrTab}
-          </Text>
-        </Pressable>
-      </View>
+        <View style={local.modeSwitch}>
+          <Pressable
+            accessibilityRole="button"
+            style={[local.modeButton, !showQrScanner && local.modeButtonActive]}
+            onPress={() => setShowQrScanner(false)}
+          >
+            <Feather color={!showQrScanner ? premiumPalette.surface : premiumPalette.gold} name="link" size={s(16)} />
+            <Text style={[local.modeButtonText, !showQrScanner && local.modeButtonTextActive]}>{content.pick.pasteTab}</Text>
+          </Pressable>
 
-      <View style={local.discoveryButtonWrap}>
-        <ActionButton
-          label={content.pick.findMenuButton}
-          variant="secondary"
-          onPress={() => setShowRestaurantDiscovery(true)}
-          style={local.discoveryButton}
-        />
+          <Pressable
+            accessibilityRole="button"
+            style={[local.modeButton, showQrScanner && local.modeButtonActive]}
+            onPress={() => setShowQrScanner(true)}
+          >
+            <MaterialCommunityIcons color={showQrScanner ? premiumPalette.surface : premiumPalette.gold} name="qrcode-scan" size={s(17)} />
+            <Text style={[local.modeButtonText, showQrScanner && local.modeButtonTextActive]}>{content.pick.qrTab}</Text>
+          </Pressable>
+        </View>
+
+        {showQrScanner ? (
+          <QrMenuScanner
+            onUrlScanned={(value: string) => {
+              setMenuText(value);
+              setShowQrScanner(false);
+              setShowRestaurantDiscovery(false);
+            }}
+            onClose={() => setShowQrScanner(false)}
+          />
+        ) : (
+          <MenuInputCard menuText={menuText} setMenuText={setMenuText} compact />
+        )}
+
+        <Pressable accessibilityRole="button" style={local.findMenuRow} onPress={() => setShowRestaurantDiscovery(true)}>
+          <View style={local.findMenuLeft}>
+            <Feather color={premiumPalette.gold} name="search" size={s(19)} />
+            <Text style={local.findMenuText}>{content.pick.findMenuButton}</Text>
+          </View>
+          <Feather color={premiumPalette.textSoft} name="chevron-right" size={s(24)} />
+        </Pressable>
       </View>
 
       <RestaurantDiscoveryDialog
@@ -207,23 +253,18 @@ export function PickScreen({
         restaurantDetector={appleMapsRestaurantDetectorRuntime}
       />
 
-      {showQrScanner ? (
-        <QrMenuScanner
-          onUrlScanned={(value: string) => {
-            setMenuText(value);
-            setShowQrScanner(false);
-            setShowRestaurantDiscovery(false);
-          }}
-          onClose={() => setShowQrScanner(false)}
-        />
-      ) : null}
-
-      <MenuInputCard menuText={menuText} setMenuText={setMenuText} compact />
-
-      <Surface style={local.moodCard}>
-        <Text style={local.moodTitle}>{content.pick.moodTitle}</Text>
+      <View style={local.premiumCard}>
+        <View style={local.cardHeader}>
+          <View style={local.cardIcon}>
+            <Feather color={premiumPalette.gold} name="heart" size={s(20)} />
+          </View>
+          <View style={local.cardHeaderText}>
+            <Text style={local.cardTitle}>{content.pick.moodTitle}</Text>
+            <Text style={local.cardHint}>{content.pick.moodHint}</Text>
+          </View>
+        </View>
         <SituationSelector situation={situation} setSituation={setSituation} />
-      </Surface>
+      </View>
 
       {analyze.loading ? (
         <Surface tone="soft" style={local.feedbackCard}>
@@ -258,22 +299,39 @@ export function PickScreen({
         </>
       ) : null}
 
-      <ActionButton
-        label={analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}
-        variant="primary"
-        onPress={handleAnalyze}
+      <Pressable
+        accessibilityRole="button"
         disabled={analyze.loading}
-        style={local.mainButton}
-      />
+        onPress={handleAnalyze}
+        style={[local.mainButton, analyze.loading && local.mainButtonDisabled]}
+      >
+        <MaterialCommunityIcons color={premiumPalette.surface} name="room-service-outline" size={s(25)} />
+        <Text style={local.mainButtonText}>{analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}</Text>
+      </Pressable>
     </Screen>
   );
 }
 
+const premiumPalette = {
+  background: "#FBF8F1",
+  surface: "#FFFDF8",
+  surfaceSoft: "#F7F1E7",
+  olive: "#1F3B24",
+  oliveDeep: "#182C1B",
+  gold: "#C6A04A",
+  goldMuted: "#D7BE83",
+  textSoft: "#6F6A61",
+  border: "#E4D4B6",
+  borderSoft: "#EFE4D1"
+};
+
+const premiumFont = Platform.select({ ios: "Georgia", android: "serif", default: undefined });
+
 const local = StyleSheet.create({
   entryScreenContent: {
-    backgroundColor: premiumColors.background,
-    paddingBottom: 168,
-    paddingTop: 26
+    backgroundColor: premiumPalette.background,
+    paddingBottom: s(42),
+    paddingTop: s(26)
   },
 
   resultScreenContent: {
@@ -285,110 +343,165 @@ const local = StyleSheet.create({
   },
 
   conciergeIntro: {
-    marginBottom: spacing.section,
-    paddingHorizontal: spacing.xs,
-    paddingTop: spacing.xs
+    marginBottom: s(22),
+    paddingHorizontal: s(2)
   },
 
-  introAccent: {
-    backgroundColor: premiumColors.gold,
-    borderRadius: radius.pill,
-    height: 2,
-    marginBottom: spacing.md,
-    opacity: 0.72,
-    width: 44
+  introAccentRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: s(16)
+  },
+
+  introAccentLine: {
+    backgroundColor: premiumPalette.goldMuted,
+    height: 1,
+    marginHorizontal: s(12),
+    width: s(58)
   },
 
   introTitle: {
-    color: premiumColors.text,
-    fontSize: 29,
-    fontWeight: "900",
-    lineHeight: 35,
-    marginBottom: spacing.sm
+    color: premiumPalette.oliveDeep,
+    fontFamily: premiumFont,
+    fontSize: fs(27),
+    fontWeight: "700",
+    letterSpacing: 0,
+    lineHeight: fs(34),
+    marginBottom: s(12),
+    textAlign: "center"
   },
 
   introSubtitle: {
-    color: premiumColors.textMuted,
-    fontSize: 15,
-    fontWeight: "600",
-    lineHeight: 23
+    color: premiumPalette.textSoft,
+    fontSize: fs(18),
+    fontWeight: "400",
+    lineHeight: fs(27),
+    textAlign: "center"
   },
 
-  quickRow: {
-    backgroundColor: "rgba(255, 253, 248, 0.58)",
-    borderColor: "rgba(231, 222, 210, 0.62)",
-    borderRadius: radius.pill,
+  premiumCard: {
+    backgroundColor: premiumPalette.surface,
+    borderColor: premiumPalette.border,
+    borderRadius: s(28),
+    borderWidth: 1,
+    marginBottom: s(18),
+    padding: s(20),
+    shadowColor: "#6F5522",
+    shadowOffset: { width: 0, height: s(10) },
+    shadowOpacity: 0.08,
+    shadowRadius: s(20)
+  },
+
+  cardHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: s(12),
+    marginBottom: s(16)
+  },
+
+  cardIcon: {
+    alignItems: "center",
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.borderSoft,
+    borderRadius: s(18),
+    borderWidth: 1,
+    height: s(44),
+    justifyContent: "center",
+    width: s(44)
+  },
+
+  cardHeaderText: {
+    flex: 1
+  },
+
+  cardTitle: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(20),
+    fontWeight: "800",
+    lineHeight: fs(25),
+    marginBottom: s(3)
+  },
+
+  cardHint: {
+    color: premiumPalette.textSoft,
+    fontSize: fs(14),
+    fontWeight: "400",
+    lineHeight: fs(20)
+  },
+
+  modeSwitch: {
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.border,
+    borderRadius: 999,
     borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
-    padding: spacing.xs
+    gap: s(6),
+    marginBottom: s(14),
+    padding: s(5)
   },
 
-  quickButton: {
+  modeButton: {
     alignItems: "center",
-    backgroundColor: "transparent",
-    borderRadius: radius.pill,
+    borderRadius: 999,
     flex: 1,
+    flexDirection: "row",
+    gap: s(7),
     justifyContent: "center",
-    minHeight: 42,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+    minHeight: s(40),
+    paddingHorizontal: s(12)
   },
 
-  quickButtonActive: {
-    backgroundColor: premiumColors.olive,
-    shadowColor: premiumColors.olive,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
+  modeButtonActive: {
+    backgroundColor: premiumPalette.olive,
+    shadowColor: premiumPalette.olive,
+    shadowOffset: { width: 0, height: s(6) },
+    shadowOpacity: 0.1,
+    shadowRadius: s(12),
     elevation: 2
   },
 
-  quickButtonText: {
-    color: premiumColors.textMuted,
-    fontSize: 14,
+  modeButtonText: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(14),
     fontWeight: "800",
-    lineHeight: 19
+    lineHeight: fs(18)
   },
 
-  quickButtonTextActive: {
-    color: premiumColors.surface
+  modeButtonTextActive: {
+    color: premiumPalette.surface
   },
 
-  discoveryButtonWrap: {
-    marginBottom: spacing.section
+  findMenuRow: {
+    alignItems: "center",
+    borderColor: premiumPalette.borderSoft,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: s(14),
+    minHeight: s(52),
+    paddingTop: s(12)
   },
 
-  discoveryButton: {
-    backgroundColor: "rgba(255, 253, 248, 0.60)",
-    borderColor: "rgba(116, 109, 100, 0.16)",
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.md
+  findMenuLeft: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: s(10)
   },
 
-  moodCard: {
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    marginBottom: spacing.section,
-    padding: 0
-  },
-
-  moodTitle: {
-    color: premiumColors.text,
-    fontSize: 17,
-    fontWeight: "900",
-    lineHeight: 22,
-    marginBottom: spacing.md
+  findMenuText: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(16),
+    fontWeight: "800",
+    lineHeight: fs(21)
   },
 
   feedbackCard: {
-    backgroundColor: "rgba(255, 253, 248, 0.84)",
+    backgroundColor: "rgba(255, 253, 248, 0.86)",
     borderColor: "rgba(200, 168, 90, 0.24)",
     borderRadius: radius.hero,
     marginBottom: spacing.lg,
-    padding: 20
+    padding: s(20)
   },
 
   loadingTitle: {
@@ -430,7 +543,7 @@ const local = StyleSheet.create({
     borderRadius: radius.hero,
     borderWidth: 1,
     marginBottom: spacing.lg,
-    padding: 20
+    padding: s(20)
   },
 
   errorTitle: {
@@ -449,16 +562,33 @@ const local = StyleSheet.create({
   },
 
   mainButton: {
-    backgroundColor: premiumColors.olive,
-    borderRadius: radius.pill,
-    marginBottom: 24,
-    marginTop: spacing.sm,
-    paddingVertical: 17,
-    shadowColor: premiumColors.olive,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
+    alignItems: "center",
+    backgroundColor: premiumPalette.olive,
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: s(10),
+    justifyContent: "center",
+    marginBottom: s(10),
+    marginTop: s(2),
+    minHeight: s(66),
+    paddingHorizontal: s(20),
+    shadowColor: premiumPalette.olive,
+    shadowOffset: { width: 0, height: s(10) },
+    shadowOpacity: 0.18,
+    shadowRadius: s(16),
     elevation: 5
+  },
+
+  mainButtonDisabled: {
+    opacity: 0.58
+  },
+
+  mainButtonText: {
+    color: premiumPalette.surface,
+    fontSize: fs(18),
+    fontWeight: "800",
+    lineHeight: fs(23),
+    textAlign: "center"
   },
 
   openMenuSection: {
