@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "../../../src/auth/requireUser";
 import { askPickForMeAI } from "../../../src/ai/askPickForMeAI";
+import { classifyDishRolesAI } from "../../../src/ai/classifyDishRolesAI";
 import { askPickForMePdfUrlAI } from "../../../src/ai/askPickForMePdfUrlAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
@@ -16,6 +17,10 @@ import {
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import { findLinkedMenuImageUrls, looksLikeImageUrl } from "../../../src/menu/findLinkedMenuImageUrls";
 import { loadMenuTextFromMenury, looksLikeMenuryUrl } from "../../../src/menu/loadMenuTextFromMenury";
+import {
+  applyDishRoleClassifications,
+  getDishesNeedingRoleClassification
+} from "../../../src/menu/applyDishRoleClassifications";
 import { loadRestaurantDescriptionFromOrigin } from "../../../src/restaurant/extractRestaurantDescription";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import { blockReasonForRecommendation } from "../../../src/profile/profileRules";
@@ -62,6 +67,7 @@ const SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE =
   "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen";
 const TEXT_AI_TIMEOUT_MS = 90000;
 const PDF_AI_TIMEOUT_MS = 90000;
+const DISH_ROLE_CLASSIFICATION_TIMEOUT_MS = 30000;
 
 export async function POST(request: Request) {
   try {
@@ -493,7 +499,7 @@ export async function POST(request: Request) {
     }
 
     const parsedMenuItems = htmlMenuDishes ?? parseMenu(effectiveMenuText);
-    const dishes = parsedMenuItems.filter(isFoodDish);
+    let dishes = parsedMenuItems.filter(isFoodDish);
 
     if (dishes.length === 0 && inputLooksLikeUrl && process.env.GUSTAROAI_AI_ENABLED === "true") {
       const imageUrls = await findLinkedMenuImageUrls(rawMenuText);
@@ -631,6 +637,8 @@ export async function POST(request: Request) {
 
       throw new AppError(400, "NO_DISHES_FOUND", "GustaroAI konnte noch keine Gerichte erkennen.");
     }
+
+    dishes = await classifyUnclearDishRoles(dishes);
 
     const recommendations = recommendDishes({
       dishes,
@@ -966,6 +974,36 @@ function buildMenuAnalysisDetails(
   };
 
   return Object.keys(details).length > 0 ? details : undefined;
+}
+
+async function classifyUnclearDishRoles(dishes: Dish[]): Promise<Dish[]> {
+  if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
+    return dishes;
+  }
+
+  const candidates = getDishesNeedingRoleClassification(dishes);
+
+  if (candidates.length === 0) {
+    return dishes;
+  }
+
+  try {
+    const classifications = await withTimeout(
+      classifyDishRolesAI({
+        dishes: candidates.slice(0, 80)
+      }),
+      DISH_ROLE_CLASSIFICATION_TIMEOUT_MS,
+      "DISH_ROLE_CLASSIFICATION_TIMEOUT"
+    );
+
+    return applyDishRoleClassifications(dishes, classifications);
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("GustaroAI dish role classification failed.", error);
+    }
+
+    return dishes;
+  }
 }
 
 function isFoodDish(dish: Dish) {
