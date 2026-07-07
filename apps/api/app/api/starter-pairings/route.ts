@@ -14,10 +14,11 @@ import {
   htmlMenuExtractionToDishes,
   htmlMenuExtractionToMenuText
 } from "../../../src/menu/extraction/extractHtmlMenu";
+import { getDishRoleTags, getPrimaryDishRoleTag } from "../../../src/menu/dishRoleTags";
 import { findLinkedMenuImageUrls, looksLikeImageUrl } from "../../../src/menu/findLinkedMenuImageUrls";
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import type { AnalyzeMenuRequest } from "../../../src/types/api";
-import type { Dish } from "../../../src/types/menu";
+import type { Dish, DishRoleTag } from "../../../src/types/menu";
 import type { Recommendation } from "../../../src/types/recommendations";
 
 type StarterPairingsRequest = AnalyzeMenuRequest & {
@@ -212,7 +213,7 @@ async function addStarterPairingsForSource({
 
 function buildStarterCandidatesFromDishes(dishes: Dish[]): StarterPairingCandidate[] {
   return dishes
-    .filter((dish) => dish.dishRole === "starter")
+    .filter(isStarterPairingCandidate)
     .map((dish) => ({
       id: dish.id,
       nameOriginal: dish.nameOriginal,
@@ -224,6 +225,87 @@ function buildStarterCandidatesFromDishes(dishes: Dish[]): StarterPairingCandida
     }))
     .slice(0, 80);
 }
+
+function isStarterPairingCandidate(dish: Dish): boolean {
+  const roleTags = getDishRoleTags(dish);
+  const primaryRole = getPrimaryDishRoleTag(dish);
+  const explicitV2Roles = getExplicitV2RoleTags(dish);
+  const hasExplicitV2Roles = explicitV2Roles.length > 0;
+
+  if (
+    primaryRole === "starter" ||
+    primaryRole === "soup" ||
+    roleTags.includes("starter") ||
+    roleTags.includes("soup")
+  ) {
+    return !hasReliableV2NonStarterConflict(dish, explicitV2Roles);
+  }
+
+  if (explicitV2Roles.includes("salad")) {
+    return dish.isStarterCandidate === true && !hasV2NonStarterRole(explicitV2Roles);
+  }
+
+  if (dish.dishRole !== "starter") {
+    return false;
+  }
+
+  if (!hasExplicitV2Roles || explicitV2Roles.every((role) => role === "unknown")) {
+    return true;
+  }
+
+  return !hasReliableV2NonStarterConflict(dish, explicitV2Roles);
+}
+
+function getExplicitV2RoleTags(dish: Dish): DishRoleTag[] {
+  const roles: DishRoleTag[] = [];
+
+  for (const role of dish.dishRoles ?? []) {
+    if (!roles.includes(role)) {
+      roles.push(role);
+    }
+  }
+
+  if (dish.primaryRole && !roles.includes(dish.primaryRole)) {
+    roles.push(dish.primaryRole);
+  }
+
+  return roles;
+}
+
+function hasReliableV2NonStarterConflict(dish: Dish, roles: DishRoleTag[]): boolean {
+  if (!hasV2NonStarterRole(roles)) {
+    return false;
+  }
+
+  return isHighConfidenceRole(dish) || hasCategoryRoleEvidence(dish);
+}
+
+function hasV2NonStarterRole(roles: DishRoleTag[]): boolean {
+  return roles.some((role) => NON_STARTER_PAIRING_ROLE_TAGS.has(role));
+}
+
+function isHighConfidenceRole(dish: Dish): boolean {
+  return typeof dish.roleConfidence === "number" && dish.roleConfidence >= 0.8;
+}
+
+function hasCategoryRoleEvidence(dish: Dish): boolean {
+  return Boolean(
+    dish.sourceCategoryOriginal?.trim() ||
+    dish.sourceCategoryNormalized?.trim() ||
+    dish.roleEvidence?.trim().toLowerCase().startsWith("category:")
+  );
+}
+
+const NON_STARTER_PAIRING_ROLE_TAGS = new Set<DishRoleTag>([
+  "main",
+  "side",
+  "dessert",
+  "drink",
+  "breakfast",
+  "brunch",
+  "kids",
+  "menuSet"
+]);
 
 function selectTargetRecommendations(recommendations: Recommendation[], targetDishId: string | undefined) {
   const target = targetDishId?.trim();
