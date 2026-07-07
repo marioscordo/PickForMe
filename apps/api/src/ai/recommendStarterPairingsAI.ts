@@ -9,7 +9,7 @@ const CandidatePairingsSchema = z.object({
   pairings: z.array(z.object({
     dishId: z.string().trim().min(1),
     starterCandidateId: z.string().trim().min(1),
-    translatedName: z.string().trim().optional()
+    translatedName: z.string().trim().min(1)
   })).max(3)
 });
 
@@ -69,6 +69,8 @@ export async function addStarterPairingsFromCandidatesAI({
 }): Promise<Recommendation[]> {
   const mains = buildMainItems(dishes, recommendations);
   const validationContext = buildStarterValidationContext({ dishes, recommendations, allRecommendations });
+  const targetLocale = normalizeTargetLocale(userLocale);
+  const targetLanguage = getLanguageNameForLocale(targetLocale);
   const candidateItems = candidates
     .filter((candidate) => isSafeStarterCandidate(candidate, profile, validationContext))
     .sort((left, right) => compareStarterReusePreference(left, right, validationContext.usedStarterNames))
@@ -78,65 +80,84 @@ export async function addStarterPairingsFromCandidatesAI({
     return recommendations;
   }
 
-  if (candidateItems.length === 1) {
-    return applySingleStarterCandidate(recommendations, mains, candidateItems[0]!);
+  const singleCandidateFallback = candidateItems.length === 1
+    ? applySingleStarterCandidate(recommendations, mains, candidateItems[0]!)
+    : null;
+
+  if (singleCandidateFallback && hasUsableCandidateTranslation(candidateItems[0]!)) {
+    return singleCandidateFallback;
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
+    if (singleCandidateFallback) {
+      return singleCandidateFallback;
+    }
+
     throw new Error("STARTER_PAIRING_AI_DISABLED");
   }
 
   const client = new OpenAI({ apiKey });
-  const targetLocale = normalizeTargetLocale(userLocale);
-  const targetLanguage = getLanguageNameForLocale(targetLocale);
 
-  const completion = await client.chat.completions.create(
-    {
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: buildCandidateSystemPrompt(targetLanguage, targetLocale)
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            profile: buildProfilePromptLines(profile, "richtig_hunger"),
-            mainRecommendations: mains,
-            starterCandidates: candidateItems
-          })
-        }
-      ]
-    },
-    signal ? { signal } : undefined
-  );
+  try {
+    const completion = await client.chat.completions.create(
+      {
+        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: buildCandidateSystemPrompt(targetLanguage, targetLocale)
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              profile: buildProfilePromptLines(profile, "richtig_hunger"),
+              mainRecommendations: mains,
+              starterCandidates: candidateItems
+            })
+          }
+        ]
+      },
+      signal ? { signal } : undefined
+    );
 
-  const parsed = CandidatePairingsSchema.parse(
-    JSON.parse(stripJsonFence(completion.choices[0]?.message?.content ?? ""))
-  );
-  const candidateById = new Map(candidateItems.map((candidate) => [candidate.id, candidate]));
-  const mainIds = new Set(mains.map((main) => main.dishId));
-  const pairings = new Map<string, StarterPairing>();
+    const parsed = CandidatePairingsSchema.parse(
+      JSON.parse(stripJsonFence(completion.choices[0]?.message?.content ?? ""))
+    );
+    const candidateById = new Map(candidateItems.map((candidate) => [candidate.id, candidate]));
+    const mainIds = new Set(mains.map((main) => main.dishId));
+    const pairings = new Map<string, StarterPairing>();
 
-  for (const pairing of parsed.pairings) {
-    if (!mainIds.has(pairing.dishId)) {
-      continue;
+    for (const pairing of parsed.pairings) {
+      if (!mainIds.has(pairing.dishId)) {
+        continue;
+      }
+
+      const candidate = candidateById.get(pairing.starterCandidateId);
+
+      if (!candidate || !isSafeStarterCandidate(candidate, profile, validationContext)) {
+        continue;
+      }
+
+      pairings.set(pairing.dishId, candidateToStarterPairing(candidate, pairing.translatedName));
     }
 
-    const candidate = candidateById.get(pairing.starterCandidateId);
-
-    if (!candidate || !isSafeStarterCandidate(candidate, profile, validationContext)) {
-      continue;
+    if (singleCandidateFallback && pairings.size === 0) {
+      return singleCandidateFallback;
     }
 
-    pairings.set(pairing.dishId, candidateToStarterPairing(candidate, pairing.translatedName));
+    const result = applyStarterPairings(recommendations, pairings);
+    return result;
+  } catch (error) {
+    if (singleCandidateFallback) {
+      return singleCandidateFallback;
+    }
+
+    throw error;
   }
-
-  return applyStarterPairings(recommendations, pairings);
 }
 
 export async function addStarterPairingsFromPdfUrlAI({
@@ -460,11 +481,14 @@ function buildCandidateSystemPrompt(targetLanguage: string, targetLocale: string
     "The main recommendations are final. Do not change their order, dishId, names, or selection.",
     "Choose at most one starterCandidateId for each main recommendation.",
     "Choose only from starterCandidates. Do not invent dishes.",
+    "Use only starterCandidateId values that are present in starterCandidates.",
+    "If starterCandidates contains exactly one safe candidate, use that candidate instead of inventing or searching for another starter.",
     "Only choose a candidate when it is a clear appetizer, starter, antipasto, soup, or small first course from the menu context.",
     "Do not choose drinks, desserts, sides, extras, categories, or another main course.",
     "Hard exclusions and intolerances from the profile are mandatory.",
     "If no safe starter fits a main dish, omit that main dish.",
     "Return translatedName in the target language for the chosen starter.",
+    "translatedName is required for every returned pairing and should not be identical to the original name when a target-language display name is possible.",
     "Do not add ingredients, prices, ratings, restaurant facts, or atmosphere.",
     "Return only valid JSON with pairings."
   ].join("\n");
@@ -522,9 +546,13 @@ function candidateToStarterPairing(
   candidate: StarterPairingCandidate,
   translatedName?: string
 ): StarterPairing {
+  const displayTranslation =
+    getUsableStarterDisplayTranslation(candidate.nameOriginal, translatedName) ??
+    getUsableStarterDisplayTranslation(candidate.nameOriginal, candidate.translatedName);
+
   return {
     nameOriginal: candidate.nameOriginal,
-    translatedName: translatedName?.trim() || candidate.translatedName,
+    translatedName: displayTranslation,
     priceRaw: candidate.priceRaw,
     evidence: candidate.evidence ?? candidate.sourceLine
   };
@@ -567,6 +595,20 @@ function applySingleStarterCandidate(
         .map((recommendation) => [recommendation.dishId, starter])
     )
   );
+}
+
+function hasUsableCandidateTranslation(candidate: StarterPairingCandidate) {
+  return Boolean(getUsableStarterDisplayTranslation(candidate.nameOriginal, candidate.translatedName));
+}
+
+function getUsableStarterDisplayTranslation(nameOriginal: string, translatedName: string | undefined) {
+  const cleaned = translatedName?.trim() ?? "";
+
+  if (!cleaned || normalizeKey(cleaned) === normalizeKey(nameOriginal)) {
+    return undefined;
+  }
+
+  return cleaned;
 }
 
 function isSafeStarterCandidate(

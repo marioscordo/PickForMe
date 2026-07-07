@@ -123,7 +123,9 @@ export async function POST(request: Request) {
     }
 
     const inputLooksLikeUrl = looksLikeUrl(rawMenuText);
-    const directPdfUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikePdfUrl(rawMenuText) ? rawMenuText : null;
+    const directPdfUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikePdfUrl(rawMenuText)
+      ? canonicalizePdfSourceUrl(rawMenuText)
+      : null;
     const linkedPdfMenu = !dynamicMenuText && inputLooksLikeUrl && !directPdfUrl ? await findLinkedPdfMenu(rawMenuText) : null;
     const pdfMenuUrls = directPdfUrl
       ? [directPdfUrl]
@@ -1847,6 +1849,16 @@ function looksLikePdfUrl(value: string): boolean {
   }
 }
 
+function canonicalizePdfSourceUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
 async function loadOfficialRestaurantContextFromUrl(value: string): Promise<string | undefined> {
   try {
     const response = await fetchWithTimeout(value, 8000);
@@ -1890,7 +1902,7 @@ async function findLinkedPdfMenu(value: string): Promise<LinkedPdfMenu | null> {
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
 
     if (looksLikePdfUrl(finalUrl) || contentType.includes("application/pdf")) {
-      return { url: finalUrl };
+      return { url: canonicalizePdfSourceUrl(finalUrl) };
     }
 
     const html = await response.text();
@@ -2126,7 +2138,8 @@ function collectMenuSourceCandidate(
   index: number
 ) {
   try {
-    const url = new URL(rawValue, baseUrl).toString();
+    const resolvedUrl = new URL(rawValue, baseUrl).toString();
+    const url = sourceKind === "pdf" ? canonicalizePdfSourceUrl(resolvedUrl) : resolvedUrl;
     if (!sourceKindMatchesUrl(sourceKind, url)) return;
 
     candidates.push({
