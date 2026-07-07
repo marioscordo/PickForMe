@@ -292,6 +292,10 @@ export function RestaurantDiscoveryDialog({
     onGoHome?.();
   }
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Modal animationType="slide" visible={visible} onRequestClose={closeDialog}>
       <View style={local.modalShell}>
