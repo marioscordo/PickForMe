@@ -7,10 +7,21 @@ type ScreenProps = {
   bottomScrollInset?: number;
   children: React.ReactNode;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  scrollHintBottomOffset?: number;
+  scrollHintHideThreshold?: number;
+  showScrollHint?: boolean;
   scrollToTopKey?: string;
 };
 
-export function Screen({ bottomScrollInset = 0, children, contentContainerStyle, scrollToTopKey }: ScreenProps) {
+export function Screen({
+  bottomScrollInset = 0,
+  children,
+  contentContainerStyle,
+  scrollHintBottomOffset = 18,
+  scrollHintHideThreshold = 36,
+  showScrollHint = true,
+  scrollToTopKey
+}: ScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -25,7 +36,8 @@ export function Screen({ bottomScrollInset = 0, children, contentContainerStyle,
     }
   }, [scrollToTopKey]);
 
-  const canScrollFurther = contentHeight > viewportHeight + 18 && scrollY + viewportHeight < contentHeight - 36;
+  const distanceFromBottom = contentHeight - (scrollY + viewportHeight);
+  const canScrollFurther = contentHeight > viewportHeight + 18 && distanceFromBottom > scrollHintHideThreshold;
 
   function handleLayout(event: LayoutChangeEvent) {
     setViewportHeight(event.nativeEvent.layout.height);
@@ -53,8 +65,8 @@ export function Screen({ bottomScrollInset = 0, children, contentContainerStyle,
           {children}
           {bottomScrollInset > 0 ? <View pointerEvents="none" style={{ height: bottomScrollInset }} /> : null}
         </ScrollView>
-        {canScrollFurther ? (
-          <View pointerEvents="none" style={local.scrollHint}>
+        {showScrollHint && canScrollFurther ? (
+          <View pointerEvents="none" style={[local.scrollHint, { bottom: scrollHintBottomOffset }]}>
             <Feather color="#C6A04A" name="chevron-down" size={18} />
           </View>
         ) : null}

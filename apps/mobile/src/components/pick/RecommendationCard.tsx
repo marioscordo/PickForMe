@@ -101,12 +101,16 @@ export function RecommendationCard({
   result,
   menuText,
   situation,
-  onReset
+  onReset,
+  openMenuLabel,
+  onOpenMenu
 }: {
   result: AnalyzeData;
   menuText: string;
   situation: Situation;
   onReset: () => void;
+  openMenuLabel?: string;
+  onOpenMenu?: () => void;
 }) {
   const content = useMobileContent();
   const { profile, setProfile } = useProfile();
@@ -215,8 +219,19 @@ export function RecommendationCard({
           </Text>
         </Surface>
 
-        <ActionButton label={content.recommendation.resetButton} variant="accent" onPress={onReset} style={local.resetButton} />
+        {renderFooterActions()}
       </>
+    );
+  }
+
+  function renderFooterActions() {
+    return (
+      <View style={local.footerActions}>
+        <ActionButton label={content.recommendation.resetButton} variant="secondary" onPress={onReset} style={local.footerButton} />
+        {openMenuLabel && onOpenMenu ? (
+          <ActionButton label={openMenuLabel} variant="secondary" onPress={onOpenMenu} style={local.footerButton} />
+        ) : null}
+      </View>
     );
   }
 
@@ -361,7 +376,7 @@ export function RecommendationCard({
         })}
       </View>
 
-      <ActionButton label={content.recommendation.resetButton} variant="accent" onPress={onReset} style={local.resetButton} />
+      {renderFooterActions()}
     </View>
   );
 }
@@ -369,7 +384,7 @@ export function RecommendationCard({
 const local = StyleSheet.create({
   resultRoot: {
     position: "relative",
-    paddingBottom: 112
+    paddingBottom: spacing.md
   },
 
   topBox: {
@@ -542,8 +557,8 @@ const local = StyleSheet.create({
   },
 
   dishNamePrimary: {
-    fontSize: 30,
-    lineHeight: 36
+    fontSize: 18,
+    lineHeight: 23
   },
 
   dishNameSecondary: {
@@ -561,9 +576,9 @@ const local = StyleSheet.create({
   },
 
   translationPrimary: {
-    fontSize: 16,
-    lineHeight: 23,
-    marginTop: spacing.sm
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: spacing.xs
   },
 
   price: {
@@ -575,8 +590,8 @@ const local = StyleSheet.create({
 
   pricePrimary: {
     color: premiumColors.gold,
-    fontSize: 21,
-    marginTop: spacing.md
+    fontSize: 15,
+    marginTop: spacing.sm
   },
 
   starterBox: {
@@ -743,8 +758,12 @@ const local = StyleSheet.create({
     lineHeight: 18
   },
 
-  resetButton: {
-    borderRadius: radius.pill,
-    marginBottom: 20
+  footerActions: {
+    gap: 12,
+    marginBottom: 16
+  },
+
+  footerButton: {
+    borderRadius: radius.pill
   }
 });
