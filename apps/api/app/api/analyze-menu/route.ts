@@ -35,7 +35,23 @@ type FallbackHeroContext = {
 
 type LinkedPdfMenu = {
   url: string;
+  urls?: string[];
   restaurantContextText?: string;
+};
+
+type MenuSourceKind = "pdf" | "html" | "image";
+
+type MenuSourceCandidate = {
+  url: string;
+  label: string;
+  index: number;
+  sourceKind: MenuSourceKind;
+};
+
+type MenuSourceFamilyInfo = MenuSourceCandidate & {
+  directoryKey: string;
+  familyKey: string;
+  partOrder: number;
 };
 
 type LocalizedRestaurantDescriptionResult = RestaurantDescriptionResult & {
@@ -102,7 +118,10 @@ export async function POST(request: Request) {
     const inputLooksLikeUrl = looksLikeUrl(rawMenuText);
     const directPdfUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikePdfUrl(rawMenuText) ? rawMenuText : null;
     const linkedPdfMenu = !dynamicMenuText && inputLooksLikeUrl && !directPdfUrl ? await findLinkedPdfMenu(rawMenuText) : null;
-    const pdfMenuUrl = directPdfUrl ?? linkedPdfMenu?.url;
+    const pdfMenuUrls = directPdfUrl
+      ? [directPdfUrl]
+      : linkedPdfMenu?.urls ?? (linkedPdfMenu?.url ? [linkedPdfMenu.url] : []);
+    const pdfMenuUrl = pdfMenuUrls[0];
     const officialRestaurantUrl = inputLooksLikeUrl
       ? getOfficialRestaurantHomepageUrl(rawMenuText)
       : undefined;
@@ -123,7 +142,7 @@ export async function POST(request: Request) {
       try {
         const aiResult = await withTimeout(
           askPickForMePdfUrlAI({
-            pdfUrl: pdfMenuUrl,
+            pdfUrls: pdfMenuUrls,
             profile,
             situation: body.situation,
             userLocale: outputLocale
@@ -336,7 +355,7 @@ export async function POST(request: Request) {
 
     const shouldExtractHtmlMenu = !dynamicMenuText && inputLooksLikeUrl && !pdfMenuUrl && !directImageUrl;
     const htmlMenuExtraction = shouldExtractHtmlMenu
-      ? await extractHtmlMenuFromUrl(rawMenuText)
+      ? await extractHtmlMenuFamilyFromUrl(rawMenuText)
       : null;
     const htmlMenuText = htmlMenuExtraction
       ? htmlMenuExtraction.items.length
@@ -1753,11 +1772,13 @@ async function findLinkedPdfMenu(value: string): Promise<LinkedPdfMenu | null> {
 
     const html = await response.text();
     const candidates = extractPdfCandidates(html, finalUrl);
-    const url = candidates.find((candidate) => scorePdfCandidate(candidate) > 0);
+    const familyUrls = findNormalMenuSourceFamilyUrls(candidates);
+    const url = familyUrls[0] ?? candidates.find((candidate) => scorePdfCandidate(candidate.url) > 0)?.url;
 
     return url
       ? {
           url,
+          urls: familyUrls.length > 0 ? familyUrls : [url],
           restaurantContextText: extractOfficialRestaurantContext(html)
         }
       : null;
@@ -1850,27 +1871,346 @@ function cleanOfficialContextText(value: string): string {
     .trim();
 }
 
-function extractPdfCandidates(html: string, baseUrl: string): string[] {
-  const candidates = new Set<string>();
-  const pattern = /\b(?:href|src)=["']([^"']+)["']/gi;
+function extractPdfCandidates(html: string, baseUrl: string): MenuSourceCandidate[] {
+  return extractLinkedMenuSourceCandidates(html, baseUrl, "pdf")
+    .sort((a, b) => scorePdfCandidate(b.url) - scorePdfCandidate(a.url));
+}
 
+async function extractHtmlMenuFamilyFromUrl(value: string): Promise<MenuExtractionResult | null> {
+  try {
+    const response = await fetchWithTimeout(value, 8000);
+
+    if (!response.ok) {
+      return extractHtmlMenuFromUrl(value);
+    }
+
+    const finalUrl = response.url || value;
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+
+    if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+      return extractHtmlMenuFromUrl(value);
+    }
+
+    const html = await response.text();
+    const sameDomainCandidates = [
+      {
+        url: finalUrl,
+        label: "",
+        index: -1,
+        sourceKind: "html" as const
+      },
+      ...extractLinkedMenuSourceCandidates(html, finalUrl, "html")
+    ].filter((candidate) => getRegistrableDomain(candidate.url) === getRegistrableDomain(finalUrl));
+    const familyUrls = findNormalMenuSourceFamilyUrls(sameDomainCandidates, finalUrl);
+
+    if (familyUrls.length < 2) {
+      return extractHtmlMenuFromUrl(finalUrl);
+    }
+
+    const extractions = (await Promise.all(familyUrls.map((url) => extractHtmlMenuFromUrl(url))))
+      .filter((result): result is MenuExtractionResult => Boolean(result));
+
+    if (extractions.length === 0) {
+      return extractHtmlMenuFromUrl(finalUrl);
+    }
+
+    return combineHtmlMenuExtractions(extractions);
+  } catch {
+    return extractHtmlMenuFromUrl(value);
+  }
+}
+
+function combineHtmlMenuExtractions(values: MenuExtractionResult[]): MenuExtractionResult {
+  const items = dedupeHtmlMenuItems(values.flatMap((value) => value.items));
+  const fragments = uniqueStrings(values.flatMap((value) => value.fragments)).slice(0, 80);
+
+  return {
+    sourceFormat: "html",
+    items,
+    confidence: items.length >= 3 ? "high" : items.length > 0 ? "medium" : "low",
+    warnings: values.flatMap((value) => value.warnings),
+    fragments
+  };
+}
+
+function dedupeHtmlMenuItems(items: MenuExtractionResult["items"]) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const key = normalizeMenuSourceText(`${item.title} ${item.price ?? ""}`);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function uniqueStrings(values: string[]) {
+  const seen = new Set<string>();
+
+  return values.filter((value) => {
+    const normalized = value.trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function extractLinkedMenuSourceCandidates(
+  html: string,
+  baseUrl: string,
+  sourceKind: MenuSourceKind
+): MenuSourceCandidate[] {
+  const candidates: MenuSourceCandidate[] = [];
+  const anchorPattern = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const attributePattern = /\b(?:href|src)=["']([^"']+)["']/gi;
   let match: RegExpExecArray | null;
+  let index = 0;
 
-  while ((match = pattern.exec(html)) !== null) {
-    const rawValue = decodeHtmlAttribute(match[1] ?? "");
-
-    if (!rawValue.toLowerCase().includes(".pdf")) {
-      continue;
-    }
-
-    try {
-      candidates.add(new URL(rawValue, baseUrl).toString());
-    } catch {
-      // ignore invalid links
-    }
+  while ((match = anchorPattern.exec(html)) !== null) {
+    collectMenuSourceCandidate(
+      candidates,
+      decodeHtmlAttribute(match[1] ?? ""),
+      htmlToSourceLabel(match[2] ?? ""),
+      baseUrl,
+      sourceKind,
+      index
+    );
+    index += 1;
   }
 
-  return [...candidates].sort((a, b) => scorePdfCandidate(b) - scorePdfCandidate(a));
+  while ((match = attributePattern.exec(html)) !== null) {
+    collectMenuSourceCandidate(
+      candidates,
+      decodeHtmlAttribute(match[1] ?? ""),
+      "",
+      baseUrl,
+      sourceKind,
+      index
+    );
+    index += 1;
+  }
+
+  return dedupeMenuSourceCandidates(candidates);
+}
+
+function collectMenuSourceCandidate(
+  candidates: MenuSourceCandidate[],
+  rawValue: string,
+  label: string,
+  baseUrl: string,
+  sourceKind: MenuSourceKind,
+  index: number
+) {
+  try {
+    const url = new URL(rawValue, baseUrl).toString();
+    if (!sourceKindMatchesUrl(sourceKind, url)) return;
+
+    candidates.push({
+      url,
+      label,
+      index,
+      sourceKind
+    });
+  } catch {
+    // ignore invalid links
+  }
+}
+
+function dedupeMenuSourceCandidates(values: MenuSourceCandidate[]) {
+  const seen = new Set<string>();
+
+  return values.filter((value) => {
+    const key = `${value.sourceKind}:${value.url.toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function sourceKindMatchesUrl(sourceKind: MenuSourceKind, value: string) {
+  if (sourceKind === "pdf") return looksLikePdfUrl(value);
+  if (sourceKind === "image") return looksLikeImageUrl(value);
+  return !looksLikePdfUrl(value) && !looksLikeImageUrl(value);
+}
+
+function findNormalMenuSourceFamilyUrls(candidates: MenuSourceCandidate[], primaryUrl?: string): string[] {
+  const infos = candidates
+    .map(toMenuSourceFamilyInfo)
+    .filter((info): info is MenuSourceFamilyInfo => Boolean(info));
+  const groups = new Map<string, MenuSourceFamilyInfo[]>();
+
+  for (const info of infos) {
+    const key = `${info.sourceKind}:${info.directoryKey}:${info.familyKey}`;
+    groups.set(key, [...(groups.get(key) ?? []), info]);
+  }
+
+  const primaryKey = primaryUrl?.trim().toLowerCase();
+  const families = [...groups.values()]
+    .filter((group) => uniqueStrings(group.map((info) => info.url)).length >= 2)
+    .sort((left, right) => {
+      const leftHasPrimary = primaryKey ? left.some((info) => info.url.toLowerCase() === primaryKey) : false;
+      const rightHasPrimary = primaryKey ? right.some((info) => info.url.toLowerCase() === primaryKey) : false;
+      if (leftHasPrimary !== rightHasPrimary) return leftHasPrimary ? -1 : 1;
+      return Math.min(...left.map((info) => info.index)) - Math.min(...right.map((info) => info.index));
+    });
+
+  const family = families[0];
+  if (!family) return [];
+
+  return uniqueStrings(
+    family
+      .sort((left, right) => left.partOrder - right.partOrder || left.index - right.index)
+      .map((info) => info.url)
+  );
+}
+
+function toMenuSourceFamilyInfo(candidate: MenuSourceCandidate): MenuSourceFamilyInfo | null {
+  let url: URL;
+
+  try {
+    url = new URL(candidate.url);
+  } catch {
+    return null;
+  }
+
+  const stem = getUrlStem(url);
+  const probe = normalizeMenuSourceText(`${url.pathname} ${url.search} ${candidate.label}`);
+  const keySource = normalizeMenuSourceText(`${stem} ${candidate.label}`);
+  const partOrder = getMenuPartOrder(keySource);
+
+  if (!partOrder) return null;
+  if (!hasRegularMenuSourceTerm(probe)) return null;
+  if (hasExcludedMenuSourceTerm(probe)) return null;
+
+  const familyKey = normalizeMenuFamilyKey(keySource);
+  if (!familyKey || familyKey === keySource) return null;
+
+  return {
+    ...candidate,
+    directoryKey: `${url.origin.toLowerCase()}${getUrlDirectory(url)}`,
+    familyKey,
+    partOrder
+  };
+}
+
+function getUrlStem(url: URL) {
+  const segment = safeDecodeURIComponent(url.pathname.split("/").filter(Boolean).pop() ?? "");
+  return segment.replace(/\.[a-z0-9]+$/i, "");
+}
+
+function getUrlDirectory(url: URL) {
+  const pathname = url.pathname.toLowerCase();
+  const index = pathname.lastIndexOf("/");
+  return index >= 0 ? pathname.slice(0, index + 1) : "/";
+}
+
+function normalizeMenuFamilyKey(value: string) {
+  return stripMenuPartMarkers(value)
+    .replace(/\b(?:oeffnen|offnen|open|download|downloads|view|ansehen|pdf|html|jpg|jpeg|png|webp)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripMenuPartMarkers(value: string) {
+  return value
+    .replace(/\b(?:vorne|front|vorderseite)\b/g, " ")
+    .replace(/\b(?:hinten|back|rueckseite|ruckseite)\b/g, " ")
+    .replace(/\b(?:seite|page|teil|part)\s*\d+\b/g, " ")
+    .replace(/\b(speisekarte|menu)\s+\d+\b/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getMenuPartOrder(value: string) {
+  if (/\b(?:vorne|front|vorderseite)\b/.test(value)) return 1;
+  if (/\b(?:hinten|back|rueckseite|ruckseite)\b/.test(value)) return 2;
+
+  const numbered = value.match(/\b(?:seite|page|teil|part)\s*(\d+)\b/)
+    ?? value.match(/\b(?:speisekarte|menu)\s+(\d+)\b/);
+  return numbered ? Number(numbered[1]) || 0 : 0;
+}
+
+function hasRegularMenuSourceTerm(value: string) {
+  return [
+    "speisekarte",
+    "restaurantkarte",
+    "karte",
+    "menu",
+    "menue",
+    "food menu",
+    "main menu",
+    "restaurant menu",
+    "carte",
+    "carta",
+    "ementa",
+    "menukaart",
+    "a la carte",
+    "ristorante",
+    "restaurante",
+    "restaurant"
+  ].some((term) => value.includes(term));
+}
+
+function hasExcludedMenuSourceTerm(value: string) {
+  return [
+    "fruehstueck",
+    "fruhstuck",
+    "breakfast",
+    "brunch",
+    "colazione",
+    "petit dejeuner",
+    "desayuno",
+    "pequeno almoco",
+    "cafe da manha",
+    "ontbijt",
+    "tageskarte",
+    "wochenkarte",
+    "sonntagskarte",
+    "aktionskarte",
+    "saisonkarte",
+    "getraenkekarte",
+    "getrankekarte",
+    "drinks",
+    "beverages",
+    "weinkarte",
+    "wine",
+    "dessertkarte",
+    "dessert",
+    "eventkarte",
+    "cateringkarte"
+  ].some((term) => value.includes(term));
+}
+
+function normalizeMenuSourceText(value: string) {
+  return safeDecodeURIComponent(value)
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function safeDecodeURIComponent(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function htmlToSourceLabel(value: string) {
+  return value
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function scorePdfCandidate(value: string): number {

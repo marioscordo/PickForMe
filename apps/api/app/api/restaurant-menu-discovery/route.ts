@@ -70,6 +70,16 @@ type SourceLink = {
   label: string;
 };
 
+type MenuSourceKind = "pdf" | "html" | "image";
+
+type MenuSourceFamilyInfo = SourceLink & {
+  index: number;
+  sourceKind: MenuSourceKind;
+  directoryKey: string;
+  familyKey: string;
+  partOrder: number;
+};
+
 const OfficialRestaurantSourceResponseSchema = z.object({
   candidates: z.array(z.object({
     name: z.string().optional().default(""),
@@ -330,12 +340,14 @@ async function findMenuFromOfficialSource(
     if (requireSourceMatch && !sourceMatchesRestaurant(source.html, source.finalUrl, candidate)) continue;
 
     const websiteDomain = getRegistrableDomain(source.finalUrl);
-    const menuUrl = await findVerifiedMenuUrl(
-      extractSourceLinks(source.html, source.finalUrl)
-        .filter((link) => getRegistrableDomain(link.url) === websiteDomain)
-        .map((link) => link.url),
-      source.finalUrl
-    );
+    const sourceLinks = extractSourceLinks(source.html, source.finalUrl)
+      .filter((link) => getRegistrableDomain(link.url) === websiteDomain);
+
+    if (hasNormalMenuSourceFamily(sourceLinks)) {
+      return source.finalUrl;
+    }
+
+    const menuUrl = await findVerifiedMenuUrl(sourceLinks.map((link) => link.url), source.finalUrl);
     if (menuUrl) return menuUrl;
   }
 
@@ -410,10 +422,16 @@ async function findLinkedAnalyzableMenuUrl(pageUrl: string, expectedDomain: stri
   if (!source) return "";
   if (getRegistrableDomain(source.finalUrl) !== expectedDomain) return "";
 
-  const candidateUrls = extractSourceLinks(source.html, source.finalUrl)
+  const sourceLinks = extractSourceLinks(source.html, source.finalUrl)
+    .filter((link) => getRegistrableDomain(link.url) === expectedDomain)
+    .filter((link) => !sameUrlWithoutTrailingSlash(link.url, pageUrl));
+
+  if (hasNormalMenuSourceFamily(sourceLinks)) {
+    return source.finalUrl;
+  }
+
+  const candidateUrls = sourceLinks
     .map((link) => link.url)
-    .filter((url) => getRegistrableDomain(url) === expectedDomain)
-    .filter((url) => !sameUrlWithoutTrailingSlash(url, pageUrl))
     .filter(looksLikeMenuSourceUrl);
 
   for (const candidateUrl of orderMenuCandidateUrls(candidateUrls).slice(0, MAX_LINKED_MENU_ANALYSIS_CANDIDATES)) {
@@ -441,6 +459,178 @@ function looksLikeMenuSourceUrl(value: string) {
       .some((term) => normalized.includes(term));
   } catch {
     return false;
+  }
+}
+
+function hasNormalMenuSourceFamily(links: SourceLink[]) {
+  const infos = links
+    .map((link, index) => toMenuSourceFamilyInfo(link, index))
+    .filter((info): info is MenuSourceFamilyInfo => Boolean(info));
+  const groups = new Map<string, MenuSourceFamilyInfo[]>();
+
+  for (const info of infos) {
+    const key = `${info.sourceKind}:${info.directoryKey}:${info.familyKey}`;
+    groups.set(key, [...(groups.get(key) ?? []), info]);
+  }
+
+  return [...groups.values()]
+    .some((group) => uniqueStrings(group.map((info) => info.url)).length >= 2);
+}
+
+function toMenuSourceFamilyInfo(link: SourceLink, index: number): MenuSourceFamilyInfo | null {
+  let url: URL;
+
+  try {
+    url = new URL(link.url);
+  } catch {
+    return null;
+  }
+
+  const sourceKind = getMenuSourceKind(link.url);
+  const stem = getUrlStem(url);
+  const probe = normalizeMenuSourceText(`${url.pathname} ${url.search} ${link.label}`);
+  const keySource = normalizeMenuSourceText(`${stem} ${link.label}`);
+  const partOrder = getMenuPartOrder(keySource);
+
+  if (!partOrder) return null;
+  if (!hasRegularMenuSourceTerm(probe)) return null;
+  if (hasExcludedMenuSourceTerm(probe)) return null;
+
+  const familyKey = normalizeMenuFamilyKey(keySource);
+  if (!familyKey || familyKey === keySource) return null;
+
+  return {
+    ...link,
+    index,
+    sourceKind,
+    directoryKey: `${url.origin.toLowerCase()}${getUrlDirectory(url)}`,
+    familyKey,
+    partOrder
+  };
+}
+
+function getMenuSourceKind(value: string): MenuSourceKind {
+  if (looksLikePdfUrl(value)) return "pdf";
+  if (looksLikeImageSourceUrl(value)) return "image";
+  return "html";
+}
+
+function looksLikeImageSourceUrl(value: string) {
+  try {
+    const pathname = new URL(value).pathname.toLowerCase();
+    return [".png", ".jpg", ".jpeg", ".gif", ".webp"].some((extension) => pathname.endsWith(extension));
+  } catch {
+    return false;
+  }
+}
+
+function getUrlStem(url: URL) {
+  const segment = safeDecodeURIComponent(url.pathname.split("/").filter(Boolean).pop() ?? "");
+  return segment.replace(/\.[a-z0-9]+$/i, "");
+}
+
+function getUrlDirectory(url: URL) {
+  const pathname = url.pathname.toLowerCase();
+  const index = pathname.lastIndexOf("/");
+  return index >= 0 ? pathname.slice(0, index + 1) : "/";
+}
+
+function normalizeMenuFamilyKey(value: string) {
+  return stripMenuPartMarkers(value)
+    .replace(/\b(?:oeffnen|offnen|open|download|downloads|view|ansehen|pdf|html|jpg|jpeg|png|webp)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripMenuPartMarkers(value: string) {
+  return value
+    .replace(/\b(?:vorne|front|vorderseite)\b/g, " ")
+    .replace(/\b(?:hinten|back|rueckseite|ruckseite)\b/g, " ")
+    .replace(/\b(?:seite|page|teil|part)\s*\d+\b/g, " ")
+    .replace(/\b(speisekarte|menu)\s+\d+\b/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getMenuPartOrder(value: string) {
+  if (/\b(?:vorne|front|vorderseite)\b/.test(value)) return 1;
+  if (/\b(?:hinten|back|rueckseite|ruckseite)\b/.test(value)) return 2;
+
+  const numbered = value.match(/\b(?:seite|page|teil|part)\s*(\d+)\b/)
+    ?? value.match(/\b(?:speisekarte|menu)\s+(\d+)\b/);
+  return numbered ? Number(numbered[1]) || 0 : 0;
+}
+
+function hasRegularMenuSourceTerm(value: string) {
+  return [
+    "speisekarte",
+    "restaurantkarte",
+    "karte",
+    "menu",
+    "menue",
+    "food menu",
+    "main menu",
+    "restaurant menu",
+    "carte",
+    "carta",
+    "ementa",
+    "menukaart",
+    "a la carte",
+    "ristorante",
+    "restaurante",
+    "restaurant"
+  ].some((term) => value.includes(term));
+}
+
+function hasExcludedMenuSourceTerm(value: string) {
+  return [
+    "fruehstueck",
+    "fruhstuck",
+    "breakfast",
+    "brunch",
+    "colazione",
+    "petit dejeuner",
+    "desayuno",
+    "pequeno almoco",
+    "cafe da manha",
+    "ontbijt",
+    "tageskarte",
+    "wochenkarte",
+    "sonntagskarte",
+    "aktionskarte",
+    "saisonkarte",
+    "getraenkekarte",
+    "getrankekarte",
+    "drinks",
+    "beverages",
+    "weinkarte",
+    "wine",
+    "dessertkarte",
+    "dessert",
+    "eventkarte",
+    "cateringkarte"
+  ].some((term) => value.includes(term));
+}
+
+function normalizeMenuSourceText(value: string) {
+  return safeDecodeURIComponent(value)
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function safeDecodeURIComponent(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
   }
 }
 

@@ -30,7 +30,8 @@ type PdfAiRecommendation = z.infer<typeof RecommendationSchema>;
 type ProfileInput = Partial<UserProfile>;
 
 type AskPickForMePdfUrlAIInput = {
-  pdfUrl: string;
+  pdfUrl?: string;
+  pdfUrls?: string[];
   profile?: ProfileInput;
   situation?: string;
   userLocale?: string;
@@ -47,6 +48,14 @@ export async function askPickForMePdfUrlAI(input: AskPickForMePdfUrlAIInput) {
 
   const profile = input.profile ?? {};
   const model = process.env.OPENAI_PDF_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const pdfUrls = uniquePdfUrls([
+    ...(input.pdfUrls ?? []),
+    input.pdfUrl ?? ""
+  ]).slice(0, 8);
+
+  if (pdfUrls.length === 0) {
+    return toAnalyzeDataParts([]);
+  }
 
   const response = await client.responses.create({
     model,
@@ -62,10 +71,10 @@ export async function askPickForMePdfUrlAI(input: AskPickForMePdfUrlAIInput) {
               userLocale: input.userLocale
             })
           },
-          {
-            type: "input_file",
-            file_url: input.pdfUrl
-          }
+          ...pdfUrls.map((pdfUrl) => ({
+            type: "input_file" as const,
+            file_url: pdfUrl
+          }))
         ]
       }
     ]
@@ -77,6 +86,18 @@ export async function askPickForMePdfUrlAI(input: AskPickForMePdfUrlAIInput) {
   const profileSafe = validateAgainstProfile(parsed, profile);
 
   return toAnalyzeDataParts(profileSafe.recommendations);
+}
+
+function uniquePdfUrls(values: string[]) {
+  const seen = new Set<string>();
+
+  return values.filter((value) => {
+    const normalized = value.trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function buildPdfPrompt(input: { profile: ProfileInput; situation?: string; userLocale?: string }) {
