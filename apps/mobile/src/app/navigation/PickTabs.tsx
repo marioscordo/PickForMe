@@ -1,8 +1,9 @@
 import React from "react";
-import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Dimensions, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useMobileContent } from "../../content/useMobileContent";
 import { premiumColors, radius } from "../../theme/tokens";
+
+const gustaroAvatar = require("../../../assets/concierge/gustaroai-avatar.png");
 
 const BASE_WIDTH = 393;
 const screenWidth = Dimensions.get("window").width;
@@ -34,7 +35,9 @@ export function BottomTabs({
         ]}
       >
         <View style={local.homeButtonContent}>
-          <MaterialCommunityIcons color={premiumColors.gold} name="room-service-outline" size={s(27)} />
+          <View style={local.avatarBubble}>
+            <Image source={gustaroAvatar} style={local.avatarImage} resizeMode="cover" />
+          </View>
           <Text style={local.homeButtonText}>{content.navigation.home}</Text>
         </View>
       </Pressable>
@@ -75,6 +78,23 @@ const local = StyleSheet.create({
     flexDirection: "row",
     gap: s(14),
     justifyContent: "center"
+  },
+
+  avatarBubble: {
+    alignItems: "center",
+    backgroundColor: "#FFFDF8",
+    borderColor: "#E4D4B6",
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    height: s(36),
+    justifyContent: "center",
+    overflow: "hidden",
+    width: s(36)
+  },
+
+  avatarImage: {
+    height: s(34),
+    width: s(34)
   },
 
   homeButtonPressed: {
