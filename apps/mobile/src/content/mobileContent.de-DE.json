@@ -359,5 +359,103 @@
     "loading": "Bitte warten...",
     "noResults": "Keine Treffer gefunden",
     "noMenuUrl": "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen"
+  },
+  "help": {
+    "common": {
+      "title": "Gustaro hilft Dir kurz",
+      "close": "Verstanden",
+      "openAccessibilityLabel": "Hilfe öffnen",
+      "closeAccessibilityLabel": "Hilfe schließen"
+    },
+    "welcome": {
+      "title": "Startseite",
+      "points": [
+        "Starte mit „Empfehlung aus Speisekarte“, wenn GustaroAI Dir aus einer Karte etwas Passendes suchen soll.",
+        "Über „Mein Profil anpassen“ sagst Du GustaroAI, was Du magst, meidest oder nicht verträgst.",
+        "Dein Profil bleibt gespeichert, damit die nächste Empfehlung persönlicher wird.",
+        "Wenn bereits eine Empfehlung vorhanden ist, führt Dich GustaroAI direkt zurück dorthin."
+      ],
+      "tip": "Du musst nicht alles vorbereiten. Eine Speisekarte und ein kurzer Geschmackshinweis reichen oft schon."
+    },
+    "pickInput": {
+      "title": "Speisekarte zeigen",
+      "points": [
+        "Füge einen Link, ein PDF oder Speisekartentext ein.",
+        "Mit „Wonach ist Dir heute?“ sagst Du GustaroAI, ob Du eher Hunger, etwas Leichtes, etwas Neues oder eine sichere Wahl möchtest.",
+        "Diese Auswahl beeinflusst, welche Gerichte GustaroAI bevorzugt - Dein Profil bleibt dabei weiterhin wichtig.",
+        "Die Auswertung kann etwas Zeit in Anspruch nehmen, besonders bei längeren Speisekarten."
+      ],
+      "tip": "Je klarer die Speisekarte lesbar ist, desto besser kann GustaroAI auswählen."
+    },
+    "menuDiscovery": {
+      "title": "Speisekarte finden",
+      "points": [
+        "Du kannst ein Restaurant über Name und Stadt suchen.",
+        "Wenn eine Ergebnisliste erscheint, übernimmst Du ein Restaurant per Doppelklick bzw. Doppeltippen auf den passenden Eintrag.",
+        "Der gefundene Speisekarten-Link wird in das Link-Feld übernommen. Danach kannst Du ihn übernehmen und die Analyse starten.",
+        "„Restaurant in meiner Nähe erkennen“ nutzt Deinen Standort. Dafür müssen Standortdienste aktiv sein und GustaroAI die Standortberechtigung erhalten haben."
+      ],
+      "tip": "Wenn die Standorterkennung nicht funktioniert, prüfe die Berechtigung in den iPhone-Einstellungen oder suche das Restaurant manuell."
+    },
+    "result": {
+      "title": "Deine Empfehlung",
+      "points": [
+        "Empfehlung 1 ist GustaroAIs beste Wahl aus der erkannten Speisekarte.",
+        "Speisekarten sind nicht immer vollständig lesbar. Deshalb kann es vorkommen, dass nicht alle Gerichte oder Vorspeisen erkannt werden.",
+        "Wenn keine passende Vorspeise gefunden wird, liegt das oft an unvollständigen oder schwer lesbaren Speisekartendaten.",
+        "„Neue Speisekarte zeigen“ verwirft die aktuelle Empfehlung und startet den Weg zu einer neuen Analyse.",
+        "Wenn Du unsicher bist, kannst Du die Original-Speisekarte öffnen und selbst nachprüfen."
+      ],
+      "tip": "Die Original-Speisekarte hilft Dir, Preise, Zutaten und Verfügbarkeit direkt beim Restaurant zu prüfen."
+    },
+    "profile": {
+      "title": "Dein Geschmack",
+      "points": [
+        "Unter „Allgemein“ stellst Du ein, in welcher Sprache GustaroAI antwortet.",
+        "Vorlieben helfen GustaroAI, Gerichte zu bevorzugen, die besser zu Dir passen.",
+        "Ausschlüsse vermeiden Zutaten oder Gerichte, die Du nicht empfohlen bekommen möchtest.",
+        "Allergien und Unverträglichkeiten werden besonders streng berücksichtigt."
+      ],
+      "tip": "Alles ist freiwillig. Schon wenige Angaben machen die Empfehlung spürbar persönlicher."
+    },
+    "profileGeneral": {
+      "title": "Allgemein",
+      "points": [
+        "Die GUI-Sprache ist die Sprache der Bedienoberfläche, also der App-Menüs und Buttons.",
+        "Die Ausgabesprache bestimmt, in welcher Sprache GustaroAI Empfehlungen und Erklärungen ausgibt.",
+        "Beides kann unterschiedlich sein: Du kannst die App deutsch bedienen und Dir Empfehlungen trotzdem in einer anderen Sprache ausgeben lassen."
+      ],
+      "tip": "Die Ausgabesprache betrifft vor allem die Empfehlungstexte und Übersetzungen."
+    },
+    "profilePreferences": {
+      "title": "Meine Vorlieben",
+      "points": [
+        "Antippen wählt eine Vorliebe aus. Erneutes Antippen wählt sie wieder ab.",
+        "Ausgewählte Vorlieben helfen GustaroAI, passende Gerichte stärker zu bevorzugen.",
+        "Eigene Begriffe kannst Du im Eingabefeld hinzufügen. Ein einzelnes Wort als Begriff reicht, zum Beispiel „Koriander“ oder „Sushi“.",
+        "Aktive Vorlieben löschst Du unten im Bereich „Aktive Vorlieben löschen“."
+      ],
+      "tip": "Vorlieben erhöhen die Chance, dass GustaroAI Deinen Geschmack trifft."
+    },
+    "profileExclusions": {
+      "title": "Meine Ausschlüsse",
+      "points": [
+        "Antippen wählt einen Ausschluss aus. Erneutes Antippen wählt ihn wieder ab.",
+        "Ausgewählte Ausschlüsse sagen GustaroAI, was nicht empfohlen werden soll.",
+        "Eigene Begriffe kannst Du im Eingabefeld hinzufügen. Ein einzelnes Wort als Begriff reicht, zum Beispiel „Lamm“ oder „Pilze“.",
+        "Aktive Ausschlüsse löschst Du unten im Bereich „Aktive Ausschlüsse löschen“."
+      ],
+      "tip": "Ausschlüsse sind hilfreich, wenn Du bestimmte Zutaten oder Gerichte vermeiden möchtest."
+    },
+    "profileIntolerances": {
+      "title": "Allergien und Unverträglichkeiten",
+      "points": [
+        "Antippen wählt eine Allergie oder Unverträglichkeit aus. Erneutes Antippen wählt sie wieder ab.",
+        "Diese Angaben werden besonders streng berücksichtigt.",
+        "Eigene Begriffe kannst Du im Eingabefeld hinzufügen. Ein einzelnes Wort als Begriff reicht, zum Beispiel „Laktose“ oder „Histamin“.",
+        "Aktive Einträge löschst Du unten im Bereich der aktiven Unverträglichkeiten."
+      ],
+      "tip": "GustaroAI unterstützt Dich bei der Auswahl, ersetzt aber keine medizinische Beratung. Prüfe Gerichte bei bekannten Allergien immer zusätzlich selbst oder frage das Servicepersonal."
+    }
   }
 }

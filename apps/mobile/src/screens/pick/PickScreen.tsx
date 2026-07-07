@@ -10,6 +10,7 @@ import { RecommendationCard } from "../../components/pick/RecommendationCard";
 import { RestaurantDiscoveryDialog } from "../../components/pick/RestaurantDiscoveryDialog";
 import { SituationSelector } from "../../components/pick/SituationSelector";
 import { ActionButton } from "../../components/ui/ActionButton";
+import { GustaroHelp } from "../../components/ui/GustaroHelp";
 import { Surface } from "../../components/ui/Surface";
 import { useMobileContent } from "../../content/useMobileContent";
 import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
@@ -164,6 +165,9 @@ export function PickScreen({
         scrollHintHideThreshold={s(96)}
         scrollToTopKey="analysis-result"
       >
+        <View style={local.resultHelpRow}>
+          <GustaroHelp common={content.help.common} topic={content.help.result} />
+        </View>
         <RecommendationCard
           result={analyze.result}
           menuText={menuText}
@@ -179,6 +183,7 @@ export function PickScreen({
   return (
     <Screen bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET} contentContainerStyle={local.entryScreenContent} scrollToTopKey="pick-entry">
       <View style={local.conciergeIntro}>
+        <GustaroHelp common={content.help.common} topic={content.help.pickInput} style={local.entryHelpButton} />
         <View style={local.introAccentRow}>
           <View style={local.introAccentLine} />
           <MaterialCommunityIcons color={premiumPalette.gold} name="room-service-outline" size={s(24)} />
@@ -334,9 +339,22 @@ const local = StyleSheet.create({
     paddingBottom: s(18)
   },
 
+  resultHelpRow: {
+    alignItems: "flex-end",
+    marginBottom: s(10)
+  },
+
   conciergeIntro: {
     marginBottom: s(22),
-    paddingHorizontal: s(2)
+    paddingHorizontal: s(2),
+    position: "relative"
+  },
+
+  entryHelpButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    zIndex: 5
   },
 
   introAccentRow: {

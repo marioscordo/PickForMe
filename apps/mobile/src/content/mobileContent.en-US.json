@@ -359,5 +359,103 @@
     "loading": "Please wait...",
     "noResults": "No results found",
     "noMenuUrl": "No evaluable menu link found. Please paste a link, text, or photo manually"
+  },
+  "help": {
+    "common": {
+      "title": "Gustaro helps briefly",
+      "close": "Got it",
+      "openAccessibilityLabel": "Open help",
+      "closeAccessibilityLabel": "Close help"
+    },
+    "welcome": {
+      "title": "Home",
+      "points": [
+        "Start with \"Recommendation from menu\" when you want GustaroAI to choose from a menu.",
+        "Use \"Adjust my profile\" to tell GustaroAI what you like, avoid, or cannot tolerate.",
+        "Your profile stays saved so the next recommendation can feel more personal.",
+        "If a recommendation already exists, GustaroAI takes you straight back to it."
+      ],
+      "tip": "You do not need to prepare everything. A menu and a short taste cue are often enough."
+    },
+    "pickInput": {
+      "title": "Show menu",
+      "points": [
+        "Paste a link, PDF, or menu text.",
+        "With 'What are you in the mood for?' you tell GustaroAI whether you want something filling, something light, something new, or a safer choice.",
+        "This influences which dishes GustaroAI prefers - your profile still remains important.",
+        "The analysis can take a little time, especially with longer menus."
+      ],
+      "tip": "The clearer the menu is, the better GustaroAI can choose."
+    },
+    "menuDiscovery": {
+      "title": "Find menu",
+      "points": [
+        "You can search for a restaurant by name and city.",
+        "When a result list appears, select a restaurant by double-tapping the matching entry.",
+        "The found menu link is copied into the link field. You can then apply it and start the analysis.",
+        "'Detect restaurant near me' uses your location. Location services must be enabled and GustaroAI must have location permission."
+      ],
+      "tip": "If location detection does not work, check the permission in iPhone settings or search for the restaurant manually."
+    },
+    "result": {
+      "title": "Your recommendation",
+      "points": [
+        "Recommendation 1 is GustaroAI's best choice from the recognized menu.",
+        "Menus are not always fully readable. Some dishes or starters may not be detected.",
+        "If no matching starter is found, this is often due to incomplete or difficult-to-read menu data.",
+        "'Show new menu' discards the current recommendation and starts the path to a new analysis.",
+        "If you are unsure, you can open the original menu and check it yourself."
+      ],
+      "tip": "The original menu helps you verify prices, ingredients, and availability directly with the restaurant."
+    },
+    "profile": {
+      "title": "Your taste",
+      "points": [
+        "Under \"General\", you set the language GustaroAI uses for answers.",
+        "Preferences help GustaroAI favor dishes that fit you better.",
+        "Exclusions avoid ingredients or dishes you do not want recommended.",
+        "Allergies and intolerances are handled especially strictly."
+      ],
+      "tip": "Everything is optional. Even a few details can make the recommendation feel more personal."
+    },
+    "profileGeneral": {
+      "title": "General",
+      "points": [
+        "The UI language is the language of the app interface, including menus and buttons.",
+        "The output language defines the language GustaroAI uses for recommendations and explanations.",
+        "They can be different: you can use the app in one language and receive recommendations in another."
+      ],
+      "tip": "The output language mainly affects recommendation texts and translations."
+    },
+    "profilePreferences": {
+      "title": "My preferences",
+      "points": [
+        "Tap to select a preference. Tap again to deselect it.",
+        "Selected preferences help GustaroAI prefer dishes that better match your taste.",
+        "You can add your own terms in the input field. A single word is enough, for example 'coriander' or 'sushi'.",
+        "You can remove active preferences in the 'Remove active preferences' section."
+      ],
+      "tip": "Preferences increase the chance that GustaroAI matches your taste."
+    },
+    "profileExclusions": {
+      "title": "My exclusions",
+      "points": [
+        "Tap to select an exclusion. Tap again to deselect it.",
+        "Selected exclusions tell GustaroAI what should not be recommended.",
+        "You can add your own terms in the input field. A single word is enough, for example 'lamb' or 'mushrooms'.",
+        "You can remove active exclusions in the 'Remove active exclusions' section."
+      ],
+      "tip": "Exclusions are useful when you want to avoid certain ingredients or dishes."
+    },
+    "profileIntolerances": {
+      "title": "Allergies and intolerances",
+      "points": [
+        "Tap to select an allergy or intolerance. Tap again to deselect it.",
+        "These entries are considered especially strictly.",
+        "You can add your own terms in the input field. A single word is enough, for example 'lactose' or 'histamine'.",
+        "You can remove active entries in the active intolerances section."
+      ],
+      "tip": "GustaroAI supports your choice, but does not replace medical advice. If you have known allergies, always check dishes yourself or ask the service staff."
+    }
   }
 }

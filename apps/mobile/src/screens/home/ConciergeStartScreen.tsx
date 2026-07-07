@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Dimensions, Image, Platform, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMobileContent } from "../../content/useMobileContent";
+import { GustaroHelp } from "../../components/ui/GustaroHelp";
 import { premiumColors, radius } from "../../theme/tokens";
 
 const conciergeImage = require("../../../assets/concierge/gustaroai-concierge-premium-fade.png");
@@ -32,51 +34,63 @@ export function ConciergeStartScreen({
   onStartRecommendation
 }: ConciergeStartScreenProps) {
   const content = useMobileContent();
+  const [conciergeImageReady, setConciergeImageReady] = useState(false);
 
   return (
     <SafeAreaView style={local.shell}>
       <View style={local.screen}>
         <View style={local.card}>
-          <View style={local.topAccent}>
-            <View style={local.accentLine} />
-            <View style={local.headerIcon}>
-              <MaterialCommunityIcons color={premiumPalette.gold} name="chef-hat" size={s(29)} />
+          <View style={[local.cardInner, conciergeImageReady ? local.cardInnerVisible : local.cardInnerHidden]}>
+            <GustaroHelp common={content.help.common} topic={content.help.welcome} style={local.helpButtonFloating} />
+
+            <View style={local.topAccent}>
+              <View style={local.accentLine} />
+              <View style={local.headerIcon}>
+                <MaterialCommunityIcons color={premiumPalette.gold} name="chef-hat" size={s(29)} />
+              </View>
+              <View style={local.accentLine} />
             </View>
-            <View style={local.accentLine} />
-          </View>
 
-          <View style={local.imageStage}>
-            <Image accessibilityIgnoresInvertColors resizeMode="contain" source={conciergeImage} style={local.conciergeImage} />
-          </View>
-
-          <View style={local.textBlock}>
-            <View style={local.titleWrap}>
-              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={local.titleLineTop}>Willkommen bei</Text>
-              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9} style={local.titleLineBrand}>GustaroAI</Text>
+            <View style={local.imageStage}>
+              <Image
+                accessibilityIgnoresInvertColors
+                fadeDuration={0}
+                onLoadEnd={() => setConciergeImageReady(true)}
+                resizeMode="contain"
+                source={conciergeImage}
+                style={local.conciergeImage}
+              />
             </View>
-            <View style={local.titleAccent}>
-              <View style={local.titleLine} />
-              <Text style={local.titleStar}>{"\u2605"}</Text>
-              <View style={local.titleLine} />
+
+            <View style={local.textBlock}>
+              <View style={local.titleWrap}>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={local.titleLineTop}>Willkommen bei</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9} style={local.titleLineBrand}>GustaroAI</Text>
+              </View>
+              <View style={local.titleAccent}>
+                <View style={local.titleLine} />
+                <Text style={local.titleStar}>{"\u2605"}</Text>
+                <View style={local.titleLine} />
+              </View>
+              <Text style={local.subtitle}>{content.conciergeStart.subtitle}</Text>
             </View>
-            <Text style={local.subtitle}>{content.conciergeStart.subtitle}</Text>
+
+            <View style={local.actions}>
+              <Pressable accessibilityRole="button" onPress={onStartRecommendation} style={({ pressed }) => [local.primaryButton, pressed ? local.pressed : null]}>
+                <View style={local.primaryIcon}><MaterialCommunityIcons color={premiumPalette.gold} name="room-service-outline" size={s(28)} /></View>
+                <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.86} style={local.primaryButtonText}>{content.conciergeStart.primaryAction}</Text>
+                <Feather color={premiumPalette.body} name="chevron-right" size={s(28)} style={local.primaryChevron} />
+              </Pressable>
+
+              <Pressable accessibilityRole="button" onPress={onOpenProfile} style={({ pressed }) => [local.secondaryButton, pressed ? local.pressed : null]}>
+                <View style={local.secondaryIcon}><Feather color="#AA7C1E" name="user" size={s(25)} /></View>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={local.secondaryButtonText}>{content.conciergeStart.secondaryAction}</Text>
+                <Feather color={premiumPalette.body} name="chevron-right" size={s(30)} style={local.secondaryChevron} />
+              </Pressable>
+            </View>
+
+            <Text style={local.note}>{content.conciergeStart.note}</Text>
           </View>
-
-          <View style={local.actions}>
-            <Pressable accessibilityRole="button" onPress={onStartRecommendation} style={({ pressed }) => [local.primaryButton, pressed ? local.pressed : null]}>
-              <View style={local.primaryIcon}><MaterialCommunityIcons color={premiumPalette.gold} name="room-service-outline" size={s(28)} /></View>
-              <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.86} style={local.primaryButtonText}>{content.conciergeStart.primaryAction}</Text>
-              <Feather color={premiumPalette.body} name="chevron-right" size={s(28)} style={local.primaryChevron} />
-            </Pressable>
-
-            <Pressable accessibilityRole="button" onPress={onOpenProfile} style={({ pressed }) => [local.secondaryButton, pressed ? local.pressed : null]}>
-              <View style={local.secondaryIcon}><Feather color="#AA7C1E" name="user" size={s(25)} /></View>
-              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={local.secondaryButtonText}>{content.conciergeStart.secondaryAction}</Text>
-              <Feather color={premiumPalette.body} name="chevron-right" size={s(30)} style={local.secondaryChevron} />
-            </Pressable>
-          </View>
-
-          <Text style={local.note}>{content.conciergeStart.note}</Text>
         </View>
       </View>
     </SafeAreaView>
@@ -120,10 +134,29 @@ const local = StyleSheet.create({
     paddingBottom: s(10),
     paddingHorizontal: s(16),
     paddingTop: s(18),
+    position: "relative",
     shadowColor: "#6F5522",
     shadowOffset: { width: 0, height: s(16) },
     shadowOpacity: 0.1,
     shadowRadius: s(26)
+  },
+  cardInner: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    flex: 1,
+    position: "relative"
+  },
+  cardInnerHidden: {
+    opacity: 0
+  },
+  cardInnerVisible: {
+    opacity: 1
+  },
+  helpButtonFloating: {
+    position: "absolute",
+    right: s(14),
+    top: s(14),
+    zIndex: 5
   },
   topAccent: {
     alignItems: "center",

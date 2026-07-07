@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { ProfileEditor, type ProfileEditorSection } from "../../components/profile/ProfileEditor";
+import { GustaroHelp } from "../../components/ui/GustaroHelp";
 import { Screen } from "../../components/ui/Screen";
 import { env } from "../../config/env";
 import { OUTPUT_LOCALES, resolveOutputLocale } from "../../config/outputLocales";
@@ -143,6 +144,14 @@ export function ProfileScreen({
         : profileSections.find((section) => section.id === activeSection)?.label ?? content.profileScreen.title;
 
     const activeSubtitle = activeSection === "general" ? content.profileScreen.subtitle : activeSectionHint(activeSection, content);
+    const activeHelpTopic =
+      activeSection === "general"
+        ? content.help.profileGeneral
+        : activeSection === "preferences"
+          ? content.help.profilePreferences
+          : activeSection === "exclusions"
+            ? content.help.profileExclusions
+            : content.help.profileIntolerances;
 
     function confirmDeleteAccount() {
       setDeleteAccountError(null);
@@ -422,14 +431,11 @@ export function ProfileScreen({
 
       return (
         <Screen contentContainerStyle={local.generalContent}>
-          <Pressable
-            accessibilityRole="button"
-            hitSlop={8}
+          <PremiumProfileBackLink
+            accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
+            label={content.profileScreen.title}
             onPress={() => setActiveSection(null)}
-            style={local.generalBackLink}
-          >
-            <Text style={local.generalBackText}>{"\u2039"} {content.profileScreen.title}</Text>
-          </Pressable>
+          />
 
           <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
 
@@ -502,7 +508,11 @@ export function ProfileScreen({
     if (activeSection === "preferences") {
       return (
         <Screen contentContainerStyle={local.detailContent}>
-          <PremiumProfileBackLink label={content.profileScreen.title} onPress={() => setActiveSection(null)} />
+          <PremiumProfileBackLink
+            accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
+            label={content.profileScreen.title}
+            onPress={() => setActiveSection(null)}
+          />
           <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
 
           <View style={local.premiumEditorStack}>
@@ -589,7 +599,11 @@ export function ProfileScreen({
     if (activeSection === "exclusions") {
       return (
         <Screen contentContainerStyle={local.detailContent}>
-          <PremiumProfileBackLink label={content.profileScreen.title} onPress={() => setActiveSection(null)} />
+          <PremiumProfileBackLink
+            accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
+            label={content.profileScreen.title}
+            onPress={() => setActiveSection(null)}
+          />
           <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
 
           <View style={local.premiumEditorStack}>
@@ -720,7 +734,11 @@ export function ProfileScreen({
     if (activeSection === "intolerances") {
       return (
         <Screen contentContainerStyle={local.detailContent}>
-          <PremiumProfileBackLink label={content.profileScreen.title} onPress={() => setActiveSection(null)} />
+          <PremiumProfileBackLink
+            accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
+            label={content.profileScreen.title}
+            onPress={() => setActiveSection(null)}
+          />
           <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
 
           <View style={local.premiumEditorStack}>
@@ -790,7 +808,11 @@ export function ProfileScreen({
 
     return (
       <Screen contentContainerStyle={local.detailContent}>
-        <PremiumProfileBackLink label={content.profileScreen.title} onPress={() => setActiveSection(null)} />
+        <PremiumProfileBackLink
+          accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
+          label={content.profileScreen.title}
+          onPress={() => setActiveSection(null)}
+        />
         <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
         <ProfileEditor profile={profile} setProfile={setProfile} section={activeSection} hideHeader />
       </Screen>
@@ -804,6 +826,7 @@ export function ProfileScreen({
         showsVerticalScrollIndicator={false}
       >
         <View style={local.heroHeader}>
+          <GustaroHelp common={content.help.common} topic={content.help.profile} style={local.overviewHelpButton} />
           <Text style={local.heroTitle}>{content.profileScreen.title}</Text>
           <View style={local.heroAccent}>
             <View style={local.heroLine} />
@@ -907,11 +930,35 @@ function PremiumFeatherChip({
   );
 }
 
-function PremiumProfileBackLink({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable accessibilityRole="button" hitSlop={8} onPress={onPress} style={local.generalBackLink}>
+function PremiumProfileBackLink({
+  accessory,
+  label,
+  onPress
+}: {
+  accessory?: React.ReactNode;
+  label: string;
+  onPress: () => void;
+}) {
+  const backLink = (
+    <Pressable
+      accessibilityRole="button"
+      hitSlop={8}
+      onPress={onPress}
+      style={[local.generalBackLink, accessory ? local.generalBackLinkInline : null]}
+    >
       <Text style={local.generalBackText}>{"\u2039"} {label}</Text>
     </Pressable>
+  );
+
+  if (!accessory) {
+    return backLink;
+  }
+
+  return (
+    <View style={local.detailUtilityRow}>
+      {backLink}
+      {accessory}
+    </View>
   );
 }
 
@@ -1223,7 +1270,14 @@ const local = StyleSheet.create({
   },
   heroHeader: {
     alignItems: "flex-start",
-    marginBottom: s(26)
+    marginBottom: s(26),
+    position: "relative"
+  },
+  overviewHelpButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    zIndex: 5
   },
   heroTitle: {
     color: premiumColors.olive,
@@ -1313,6 +1367,15 @@ const local = StyleSheet.create({
     marginBottom: s(30),
     paddingRight: s(14),
     paddingVertical: s(4)
+  },
+  generalBackLinkInline: {
+    marginBottom: 0
+  },
+  detailUtilityRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: s(30)
   },
   generalBackText: {
     color: premiumColors.olive,

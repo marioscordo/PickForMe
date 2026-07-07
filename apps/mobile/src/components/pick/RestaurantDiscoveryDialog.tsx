@@ -22,6 +22,7 @@ import {
 import { BottomTabs } from "../../app/navigation/PickTabs";
 import { useMobileContent } from "../../content/useMobileContent";
 import { radius } from "../../theme/tokens";
+import { GustaroHelp } from "../ui/GustaroHelp";
 import { Screen } from "../ui/Screen";
 import { detectRestaurant } from "../../restaurant-detector/detectRestaurant";
 import type {
@@ -296,6 +297,7 @@ export function RestaurantDiscoveryDialog({
       <View style={local.modalShell}>
         <Screen contentContainerStyle={local.screenContent} showScrollHint scrollToTopKey={visible ? "restaurant-discovery" : undefined}>
           <View style={local.header}>
+            <GustaroHelp common={content.help.common} topic={content.help.menuDiscovery} style={local.headerHelpButton} />
             <View style={local.headerAccent}>
               <View style={local.headerLine} />
               <Feather color={premiumPalette.gold} name="search" size={s(20)} />
@@ -474,7 +476,14 @@ const local = StyleSheet.create({
     paddingTop: s(30)
   },
   header: {
-    marginBottom: s(22)
+    marginBottom: s(22),
+    position: "relative"
+  },
+  headerHelpButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    zIndex: 5
   },
   headerAccent: {
     alignItems: "center",

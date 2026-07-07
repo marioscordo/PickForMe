@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { requestStarterPairings } from "../../api/pickformeApi";
 import { formatContent } from "../../content/mobileContent";
@@ -8,7 +9,6 @@ import { premiumColors, radius, semanticColors, spacing, typography } from "../.
 import type { Dish } from "../../types/menu";
 import type { Situation } from "../../types/profile";
 import type { AnalyzeData, Recommendation } from "../../types/recommendations";
-import { ActionButton } from "../ui/ActionButton";
 import { Surface } from "../ui/Surface";
 
 type RecommendationFeedback = {
@@ -93,6 +93,30 @@ function PremiumCardAction({
       >
         {label}
       </Text>
+    </Pressable>
+  );
+}
+
+function PremiumFooterAction({
+  icon,
+  label,
+  onPress
+}: {
+  icon: ReactNode;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [local.footerPremiumButton, pressed ? local.footerPremiumButtonPressed : null]}
+    >
+      <View style={local.footerPremiumIcon}>{icon}</View>
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={local.footerPremiumText}>
+        {label}
+      </Text>
+      <Feather color={premiumColors.textMuted} name="chevron-right" size={22} />
     </Pressable>
   );
 }
@@ -227,9 +251,17 @@ export function RecommendationCard({
   function renderFooterActions() {
     return (
       <View style={local.footerActions}>
-        <ActionButton label={content.recommendation.resetButton} variant="secondary" onPress={onReset} style={local.footerButton} />
+        <PremiumFooterAction
+          icon={<Feather color={premiumColors.gold} name="refresh-cw" size={21} />}
+          label={content.recommendation.resetButton}
+          onPress={onReset}
+        />
         {openMenuLabel && onOpenMenu ? (
-          <ActionButton label={openMenuLabel} variant="secondary" onPress={onOpenMenu} style={local.footerButton} />
+          <PremiumFooterAction
+            icon={<Feather color={premiumColors.gold} name="external-link" size={21} />}
+            label={openMenuLabel}
+            onPress={onOpenMenu}
+          />
         ) : null}
       </View>
     );
@@ -763,7 +795,45 @@ const local = StyleSheet.create({
     marginBottom: 16
   },
 
-  footerButton: {
-    borderRadius: radius.pill
+  footerPremiumButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 253, 248, 0.88)",
+    borderColor: "#E4D4B6",
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 11,
+    justifyContent: "center",
+    minHeight: 58,
+    paddingHorizontal: 18,
+    shadowColor: "#6F5522",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 16
+  },
+
+  footerPremiumButtonPressed: {
+    opacity: 0.84,
+    transform: [{ scale: 0.99 }]
+  },
+
+  footerPremiumIcon: {
+    alignItems: "center",
+    backgroundColor: "#F7F1E7",
+    borderColor: "rgba(228, 212, 182, 0.78)",
+    borderRadius: 17,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: "center",
+    width: 38
+  },
+
+  footerPremiumText: {
+    color: premiumColors.olive,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "900",
+    lineHeight: 21,
+    textAlign: "center"
   }
 });
