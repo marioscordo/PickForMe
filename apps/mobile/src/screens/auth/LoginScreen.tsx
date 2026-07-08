@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Dimensions, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Dimensions, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { env } from "../../config/env";
@@ -43,7 +43,13 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={local.safeArea}>
       <KeyboardAvoidingView style={local.keyboard} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={local.screen}>
+        <ScrollView
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+          contentContainerStyle={local.screen}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={local.topAccent}>
             <View style={local.accentLine} />
             <Text style={local.accentStar}>{"\u2605"}</Text>
@@ -115,7 +121,7 @@ export function LoginScreen() {
             <Text style={local.brandLetter}>G</Text>
             <View style={local.brandLine} />
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -149,7 +155,7 @@ const local = StyleSheet.create({
   },
   screen: {
     backgroundColor: premiumPalette.background,
-    flex: 1,
+    flexGrow: 1,
     paddingBottom: s(22),
     paddingHorizontal: s(28),
     paddingTop: s(14)

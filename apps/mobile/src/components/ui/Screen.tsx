@@ -55,10 +55,12 @@ export function Screen({
 
   return (
     <SafeAreaView style={styles.appShell}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <ScrollView
           ref={scrollViewRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
           contentInset={scrollInsets}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           keyboardShouldPersistTaps="handled"
           onContentSizeChange={(_, height) => setContentHeight(height)}
           onLayout={handleLayout}
