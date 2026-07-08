@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { env } from "../../config/env";
 import { useMobileContent } from "../../content/useMobileContent";
-import { premiumColors, radius } from "../../theme/tokens";
+import { radius } from "../../theme/tokens";
 
 const BASE_WIDTH = 393;
 
@@ -128,16 +128,18 @@ export function LoginScreen() {
 }
 
 const premiumPalette = {
-  background: premiumColors.background,
-  surface: premiumColors.surface,
-  olive: premiumColors.olive,
-  olivePressed: "#1f2d1f",
-  text: premiumColors.olive,
-  body: premiumColors.textMuted,
-  gold: premiumColors.gold,
+  background: "#FBF8F1",
+  surface: "#FFFDF8",
+  surfacePressed: "#F7F1E7",
+  olive: "#1F3B24",
+  oliveDeep: "#182C1B",
+  text: "#182C1B",
+  body: "#6F6A61",
+  gold: "#C6A04A",
+  goldMuted: "#D7BE83",
   goldBorder: "#E4D4B6",
-  goldSoft: premiumColors.border,
-  placeholder: "#8A8378",
+  goldSoft: "#E9DCC2",
+  placeholder: "#8B8478",
   white: "#FFFDF8",
   errorBg: "#FFF4EC",
   errorText: "#8A341E"
@@ -156,9 +158,9 @@ const local = StyleSheet.create({
   screen: {
     backgroundColor: premiumPalette.background,
     flexGrow: 1,
-    paddingBottom: s(22),
+    paddingBottom: s(24),
     paddingHorizontal: s(28),
-    paddingTop: s(14)
+    paddingTop: s(16)
   },
   topAccent: {
     alignItems: "center",
@@ -167,7 +169,7 @@ const local = StyleSheet.create({
     marginBottom: s(16)
   },
   accentLine: {
-    backgroundColor: premiumPalette.goldBorder,
+    backgroundColor: premiumPalette.goldMuted,
     height: 1,
     width: s(62)
   },
@@ -184,10 +186,10 @@ const local = StyleSheet.create({
   title: {
     color: premiumPalette.text,
     fontFamily: premiumFont,
-    fontSize: fs(43),
+    fontSize: fs(42),
     fontWeight: "400",
     letterSpacing: 0,
-    lineHeight: fs(51)
+    lineHeight: fs(50)
   },
   subtitle: {
     color: premiumPalette.body,
@@ -201,15 +203,15 @@ const local = StyleSheet.create({
   card: {
     backgroundColor: premiumPalette.surface,
     borderColor: premiumPalette.goldBorder,
-    borderRadius: s(26),
+    borderRadius: s(30),
     borderWidth: 1,
-    paddingBottom: s(18),
-    paddingHorizontal: s(20),
-    paddingTop: s(18),
+    paddingBottom: s(22),
+    paddingHorizontal: s(22),
+    paddingTop: s(20),
     shadowColor: "#6F5522",
-    shadowOffset: { width: 0, height: s(12) },
-    shadowOpacity: 0.11,
-    shadowRadius: s(22)
+    shadowOffset: { width: 0, height: s(16) },
+    shadowOpacity: 0.09,
+    shadowRadius: s(28)
   },
   cardHeadingRow: {
     alignItems: "center",
@@ -227,7 +229,7 @@ const local = StyleSheet.create({
   cardDivider: {
     alignItems: "center",
     flexDirection: "row",
-    marginBottom: s(17)
+    marginBottom: s(19)
   },
   cardDividerLine: {
     backgroundColor: premiumPalette.goldSoft,
@@ -245,10 +247,10 @@ const local = StyleSheet.create({
   label: {
     color: premiumPalette.text,
     fontFamily: premiumFont,
-    fontSize: fs(18),
+    fontSize: fs(17),
     fontWeight: "700",
     letterSpacing: 0,
-    lineHeight: fs(24),
+    lineHeight: fs(23),
     marginBottom: s(8)
   },
   inputShell: {
@@ -258,10 +260,14 @@ const local = StyleSheet.create({
     borderRadius: s(17),
     borderWidth: 1,
     flexDirection: "row",
-    marginBottom: s(17),
-    minHeight: s(54),
-    paddingLeft: s(16),
-    paddingRight: s(14)
+    marginBottom: s(18),
+    minHeight: s(58),
+    paddingLeft: s(17),
+    paddingRight: s(15),
+    shadowColor: "#6F5522",
+    shadowOffset: { width: 0, height: s(5) },
+    shadowOpacity: 0.035,
+    shadowRadius: s(10)
   },
   inputShellLast: {
     alignItems: "center",
@@ -270,17 +276,21 @@ const local = StyleSheet.create({
     borderRadius: s(17),
     borderWidth: 1,
     flexDirection: "row",
-    marginBottom: s(18),
-    minHeight: s(54),
-    paddingLeft: s(16),
-    paddingRight: s(14)
+    marginBottom: s(20),
+    minHeight: s(58),
+    paddingLeft: s(17),
+    paddingRight: s(15),
+    shadowColor: "#6F5522",
+    shadowOffset: { width: 0, height: s(5) },
+    shadowOpacity: 0.035,
+    shadowRadius: s(10)
   },
   input: {
     color: premiumPalette.text,
     flex: 1,
     fontSize: fs(17),
     letterSpacing: 0,
-    minHeight: s(52),
+    minHeight: s(54),
     padding: 0
   },
   errorCard: {
@@ -298,19 +308,21 @@ const local = StyleSheet.create({
   },
   button: {
     alignItems: "center",
-    backgroundColor: premiumPalette.olive,
+    backgroundColor: "rgba(255, 253, 248, 0.92)",
+    borderColor: premiumPalette.goldBorder,
+    borderWidth: 1,
     borderRadius: radius.pill,
     flexDirection: "row",
     justifyContent: "center",
-    minHeight: s(58),
-    shadowColor: "#172316",
-    shadowOffset: { width: 0, height: s(9) },
-    shadowOpacity: 0.23,
-    shadowRadius: s(14)
+    minHeight: s(60),
+    shadowColor: "#6F5522",
+    shadowOffset: { width: 0, height: s(10) },
+    shadowOpacity: 0.09,
+    shadowRadius: s(18)
   },
   buttonPressed: {
-    backgroundColor: premiumPalette.olivePressed,
-    transform: [{ translateY: 1 }]
+    backgroundColor: premiumPalette.surfacePressed,
+    transform: [{ scale: 0.99 }]
   },
   buttonStar: {
     color: premiumPalette.gold,
@@ -319,10 +331,10 @@ const local = StyleSheet.create({
     marginRight: s(12)
   },
   buttonText: {
-    color: premiumPalette.white,
+    color: premiumPalette.oliveDeep,
     fontFamily: premiumFont,
     fontSize: fs(18),
-    fontWeight: "400",
+    fontWeight: "700",
     letterSpacing: 0,
     lineHeight: fs(23)
   },
