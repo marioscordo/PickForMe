@@ -82,12 +82,12 @@
   },
   "situations": [
     {
-      "value": "richtig_hunger",
-      "label": "Vor- und Hauptspeise"
+      "value": "leicht",
+      "label": "Einzel-\ngerichte"
     },
     {
-      "value": "leicht",
-      "label": "Einzel-gericht"
+      "value": "richtig_hunger",
+      "label": "Vor- und Hauptspeise"
     },
     {
       "value": "neues_probieren",
@@ -344,7 +344,7 @@
       "title": "Speisekarte zeigen",
       "points": [
         "Füge einen Link, ein PDF oder Speisekartentext ein.",
-        "Mit „Wonach ist Dir heute?“ sagst Du GustaroAI, ob Du eine Vor- und Hauptspeise, ein Einzelgericht, etwas Neues oder eine sichere Wahl möchtest.",
+        "Mit „Wonach ist Dir heute?“ sagst Du GustaroAI, ob Du Einzelgerichte, eine Vor- und Hauptspeise, etwas Neues oder eine sichere Wahl möchtest.",
         "Diese Auswahl beeinflusst, welche Gerichte GustaroAI bevorzugt - Dein Profil bleibt dabei weiterhin wichtig.",
         "Die Auswertung kann etwas Zeit in Anspruch nehmen, besonders bei längeren Speisekarten."
       ],

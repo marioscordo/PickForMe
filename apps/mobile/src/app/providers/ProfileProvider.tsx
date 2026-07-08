@@ -13,7 +13,7 @@ const defaultProfile: UserProfile = {
   intolerances: [],
   dietStyle: "normal",
   outputLocale: DEFAULT_OUTPUT_LOCALE,
-  appetiteMood: "richtig_hunger",
+  appetiteMood: "leicht",
   customPreferences: [],
   customExclusions: [],
   customIntolerances: [],

@@ -50,7 +50,7 @@ export function PickScreen({
   const { profile } = useProfile();
   const loadingSteps = content.pick.loadingSteps;
   const [menuText, setMenuText] = useState("");
-  const [situation, setSituation] = useState<Situation>("richtig_hunger");
+  const [situation, setSituation] = useState<Situation>("leicht");
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showRestaurantDiscovery, setShowRestaurantDiscovery] = useState(false);
   const analyze = useAnalyzeMenu();

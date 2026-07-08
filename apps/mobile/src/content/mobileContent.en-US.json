@@ -82,12 +82,12 @@
   },
   "situations": [
     {
-      "value": "richtig_hunger",
-      "label": "Starter and main course"
+      "value": "leicht",
+      "label": "Single dishes"
     },
     {
-      "value": "leicht",
-      "label": "Single dish"
+      "value": "richtig_hunger",
+      "label": "Starter and main course"
     },
     {
       "value": "neues_probieren",
@@ -344,7 +344,7 @@
       "title": "Show menu",
       "points": [
         "Paste a link, PDF, or menu text.",
-        "With 'What are you in the mood for?' you tell GustaroAI whether you want a starter and main course, a single dish, something new, or a safer choice.",
+        "With 'What are you in the mood for?' you tell GustaroAI whether you want single dishes, a starter and main course, something new, or a safer choice.",
         "This influences which dishes GustaroAI prefers - your profile still remains important.",
         "The analysis can take a little time, especially with longer menus."
       ],
