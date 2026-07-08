@@ -163,7 +163,6 @@ export async function POST(request: Request) {
           },
           responseMode: "ai_pdf",
           profile,
-          situation: body.situation,
           outputLocale,
           restaurantDescription,
           localizedRestaurantDescription,
@@ -234,7 +233,6 @@ export async function POST(request: Request) {
           },
           responseMode: "ai_image",
           profile,
-          situation: body.situation,
           outputLocale,
           restaurantDescription,
           localizedRestaurantDescription,
@@ -352,7 +350,6 @@ export async function POST(request: Request) {
         },
         responseMode: "ai",
         profile,
-        situation: body.situation,
         outputLocale,
         restaurantDescription,
         localizedRestaurantDescription,
@@ -638,7 +635,6 @@ async function analyzeMenuWithTwoStepMainFlow({
   source,
   responseMode,
   profile,
-  situation,
   outputLocale,
   restaurantDescription,
   localizedRestaurantDescription,
@@ -652,7 +648,6 @@ async function analyzeMenuWithTwoStepMainFlow({
   source: TwoStepMenuSourceInput;
   responseMode: TwoStepAnalyzeResponseMode;
   profile: AnalyzeMenuRequest["profile"];
-  situation: AnalyzeMenuRequest["situation"];
   outputLocale: string;
   restaurantDescription: RestaurantDescriptionResult | null;
   localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null;
@@ -675,7 +670,6 @@ async function analyzeMenuWithTwoStepMainFlow({
       (signal) => recommendMainDishesAI({
         source,
         profile,
-        situation,
         userLocale: outputLocale,
         signal
       }),
@@ -891,8 +885,7 @@ function applyAllergySafetyGate({
   }
 
   const intoleranceOnlyProfile = {
-    intolerances: activeIntolerances,
-    exceptions: profile.exceptions
+    intolerances: activeIntolerances
   };
   const dishesById = new Map(dishes.map((dish) => [dish.id, dish]));
 

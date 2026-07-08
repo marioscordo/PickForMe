@@ -7,24 +7,20 @@ const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";
 
 const defaultProfile: UserProfile = {
   displayName: "Mario",
-  primaryLikes: ["Fleisch", "Fisch", "Große Portionen"],
-  secondaryLikes: ["Pasta", "Salat", "Scharf"],
+  primaryLikes: ["Fleisch", "Fisch"],
+  secondaryLikes: ["Pasta", "Salat"],
   dislikes: ["Keine Innereien", "Kein Grätenfisch", "Kein Lamm"],
   intolerances: [],
   dietStyle: "normal",
   outputLocale: DEFAULT_OUTPUT_LOCALE,
   appetiteMood: "richtig_hunger",
-  exceptions: [],
-
   customPreferences: [],
   customExclusions: [],
   customIntolerances: [],
-  customExceptions: [],
 
   hiddenPreferences: [],
   hiddenExclusions: [],
-  hiddenIntolerances: [],
-  hiddenExceptions: []
+  hiddenIntolerances: []
 };
 
 type ProfileContextValue = {
@@ -133,15 +129,12 @@ function normalizeProfile(profile: Partial<UserProfile>): UserProfile {
       ? profile.outputLocale
       : defaultProfile.outputLocale,
     appetiteMood: isAppetiteMood(profile.appetiteMood) ? profile.appetiteMood : defaultProfile.appetiteMood,
-    exceptions: stringArray(profile.exceptions),
     customPreferences: stringArray(profile.customPreferences),
     customExclusions: stringArray(profile.customExclusions),
     customIntolerances: stringArray(profile.customIntolerances),
-    customExceptions: stringArray(profile.customExceptions),
     hiddenPreferences: stringArray(profile.hiddenPreferences),
     hiddenExclusions: stringArray(profile.hiddenExclusions),
-    hiddenIntolerances: stringArray(profile.hiddenIntolerances),
-    hiddenExceptions: stringArray(profile.hiddenExceptions)
+    hiddenIntolerances: stringArray(profile.hiddenIntolerances)
   };
 }
 

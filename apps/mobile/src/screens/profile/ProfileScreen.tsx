@@ -62,7 +62,6 @@ export function ProfileScreen({
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [customPreference, setCustomPreference] = useState("");
   const [customExclusion, setCustomExclusion] = useState("");
-  const [customException, setCustomException] = useState("");
   const [customIntolerance, setCustomIntolerance] = useState("");
   const [overviewContentHeight, setOverviewContentHeight] = useState(0);
   const [overviewViewportHeight, setOverviewViewportHeight] = useState(0);
@@ -71,7 +70,6 @@ export function ProfileScreen({
   const editor = content.profileEditor;
   const preferenceOptions = editor.preferenceOptions as PreferenceOption[];
   const quickExclusions = editor.quickExclusions as ValueOption[];
-  const quickExceptions = editor.quickExceptions as ValueOption[];
   const allergyOptions = editor.allergyOptions as ValueOption[];
   const normalDietPreferenceValues = editor.normalDietPreferenceValues;
   const exclusiveDietPreferenceValues = editor.exclusiveDietPreferenceValues;
@@ -81,22 +79,17 @@ export function ProfileScreen({
     { id: "exclusions", label: content.profileScreen.exclusionsButton },
     { id: "intolerances", label: content.profileScreen.intolerancesButton }
   ];
-  const exceptions = profile.exceptions ?? [];
   const customPreferences = profile.customPreferences ?? [];
   const customExclusions = profile.customExclusions ?? [];
-  const customExceptions = profile.customExceptions ?? [];
   const customIntolerances = profile.customIntolerances ?? [];
   const hiddenPreferences = profile.hiddenPreferences ?? [];
   const hiddenExclusions = profile.hiddenExclusions ?? [];
-  const hiddenExceptions = profile.hiddenExceptions ?? [];
   const hiddenIntolerances = profile.hiddenIntolerances ?? [];
   const quickPreferenceValues = preferenceOptions.map((option) => option.value);
   const quickExclusionValues = quickExclusions.map((option) => optionValue(option));
-  const quickExceptionValues = quickExceptions.map((option) => optionValue(option));
   const quickIntoleranceValues = allergyOptions.map((option) => optionValue(option));
   const preferenceLabels = createOptionLabelMap(preferenceOptions);
   const exclusionLabels = createOptionLabelMap(quickExclusions);
-  const exceptionLabels = createOptionLabelMap(quickExceptions);
   const intoleranceLabels = createOptionLabelMap(allergyOptions);
   const visiblePreferenceOptions = preferenceOptions.filter((option) => !includesValue(hiddenPreferences, option.value));
   const visibleCustomPreferenceValues = uniqueValues([
@@ -108,11 +101,6 @@ export function ProfileScreen({
     ...customExclusions,
     ...profile.dislikes.filter((value) => !includesValue(quickExclusionValues, value))
   ]).filter((value) => !includesValue(hiddenExclusions, value));
-  const visibleQuickExceptions = quickExceptions.filter((option) => !includesValue(hiddenExceptions, optionValue(option)));
-  const visibleCustomExceptionValues = uniqueValues([
-    ...customExceptions,
-    ...exceptions.filter((value) => !includesValue(quickExceptionValues, value))
-  ]).filter((value) => !includesValue(hiddenExceptions, value));
   const visibleAllergyOptions = allergyOptions.filter((option) => !includesValue(hiddenIntolerances, optionValue(option)));
   const visibleCustomIntoleranceValues = uniqueValues([
     ...customIntolerances,
@@ -324,56 +312,12 @@ export function ProfileScreen({
       );
     }
 
-    function toggleException(value: string) {
-      updateProfile({
-        exceptions: toggleValue(exceptions, value)
-      });
-    }
-
-    function addCustomException() {
-      const value = customException.trim();
-
-      if (!value) {
-        return;
-      }
-
-      const isQuick = includesValue(quickExceptionValues, value);
-
-      updateProfile({
-        exceptions: addUnique(exceptions, value),
-        customExceptions: isQuick ? customExceptions : addUnique(customExceptions, value),
-        hiddenExceptions: removeValue(hiddenExceptions, value)
-      });
-
-      setCustomException("");
-    }
-
-    function deleteException(value: string) {
-      const isQuick = includesValue(quickExceptionValues, value);
-      const displayValue = displayExceptionValue(value);
-
-      confirmDelete(
-        editor.deleteExceptionTitle,
-        formatContent(editor.deleteExceptionMessage, { value: displayValue }),
-        () =>
-          updateProfile({
-            exceptions: removeValue(exceptions, value),
-            customExceptions: isQuick ? customExceptions : removeValue(customExceptions, value),
-            hiddenExceptions: isQuick ? addUnique(hiddenExceptions, value) : hiddenExceptions
-          })
-      );
-    }
-
     function displayPreferenceValue(value: string) {
       return optionMapLabel(preferenceLabels, value);
     }
 
     function displayExclusionValue(value: string) {
       return optionMapLabel(exclusionLabels, value);
-    }
-
-    function displayExceptionValue(value: string) {
-      return optionMapLabel(exceptionLabels, value);
     }
 
     function toggleIntolerance(value: string) {
@@ -665,65 +609,6 @@ export function ProfileScreen({
               </PremiumProfileSubBlock>
             ) : null}
 
-            <PremiumProfileSubBlock title={editor.exceptionsLabel}>
-              <Text style={local.premiumSectionHint}>{editor.exceptionsHint}</Text>
-              <View style={local.premiumChipRow}>
-                {visibleQuickExceptions.map((option) => {
-                  const value = optionValue(option);
-
-                  return (
-                    <PremiumProfileChip
-                      key={value}
-                      active={exceptions.includes(value)}
-                      icon="check-circle"
-                      label={optionLabel(option)}
-                      onPress={() => toggleException(value)}
-                    />
-                  );
-                })}
-
-                {visibleCustomExceptionValues.map((value) => (
-                  <PremiumProfileChip
-                    key={value}
-                    active={exceptions.includes(value)}
-                    icon="check-circle"
-                    label={displayExceptionValue(value)}
-                    onPress={() => toggleException(value)}
-                  />
-                ))}
-              </View>
-
-              <PremiumProfileInput
-                value={customException}
-                onChangeText={setCustomException}
-                placeholder={editor.addExceptionPlaceholder}
-                onSubmitEditing={addCustomException}
-              />
-              <PremiumEditorButton
-                icon="check-circle"
-                label={editor.addExceptionButton}
-                ready={customException.trim().length > 0}
-                onPress={addCustomException}
-              />
-
-              {exceptions.length > 0 ? (
-                <View style={local.premiumNestedBlock}>
-                  <Text style={local.premiumSubLabel}>{editor.deleteActiveExceptionsLabel}</Text>
-                  <View style={local.premiumChipRowCompact}>
-                    {exceptions.map((value) => (
-                      <PremiumProfileChip
-                        key={value}
-                        active
-                        compact
-                        icon="check-circle"
-                        label={displayExceptionValue(value)}
-                        onPress={() => deleteException(value)}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-            </PremiumProfileSubBlock>
           </View>
         </Screen>
       );
@@ -868,7 +753,7 @@ export function ProfileScreen({
             icon={content.profileEditor.exclusionValueIcon}
             iconVariant="exclusions"
             title={content.profileScreen.exclusionsButton}
-            detail={activeStatus(profile.dislikes.length + exceptions.length, content)}
+            detail={activeStatus(profile.dislikes.length, content)}
             onPress={() => setActiveSection("exclusions")}
           />
           <ProfileMenuRow

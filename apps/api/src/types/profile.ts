@@ -19,17 +19,14 @@ export type UserProfile = {
   dietStyle: "normal" | "vegetarisch" | "vegan" | "flexitarisch";
   outputLocale: string;
   appetiteMood?: AppetiteMood;
-  exceptions?: string[];
 
   customPreferences?: string[];
   customExclusions?: string[];
   customIntolerances?: string[];
-  customExceptions?: string[];
 
   hiddenPreferences?: string[];
   hiddenExclusions?: string[];
   hiddenIntolerances?: string[];
-  hiddenExceptions?: string[];
 };
 
 

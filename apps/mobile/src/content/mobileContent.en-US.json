@@ -83,11 +83,11 @@
   "situations": [
     {
       "value": "richtig_hunger",
-      "label": "Really hungry"
+      "label": "Starter and main course"
     },
     {
       "value": "leicht",
-      "label": "Something light"
+      "label": "Single dish"
     },
     {
       "value": "neues_probieren",
@@ -159,7 +159,7 @@
     "preferencesTitle": "My preferences",
     "preferencesHint": "What GustaroAI should prefer in recommendations.",
     "addPreferenceLabel": "Add preference",
-    "addPreferencePlaceholder": "e.g. steak, sushi, high-protein ...",
+    "addPreferencePlaceholder": "e.g. steak, sushi, pizza ...",
     "addPreferenceButton": "Add preference",
     "deleteActivePreferencesLabel": "Delete active preferences",
     "exclusionsTitle": "My exclusions",
@@ -168,11 +168,6 @@
     "addExclusionPlaceholder": "e.g. garlic, caraway, lamb ...",
     "addExclusionButton": "Add exclusion",
     "deleteActiveExclusionsLabel": "Delete active exclusions",
-    "exceptionsLabel": "Exceptions",
-    "exceptionsHint": "If an exclusion is too broad: what is still allowed?",
-    "addExceptionPlaceholder": "e.g. mussels in tomato sauce ...",
-    "addExceptionButton": "Add exception",
-    "deleteActiveExceptionsLabel": "Delete active exceptions",
     "intolerancesTitle": "Allergies & intolerances",
     "intolerancesHint": "These ingredients are considered especially strictly.",
     "safetyHint": "Important note: GustaroAI helps you choose dishes based on your allergy and intolerance information. The app does not replace medical advice or asking the restaurant staff. Information may be incomplete or incorrect. Please check every dish yourself and do not rely only on the app. If you have known allergies or intolerances, you must check every dish yourself.",
@@ -186,12 +181,9 @@
     "deleteExclusionMessage": "\"{value}\" will be permanently removed from your exclusions.",
     "deleteIntoleranceTitle": "Delete intolerance?",
     "deleteIntoleranceMessage": "\"{value}\" will be permanently removed from your allergies/intolerances.",
-    "deleteExceptionTitle": "Delete exception?",
-    "deleteExceptionMessage": "\"{value}\" will be permanently removed from your exceptions.",
     "preferenceValueIcon": "\uD83D\uDC4D",
     "exclusionValueIcon": "\uD83D\uDC4E",
     "intoleranceValueIcon": "\uD83D\uDEAB",
-    "exceptionValueIcon": "\u2713",
     "preferenceOptions": [
       {
         "label": "Meat",
@@ -212,26 +204,6 @@
         "label": "Vegan",
         "value": "vegan",
         "kind": "diet"
-      },
-      {
-        "label": "Spicy",
-        "value": "Scharf",
-        "kind": "like"
-      },
-      {
-        "label": "Large portions",
-        "value": "Große Portionen",
-        "kind": "like"
-      },
-      {
-        "label": "Affordable",
-        "value": "Günstig",
-        "kind": "like"
-      },
-      {
-        "label": "High-protein",
-        "value": "Proteinreich",
-        "kind": "like"
       }
     ],
     "normalDietPreferenceValues": [
@@ -282,24 +254,6 @@
       {
         "label": "Liver",
         "value": "Keine Leber"
-      }
-    ],
-    "quickExceptions": [
-      {
-        "label": "Mussels in white wine sauce",
-        "value": "Muscheln in Weißweinsoße"
-      },
-      {
-        "label": "Mussels in tomato sauce",
-        "value": "Muscheln in Tomatensoße"
-      },
-      {
-        "label": "Shrimp as a starter",
-        "value": "Garnelen als Vorspeise"
-      },
-      {
-        "label": "Fish without bones",
-        "value": "Fisch ohne Gräten"
       }
     ],
     "allergyOptions": [
@@ -390,7 +344,7 @@
       "title": "Show menu",
       "points": [
         "Paste a link, PDF, or menu text.",
-        "With 'What are you in the mood for?' you tell GustaroAI whether you want something filling, something light, something new, or a safer choice.",
+        "With 'What are you in the mood for?' you tell GustaroAI whether you want a starter and main course, a single dish, something new, or a safer choice.",
         "This influences which dishes GustaroAI prefers - your profile still remains important.",
         "The analysis can take a little time, especially with longer menus."
       ],

@@ -86,7 +86,6 @@ export function buildProfilePromptLines(profile: ProfileInput = {}, situation?: 
   const secondaryLikes = arrayValue(profile.secondaryLikes);
   const dislikes = arrayValue(profile.dislikes);
   const intolerances = arrayValue(profile.intolerances);
-  const exceptions = arrayValue(profile.exceptions);
   const canonicalRules = deriveCanonicalRules(profile);
 
   return [
@@ -98,7 +97,6 @@ export function buildProfilePromptLines(profile: ProfileInput = {}, situation?: 
     `Aktive weitere Vorlieben: ${listOrNone(secondaryLikes)}`,
     `Aktive harte Ausschluesse / Abneigungen: ${listOrNone(dislikes)}`,
     `Aktive Allergien / Unvertraeglichkeiten: ${listOrNone(intolerances)}`,
-    `Aktive Ausnahmen zu Ausschluessen: ${listOrNone(exceptions)}`,
     `Ess-Stimmung: ${describeAppetiteMood(profile.appetiteMood)}`,
     `Aktuelle Situation: ${situation || "nicht angegeben"}`,
     "",
@@ -112,7 +110,6 @@ export function buildProfilePromptLines(profile: ProfileInput = {}, situation?: 
     "Verbindliche Auswertung:",
     "- Die semantischen Profilregeln sind wichtiger als Vorlieben.",
     "- Bei harten Ausschluessen, Allergien und Unvertraeglichkeiten gilt: Wenn unsicher, nicht empfehlen.",
-    "- Ausnahmen gelten nur, wenn das konkrete Gericht klar zur Ausnahme passt.",
     "- Vorlieben beeinflussen nur die Reihenfolge sicherer Gerichte.",
     "- Inaktive gespeicherte Profiloptionen zaehlen nicht. Aktiv sind nur die oben genannten Werte.",
     "- Eine fruehere Analyse darf niemals wiederverwendet werden. Jede Analyse gilt nur fuer das aktuell uebergebene Nutzerprofil.",
@@ -213,10 +210,6 @@ function blockReasonForText(rawText: string, profile: ProfileInput) {
   const text = normalizeForMatching(rawText);
 
   if (!text) {
-    return undefined;
-  }
-
-  if (matchesActiveException(text, profile)) {
     return undefined;
   }
 
@@ -518,21 +511,6 @@ function hasStructuredDishClasses(dish: DishInput) {
     dish.classificationConfidence !== undefined &&
     dish.classificationConfidence > 0
   );
-}
-
-function matchesActiveException(normalizedText: string, profile: ProfileInput) {
-  return arrayValue(profile.exceptions).some((exception) => exceptionMatchesText(exception, normalizedText));
-}
-
-function exceptionMatchesText(exception: string, normalizedText: string) {
-  const normalizedException = normalizeForMatching(exception);
-  const tokens = meaningfulTokens(exception);
-
-  if (!normalizedException || tokens.length === 0) {
-    return false;
-  }
-
-  return normalizedText.includes(normalizedException) || tokens.every((token) => textHasTerm(normalizedText, token));
 }
 
 function rawRuleMatchesText(rule: string, normalizedText: string) {

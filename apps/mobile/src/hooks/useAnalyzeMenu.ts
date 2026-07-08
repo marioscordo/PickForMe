@@ -83,15 +83,12 @@ export function useAnalyzeMenu() {
         secondaryLikes: profile.secondaryLikes,
         dislikes: profile.dislikes,
         intolerances: profile.intolerances,
-        exceptions: profile.exceptions,
         customPreferences: profile.customPreferences,
         customExclusions: profile.customExclusions,
         customIntolerances: profile.customIntolerances,
-        customExceptions: profile.customExceptions,
         hiddenPreferences: profile.hiddenPreferences,
         hiddenExclusions: profile.hiddenExclusions,
-        hiddenIntolerances: profile.hiddenIntolerances,
-        hiddenExceptions: profile.hiddenExceptions
+        hiddenIntolerances: profile.hiddenIntolerances
       }),
     [profile]
   );

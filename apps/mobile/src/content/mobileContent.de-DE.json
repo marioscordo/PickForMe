@@ -83,11 +83,11 @@
   "situations": [
     {
       "value": "richtig_hunger",
-      "label": "Richtig Hunger"
+      "label": "Vor- und Hauptspeise"
     },
     {
       "value": "leicht",
-      "label": "Etwas Leichtes"
+      "label": "Einzel-gericht"
     },
     {
       "value": "neues_probieren",
@@ -159,7 +159,7 @@
     "preferencesTitle": "Meine Vorlieben",
     "preferencesHint": "Was GustaroAI bei Empfehlungen bevorzugen soll.",
     "addPreferenceLabel": "Vorliebe hinzufügen",
-    "addPreferencePlaceholder": "z. B. Steak, Sushi, proteinreich ...",
+    "addPreferencePlaceholder": "z. B. Steak, Sushi, Pizza ...",
     "addPreferenceButton": "Vorliebe hinzufügen",
     "deleteActivePreferencesLabel": "Aktive Vorlieben löschen",
     "exclusionsTitle": "Meine Ausschlüsse",
@@ -168,11 +168,6 @@
     "addExclusionPlaceholder": "z. B. Knoblauch, Kümmel, Lamm ...",
     "addExclusionButton": "Ausschluss hinzufügen",
     "deleteActiveExclusionsLabel": "Aktive Ausschlüsse löschen",
-    "exceptionsLabel": "Ausnahmen",
-    "exceptionsHint": "Wenn ein Ausschluss zu grob ist: Was darf trotzdem empfohlen werden?",
-    "addExceptionPlaceholder": "z. B. Muscheln in Tomatensoße ...",
-    "addExceptionButton": "Ausnahme hinzufügen",
-    "deleteActiveExceptionsLabel": "Aktive Ausnahmen löschen",
     "intolerancesTitle": "Allergien & Unverträglichkeiten",
     "intolerancesHint": "Diese Zutaten werden besonders streng berücksichtigt.",
     "safetyHint": "Wichtiger Hinweis: GustaroAI unterstützt dich bei der Auswahl von Speisen anhand deiner Angaben zu Allergien und Unverträglichkeiten. Die App ersetzt keine medizinische Beratung und keine Rückfrage beim Servicepersonal. Informationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App. Bei bekannten Allergien oder Unverträglichkeiten musst du jede Speise selbst kontrollieren.",
@@ -186,12 +181,9 @@
     "deleteExclusionMessage": "„{value}“ wird dauerhaft aus deiner Ausschluss-Liste entfernt.",
     "deleteIntoleranceTitle": "Unverträglichkeit löschen?",
     "deleteIntoleranceMessage": "„{value}“ wird dauerhaft aus deiner Allergien-/Unverträglichkeiten-Liste entfernt.",
-    "deleteExceptionTitle": "Ausnahme löschen?",
-    "deleteExceptionMessage": "„{value}“ wird dauerhaft aus deiner Ausnahmen-Liste entfernt.",
     "preferenceValueIcon": "👍",
     "exclusionValueIcon": "👎",
     "intoleranceValueIcon": "🚫",
-    "exceptionValueIcon": "✓",
     "preferenceOptions": [
       {
         "label": "Fleisch",
@@ -212,26 +204,6 @@
         "label": "vegan",
         "value": "vegan",
         "kind": "diet"
-      },
-      {
-        "label": "Scharf",
-        "value": "Scharf",
-        "kind": "like"
-      },
-      {
-        "label": "Große Portionen",
-        "value": "Große Portionen",
-        "kind": "like"
-      },
-      {
-        "label": "Günstig",
-        "value": "Günstig",
-        "kind": "like"
-      },
-      {
-        "label": "Proteinreich",
-        "value": "Proteinreich",
-        "kind": "like"
       }
     ],
     "normalDietPreferenceValues": [
@@ -282,24 +254,6 @@
       {
         "label": "Leber",
         "value": "Keine Leber"
-      }
-    ],
-    "quickExceptions": [
-      {
-        "label": "Muscheln in Weißweinsoße",
-        "value": "Muscheln in Weißweinsoße"
-      },
-      {
-        "label": "Muscheln in Tomatensoße",
-        "value": "Muscheln in Tomatensoße"
-      },
-      {
-        "label": "Garnelen als Vorspeise",
-        "value": "Garnelen als Vorspeise"
-      },
-      {
-        "label": "Fisch ohne Gräten",
-        "value": "Fisch ohne Gräten"
       }
     ],
     "allergyOptions": [
@@ -390,7 +344,7 @@
       "title": "Speisekarte zeigen",
       "points": [
         "Füge einen Link, ein PDF oder Speisekartentext ein.",
-        "Mit „Wonach ist Dir heute?“ sagst Du GustaroAI, ob Du eher Hunger, etwas Leichtes, etwas Neues oder eine sichere Wahl möchtest.",
+        "Mit „Wonach ist Dir heute?“ sagst Du GustaroAI, ob Du eine Vor- und Hauptspeise, ein Einzelgericht, etwas Neues oder eine sichere Wahl möchtest.",
         "Diese Auswahl beeinflusst, welche Gerichte GustaroAI bevorzugt - Dein Profil bleibt dabei weiterhin wichtig.",
         "Die Auswertung kann etwas Zeit in Anspruch nehmen, besonders bei längeren Speisekarten."
       ],

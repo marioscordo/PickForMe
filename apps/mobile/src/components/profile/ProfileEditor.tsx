@@ -36,36 +36,28 @@ export function ProfileEditor({
   const editor = content.profileEditor;
   const preferenceOptions = editor.preferenceOptions as PreferenceOption[];
   const quickExclusions = editor.quickExclusions as ValueOption[];
-  const quickExceptions = editor.quickExceptions as ValueOption[];
   const allergyOptions = editor.allergyOptions as ValueOption[];
   const normalDietPreferenceValues = editor.normalDietPreferenceValues;
   const exclusiveDietPreferenceValues = editor.exclusiveDietPreferenceValues;
 
   const [customPreference, setCustomPreference] = useState("");
   const [customExclusion, setCustomExclusion] = useState("");
-  const [customException, setCustomException] = useState("");
   const [customIntolerance, setCustomIntolerance] = useState("");
-
-  const exceptions = profile.exceptions ?? [];
 
   const customPreferences = profile.customPreferences ?? [];
   const customExclusions = profile.customExclusions ?? [];
   const customIntolerances = profile.customIntolerances ?? [];
-  const customExceptions = profile.customExceptions ?? [];
 
   const hiddenPreferences = profile.hiddenPreferences ?? [];
   const hiddenExclusions = profile.hiddenExclusions ?? [];
   const hiddenIntolerances = profile.hiddenIntolerances ?? [];
-  const hiddenExceptions = profile.hiddenExceptions ?? [];
 
   const quickPreferenceValues = preferenceOptions.map((option) => option.value);
   const quickExclusionValues = quickExclusions.map((option) => optionValue(option));
   const quickIntoleranceValues = allergyOptions.map((option) => optionValue(option));
-  const quickExceptionValues = quickExceptions.map((option) => optionValue(option));
   const preferenceLabels = createOptionLabelMap(preferenceOptions);
   const exclusionLabels = createOptionLabelMap(quickExclusions);
   const intoleranceLabels = createOptionLabelMap(allergyOptions);
-  const exceptionLabels = createOptionLabelMap(quickExceptions);
 
   const visiblePreferenceOptions = preferenceOptions.filter(
     (option) => !includesValue(hiddenPreferences, option.value)
@@ -93,15 +85,6 @@ export function ProfileEditor({
     ...customIntolerances,
     ...profile.intolerances.filter((value) => !includesValue(quickIntoleranceValues, value))
   ]).filter((value) => !includesValue(hiddenIntolerances, value));
-
-  const visibleQuickExceptions = quickExceptions.filter(
-    (option) => !includesValue(hiddenExceptions, optionValue(option))
-  );
-
-  const visibleCustomExceptionValues = uniqueValues([
-    ...customExceptions,
-    ...exceptions.filter((value) => !includesValue(quickExceptionValues, value))
-  ]).filter((value) => !includesValue(hiddenExceptions, value));
 
   function updateProfile(patch: Partial<UserProfile>) {
     setProfile({
@@ -273,46 +256,6 @@ export function ProfileEditor({
     );
   }
 
-  function toggleException(value: string) {
-    updateProfile({
-      exceptions: toggleValue(exceptions, value)
-    });
-  }
-
-  function addCustomException() {
-    const value = customException.trim();
-
-    if (!value) {
-      return;
-    }
-
-    const isQuick = includesValue(quickExceptionValues, value);
-
-    updateProfile({
-      exceptions: addUnique(exceptions, value),
-      customExceptions: isQuick ? customExceptions : addUnique(customExceptions, value),
-      hiddenExceptions: removeValue(hiddenExceptions, value)
-    });
-
-    setCustomException("");
-  }
-
-  function deleteException(value: string) {
-    const isQuick = includesValue(quickExceptionValues, value);
-    const displayValue = displayExceptionValue(value);
-
-    confirmDelete(
-      editor.deleteExceptionTitle,
-      formatContent(editor.deleteExceptionMessage, { value: displayValue }),
-      () =>
-        updateProfile({
-          exceptions: removeValue(exceptions, value),
-          customExceptions: isQuick ? customExceptions : removeValue(customExceptions, value),
-          hiddenExceptions: isQuick ? addUnique(hiddenExceptions, value) : hiddenExceptions
-        })
-    );
-  }
-
   function displayPreferenceValue(value: string) {
     return optionMapLabel(preferenceLabels, value);
   }
@@ -323,10 +266,6 @@ export function ProfileEditor({
 
   function displayIntoleranceValue(value: string) {
     return optionMapLabel(intoleranceLabels, value);
-  }
-
-  function displayExceptionValue(value: string) {
-    return optionMapLabel(exceptionLabels, value);
   }
 
   return (
@@ -481,70 +420,6 @@ export function ProfileEditor({
           </View>
         ) : null}
 
-        <View style={styles.profileSubBlock}>
-          <Text style={styles.label}>{editor.exceptionsLabel}</Text>
-          <Text style={styles.profileSectionHint}>
-            {editor.exceptionsHint}
-          </Text>
-
-          <View style={styles.chipRow}>
-            {visibleQuickExceptions.map((option) => {
-              const value = optionValue(option);
-
-              return (
-                <Chip
-                  key={value}
-                  label={optionLabel(option)}
-                  icon={editor.exceptionValueIcon}
-                  active={exceptions.includes(value)}
-                  onPress={() => toggleException(value)}
-                />
-              );
-            })}
-
-            {visibleCustomExceptionValues.map((value) => (
-              <Chip
-                key={value}
-                label={displayExceptionValue(value)}
-                icon={editor.exceptionValueIcon}
-                active={exceptions.includes(value)}
-                onPress={() => toggleException(value)}
-              />
-            ))}
-          </View>
-
-          <TextInput
-            style={styles.input}
-            value={customException}
-            onChangeText={setCustomException}
-            placeholder={editor.addExceptionPlaceholder}
-            returnKeyType="done"
-            onSubmitEditing={addCustomException}
-          />
-
-          <ActionButton
-            label={labelWithIcon(editor.addExceptionButton, editor.exceptionValueIcon)}
-            variant="secondary"
-            onPress={addCustomException}
-          />
-
-          {exceptions.length > 0 ? (
-            <View style={styles.profileSubBlock}>
-              <Text style={styles.label}>{editor.deleteActiveExceptionsLabel}</Text>
-              <View style={styles.chipRow}>
-                {exceptions.map((value) => (
-                  <Chip
-                    key={value}
-                    label={displayExceptionValue(value)}
-                    icon={editor.exceptionValueIcon}
-                    active
-                    onPress={() => deleteException(value)}
-                  />
-                ))}
-              </View>
-            </View>
-          ) : null}
-        </View>
         </View>
       ) : null}
 
