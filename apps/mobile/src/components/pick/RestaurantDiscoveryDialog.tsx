@@ -23,18 +23,12 @@ import { useMobileContent } from "../../content/useMobileContent";
 import { radius } from "../../theme/tokens";
 import { GustaroHelp } from "../ui/GustaroHelp";
 import { Screen } from "../ui/Screen";
-import { detectRestaurant } from "../../restaurant-detector/detectRestaurant";
-import type {
-  RestaurantCandidate as DetectedRestaurantCandidate,
-  RestaurantDetectorRuntime
-} from "../../restaurant-detector/types";
 
 type RestaurantDiscoveryDialogProps = {
   onGoHome?: () => void;
   visible: boolean;
   onClose: () => void;
   onApply: (menuUrl: string) => void;
-  restaurantDetector?: RestaurantDetectorRuntime;
 };
 
 const DOUBLE_TAP_WINDOW_MS = 500;
@@ -116,19 +110,16 @@ export function RestaurantDiscoveryDialog({
   visible,
   onClose,
   onGoHome,
-  onApply,
-  restaurantDetector
+  onApply
 }: RestaurantDiscoveryDialogProps) {
   const content = useMobileContent();
   const copy = content.restaurantDiscovery;
   const [restaurantName, setRestaurantName] = useState("");
   const [city, setCity] = useState("");
-  const [detectedCandidates, setDetectedCandidates] = useState<DetectedRestaurantCandidate[]>([]);
   const [candidates, setCandidates] = useState<RestaurantCandidate[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<RestaurantCandidate | null>(null);
   const [menuUrl, setMenuUrl] = useState("");
   const [message, setMessage] = useState("");
-  const [loadingDetector, setLoadingDetector] = useState(false);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [loadingMenu, setLoadingMenu] = useState(false);
   const [lastTap, setLastTap] = useState<{ id: string; time: number } | null>(null);
@@ -142,12 +133,10 @@ export function RestaurantDiscoveryDialog({
   function resetDialogState() {
     setRestaurantName("");
     setCity("");
-    setDetectedCandidates([]);
     setCandidates([]);
     setSelectedCandidate(null);
     setMenuUrl("");
     setMessage("");
-    setLoadingDetector(false);
     setLoadingCandidates(false);
     setLoadingMenu(false);
     setLastTap(null);
@@ -187,56 +176,6 @@ export function RestaurantDiscoveryDialog({
         setLoadingCandidates(false);
       }
     }
-  }
-
-  async function detectNearbyRestaurant() {
-    if (!restaurantDetector) {
-      setDetectedCandidates([]);
-      setMessage(copy.detectorUnavailable);
-      return;
-    }
-
-    const sessionId = sessionIdRef.current;
-    setLoadingDetector(true);
-    setDetectedCandidates([]);
-    setSelectedCandidate(null);
-    setMenuUrl("");
-    setMessage("");
-
-    try {
-      const location = await restaurantDetector.getCurrentLocation();
-      const result = await detectRestaurant(
-        {
-          ...location,
-          hint: restaurantName
-        },
-        restaurantDetector.provider
-      );
-      if (!isCurrentSession(sessionId)) return;
-
-      setDetectedCandidates(result.candidates);
-      if (result.confidence === "low" || result.candidates.length === 0) {
-        setMessage(copy.detectorLowConfidence);
-      }
-    } catch {
-      if (!isCurrentSession(sessionId)) return;
-      setDetectedCandidates([]);
-      setMessage(copy.detectorFailed);
-    } finally {
-      if (isCurrentSession(sessionId)) {
-        setLoadingDetector(false);
-      }
-    }
-  }
-
-  function applyDetectedRestaurant(candidate: DetectedRestaurantCandidate) {
-    setRestaurantName(candidate.name);
-    setCity(inferCityFromAddress(candidate.address));
-    setDetectedCandidates([]);
-    setCandidates([]);
-    setSelectedCandidate(null);
-    setMenuUrl("");
-    setMessage(copy.detectorApplied);
   }
 
   function handleCandidatePress(candidate: RestaurantCandidate) {
@@ -316,42 +255,6 @@ export function RestaurantDiscoveryDialog({
               </View>
               <Text style={local.cardTitle}>{copy.searchCardTitle}</Text>
             </View>
-
-            {restaurantDetector ? (
-              <>
-                <PremiumButton
-                  label={loadingDetector ? copy.loading : copy.detectNearbyButton}
-                  onPress={detectNearbyRestaurant}
-                  disabled={loadingDetector}
-                  icon={<Feather color={premiumPalette.gold} name="map-pin" size={s(18)} />}
-                />
-
-                {loadingDetector ? <ActivityIndicator color={premiumPalette.gold} style={local.loader} /> : null}
-
-                {detectedCandidates.length > 0 ? (
-                  <View
-                    testID="restaurant-detector-candidate-list"
-                    style={local.list}
-                  >
-                    {detectedCandidates.map((item, index) => (
-                      <Pressable
-                        key={item.externalId ?? `${item.source}-${item.name}-${index}`}
-                        testID="restaurant-detector-candidate"
-                        onPress={() => applyDetectedRestaurant(item)}
-                        style={local.candidate}
-                      >
-                        <Text style={local.candidateName}>{item.name}</Text>
-                        <Text style={local.candidateMeta}>
-                          {[item.address, formatDetectorDistance(item.distanceMeters), copy.detectorConfirmHint]
-                            .filter(Boolean)
-                            .join(" - ")}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-              </>
-            ) : null}
 
             <View style={local.fieldGroup}>
               <Text style={local.label}>{copy.restaurantNameLabel}</Text>
@@ -672,15 +575,3 @@ const local = StyleSheet.create({
     minHeight: s(58)
   }
 });
-
-function inferCityFromAddress(address: string | undefined) {
-  const parts = address?.split(",").map((part) => part.trim()).filter(Boolean) ?? [];
-  return parts.length >= 2 ? parts[1] ?? "" : parts[0] ?? "";
-}
-
-function formatDetectorDistance(distanceMeters: number | undefined) {
-  if (typeof distanceMeters !== "number") return "";
-  if (distanceMeters < 1000) return `${distanceMeters} m`;
-
-  return `${(distanceMeters / 1000).toFixed(1)} km`;
-}

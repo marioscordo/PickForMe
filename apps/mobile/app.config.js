@@ -3,7 +3,6 @@ const IS_PROD = APP_VARIANT === "production";
 const mobileContent = require("./src/content/mobileContent.de-DE.json");
 
 const cameraUsageDescription = mobileContent.permissions.camera;
-const locationWhenInUseUsageDescription = mobileContent.permissions.location;
 
 module.exports = {
   expo: {
@@ -32,7 +31,6 @@ module.exports = {
         CFBundleDevelopmentRegion: "de",
         CFBundleLocalizations: ["de", "en"],
         NSCameraUsageDescription: cameraUsageDescription,
-        NSLocationWhenInUseUsageDescription: locationWhenInUseUsageDescription,
         ITSAppUsesNonExemptEncryption: false,
         ...(!IS_PROD
           ? {
@@ -70,12 +68,6 @@ module.exports = {
         {
           cameraPermission: cameraUsageDescription,
           recordAudioAndroid: false
-        }
-      ],
-      [
-        "expo-location",
-        {
-          locationWhenInUsePermission: locationWhenInUseUsageDescription
         }
       ]
     ],

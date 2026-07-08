@@ -64,8 +64,7 @@
     "close": "Scanner schließen"
   },
   "permissions": {
-    "camera": "GustaroAI benötigt die Kamera, um QR-Codes von Speisekarten zu scannen.",
-    "location": "GustaroAI nutzt deinen Standort nur, wenn du aktiv nach dem Restaurant in deiner Nähe suchst."
+    "camera": "GustaroAI benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
   },
   "allergyWarning": {
     "title": "Wichtiger Hinweis zu Allergien und Unverträglichkeiten",
@@ -319,12 +318,6 @@
     "title": "Speisekarte finden",
     "searchCardTitle": "Restaurant finden",
     "applyCardTitle": "Speisekarte übernehmen",
-    "detectNearbyButton": "Restaurant in meiner Nähe erkennen",
-    "detectorConfirmHint": "antippen zum Übernehmen",
-    "detectorApplied": "Restaurant übernommen. Bitte prüfe die Angaben und starte dann die Suche.",
-    "detectorLowConfidence": "Ich konnte das Restaurant nicht sicher erkennen. Bitte wähle einen Treffer oder suche manuell.",
-    "detectorFailed": "Standortsuche ist gerade nicht verfügbar. Bitte suche das Restaurant manuell.",
-    "detectorUnavailable": "Standortsuche ist für diese App-Version noch nicht verbunden. Bitte suche das Restaurant manuell.",
     "restaurantNameLabel": "Restaurantname",
     "cityLabel": "Stadt",
     "showButton": "Zeigen",
@@ -369,10 +362,9 @@
       "points": [
         "Du kannst ein Restaurant über Name und Stadt suchen.",
         "Wenn eine Ergebnisliste erscheint, übernimmst Du ein Restaurant per Doppelklick bzw. Doppeltippen auf den passenden Eintrag.",
-        "Der gefundene Speisekarten-Link wird in das Link-Feld übernommen. Danach kannst Du ihn übernehmen und die Analyse starten.",
-        "„Restaurant in meiner Nähe erkennen“ nutzt Deinen Standort. Dafür müssen Standortdienste aktiv sein und GustaroAI die Standortberechtigung erhalten haben."
+        "Der gefundene Speisekarten-Link wird in das Link-Feld übernommen. Danach kannst Du ihn übernehmen und die Analyse starten."
       ],
-      "tip": "Wenn die Standorterkennung nicht funktioniert, prüfe die Berechtigung in den iPhone-Einstellungen oder suche das Restaurant manuell."
+      "tip": "Wenn die Suche kein passendes Ergebnis liefert, prüfe Restaurantname und Stadt und versuche es erneut."
     },
     "result": {
       "title": "Deine Empfehlung",

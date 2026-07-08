@@ -3,11 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "main": "index.js",
-  "expo": {
-    "autolinking": {
-      "nativeModulesDir": "./modules"
-    }
-  },
   "scripts": {
     "start": "expo start",
     "typecheck": "tsc --noEmit"
@@ -19,7 +14,6 @@
     "expo-camera": "~17.0.10",
     "expo-dev-client": "~6.0.21",
     "expo-localization": "~17.0.9",
-    "expo-location": "~19.0.8",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-native": "0.81.5"

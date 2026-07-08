@@ -64,8 +64,7 @@
     "close": "Close scanner"
   },
   "permissions": {
-    "camera": "GustaroAI needs the camera to scan menu QR codes.",
-    "location": "GustaroAI uses your location only when you actively search for a restaurant nearby."
+    "camera": "GustaroAI needs the camera to scan menu QR codes."
   },
   "allergyWarning": {
     "title": "Important note about allergies and intolerances",
@@ -319,12 +318,6 @@
     "title": "Find menu",
     "searchCardTitle": "Find restaurant",
     "applyCardTitle": "Apply menu",
-    "detectNearbyButton": "Detect restaurant nearby",
-    "detectorConfirmHint": "tap to apply",
-    "detectorApplied": "Restaurant applied. Please check the details and then start the search.",
-    "detectorLowConfidence": "I could not detect the restaurant safely. Please choose a result or search manually.",
-    "detectorFailed": "Location search is not available right now. Please search for the restaurant manually.",
-    "detectorUnavailable": "Location search is not connected in this app version yet. Please search manually.",
     "restaurantNameLabel": "Restaurant name",
     "cityLabel": "City",
     "showButton": "Show",
@@ -369,10 +362,9 @@
       "points": [
         "You can search for a restaurant by name and city.",
         "When a result list appears, select a restaurant by double-tapping the matching entry.",
-        "The found menu link is copied into the link field. You can then apply it and start the analysis.",
-        "'Detect restaurant near me' uses your location. Location services must be enabled and GustaroAI must have location permission."
+        "The found menu link is copied into the link field. You can then apply it and start the analysis."
       ],
-      "tip": "If location detection does not work, check the permission in iPhone settings or search for the restaurant manually."
+      "tip": "If the search does not find the right result, check the restaurant name and city and try again."
     },
     "result": {
       "title": "Your recommendation",
