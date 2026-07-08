@@ -112,6 +112,10 @@
     "starterSearchButton": "Find a matching starter?",
     "starterSearchLoading": "I am looking for a matching starter...",
     "starterSearchError": "I cannot safely choose a starter right now.",
+    "starterSearchEmpty": "I cannot choose a safe starter automatically right now. Please open the menu to choose a starter yourself.",
+    "starterRetryText": "The starter search wasn’t successful just now. Would you like to try again?",
+    "starterRetryYes": "Yes",
+    "starterRetryNo": "No",
     "acceptButton": "I will take this",
     "ratingTitle": "Did that fit well?",
     "savedText": "I will remember this: {rating} out of 5 stars."

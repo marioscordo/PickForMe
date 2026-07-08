@@ -31,4 +31,10 @@ export type AnalyzeData = {
   menuType?: string;
 };
 
+export type StarterPairingsData = {
+  recommendations: AnalyzeData["recommendations"];
+  starterRetryableError?: boolean;
+  starterErrorCode?: "TEMPORARY_AI_ERROR";
+};
+
 

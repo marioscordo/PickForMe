@@ -10,11 +10,19 @@ import {
   stripJsonFence
 } from "./twoStepRecommendationAIUtils";
 import {
-  StarterAIResponseSchema,
-  type CommittedMainDishRecommendation,
-  type StarterAIRecommendation,
   type TwoStepMenuSourceInput
 } from "./twoStepRecommendationSchemas";
+
+export type StarterMainDishAnchor = {
+  rank?: number;
+  nameOriginal: string;
+  translatedName?: string;
+  priceRaw?: string | null;
+  sourceEvidence?: string | null;
+  sourceUrl?: string | null;
+  sourceCategoryOriginal?: string | null;
+  reason?: string;
+};
 
 export async function recommendStarterForMainDishAI({
   source,
@@ -27,10 +35,10 @@ export async function recommendStarterForMainDishAI({
   source: TwoStepMenuSourceInput;
   profile: UserProfile;
   situation: Situation;
-  mainDish: CommittedMainDishRecommendation;
+  mainDish: StarterMainDishAnchor;
   userLocale?: string;
   signal?: AbortSignal;
-}): Promise<StarterAIRecommendation | null> {
+}): Promise<unknown | null> {
   const client = createTwoStepOpenAIClient();
   const targetLocale = normalizeTargetLocale(userLocale ?? profile.outputLocale);
   const targetLanguage = getLanguageNameForLocale(targetLocale);
@@ -54,7 +62,11 @@ export async function recommendStarterForMainDishAI({
   };
 
   const response = await client.responses.create(request, signal ? { signal } : undefined);
-  const parsed = StarterAIResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
+  const parsed = JSON.parse(stripJsonFence(response.output_text ?? "{}"));
+
+  if (!isRecord(parsed) || !("recommendation" in parsed)) {
+    return null;
+  }
 
   return parsed.recommendation ?? null;
 }
@@ -68,7 +80,7 @@ function buildStarterPrompt({
 }: {
   profile: UserProfile;
   situation: Situation;
-  mainDish: CommittedMainDishRecommendation;
+  mainDish: StarterMainDishAnchor;
   targetLocale: string;
   targetLanguage: string;
 }) {
@@ -78,6 +90,9 @@ function buildStarterPrompt({
     "Du extrahierst keinen kompletten Vorspeisenkatalog.",
     "Du darfst nichts erfinden.",
     `Sprache fuer nutzerseitige Ausgaben: ${targetLanguage} (${targetLocale}).`,
+    `translatedName muss in ${targetLanguage} (${targetLocale}) formuliert sein.`,
+    "- Bei de-DE muss translatedName eine deutsche Anzeigeuebersetzung oder ein deutscher, fuer Nutzer verstaendlicher Gloss sein.",
+    "- Kopiere nameOriginal nicht einfach als translatedName, wenn der Originalname fremdsprachig ist.",
     "",
     "Bestaetigtes Hauptgericht als Pflichtanker:",
     JSON.stringify({ mainDish }),
@@ -88,11 +103,14 @@ function buildStarterPrompt({
     "- Keine Hauptspeise, Beilage, Zutat, Kategorie oder Beschreibungsteil.",
     "- Nicht identisch oder nahezu identisch mit dem Hauptgericht.",
     "- Allergien, Unvertraeglichkeiten, Abneigungen und harte Profilregeln sind verbindliche Ausschluesse.",
+    "- Wenn ein bekannter Konflikt mit dem Profil besteht: gib recommendation null zurueck.",
     "- Wenn bei Allergie oder Unvertraeglichkeit nicht sicher ausgeschlossen werden kann, dass die Vorspeise problematisch ist: gib recommendation null zurueck.",
     "- Wenn ein Risiko in einem gelieferten Ergebnis erkannt wird, muss profileSafety dies korrekt markieren.",
+    "- Keine Zutaten, keine Beschreibungsteile und keine Hauptgerichte als Vorspeise.",
     "- sourceEvidence soll geliefert werden, wenn ein kurzer Beleg sicher moeglich ist.",
     "- sourceEvidence darf null oder fehlen, wenn kein knapper Beleg sicher angegeben werden kann.",
     "- priceRaw ist optional und darf null oder fehlen.",
+    "- profileSafety ist Pflicht, wenn eine recommendation geliefert wird.",
     "- Wenn keine sichere Vorspeise existiert, gib recommendation null zurueck.",
     "",
     buildTwoStepProfileContext(profile, situation),
@@ -119,4 +137,8 @@ function buildStarterPrompt({
     "  }",
     "}"
   ].join("\n");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

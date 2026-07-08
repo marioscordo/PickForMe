@@ -183,7 +183,15 @@ function isGatekeeperSafeStarterRecommendation(value: StarterAIRecommendation) {
 function normalizeOptionalString(value: string | null | undefined) {
   const normalized = value?.trim();
 
-  return normalized || undefined;
+  if (!normalized || isTechnicalPlaceholder(normalized)) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function isTechnicalPlaceholder(value: string) {
+  return /^(?:null|undefined|n\/a|nan)$/i.test(value.trim());
 }
 
 function parseOptionalPrice(value: string | null | undefined) {

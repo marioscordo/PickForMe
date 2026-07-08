@@ -1,7 +1,7 @@
 import { apiPost } from "./apiClient";
 import { DEFAULT_OUTPUT_LOCALE } from "../config/outputLocales";
 import type { UserProfile } from "../types/profile";
-import type { AnalyzeData } from "../types/recommendations";
+import type { AnalyzeData, StarterPairingsData } from "../types/recommendations";
 
 type Situation = "richtig_hunger" | "leicht" | "neues_probieren" | "sicher";
 
@@ -83,7 +83,7 @@ export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
     targetDishId: args.targetDishId
   };
 
-  return apiPost<{ recommendations: AnalyzeData["recommendations"] }, typeof body>(
+  return apiPost<StarterPairingsData, typeof body>(
     "/api/starter-pairings",
     body,
     {

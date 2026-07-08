@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
+import { PickForMeApiError } from "../../api/apiClient";
 import { requestStarterPairings } from "../../api/pickformeApi";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
@@ -23,7 +24,7 @@ type ProfileWithFeedback = {
   recommendationFeedback?: RecommendationFeedback[];
 };
 
-type StarterRequestStatus = "loading" | "error" | "empty";
+type StarterRequestStatus = "loading" | "error" | "empty" | "retryable" | "dismissed";
 type PremiumActionTone = "primary" | "secondary";
 
 function buildDisplayTranslation(originalName: string, translatedName?: string) {
@@ -40,10 +41,10 @@ function formatEuroPrice(price: number) {
   return `${price.toFixed(2).replace(".", ",")} €`;
 }
 
-function formatDisplayPrice(rawPrice?: string) {
+function formatDisplayPrice(rawPrice?: string | null) {
   const cleaned = rawPrice?.trim() ?? "";
 
-  if (!cleaned) {
+  if (!cleaned || isTechnicalPricePlaceholder(cleaned)) {
     return "";
   }
 
@@ -56,6 +57,10 @@ function formatDisplayPrice(rawPrice?: string) {
   }
 
   return cleaned;
+}
+
+function isTechnicalPricePlaceholder(value: string) {
+  return /^(?:null|undefined|n\/a|nan)$/i.test(value.trim());
 }
 
 function PremiumCardAction({
@@ -200,6 +205,15 @@ export function RecommendationCard({
           recommendations: visibleRecommendations
         }
       });
+
+      if (data.starterRetryableError) {
+        setStarterRequestStatusByDishId((current) => ({
+          ...current,
+          [recommendation.dishId]: "retryable"
+        }));
+        return;
+      }
+
       const updatedRecommendation = data.recommendations.find((item) => item.dishId === recommendation.dishId);
 
       if (!updatedRecommendation?.starter) {
@@ -225,12 +239,19 @@ export function RecommendationCard({
         delete next[recommendation.dishId];
         return next;
       });
-    } catch {
+    } catch (error) {
       setStarterRequestStatusByDishId((current) => ({
         ...current,
-        [recommendation.dishId]: "error"
+        [recommendation.dishId]: isRetryableStarterError(error) ? "retryable" : "error"
       }));
     }
+  }
+
+  function dismissStarterRetry(dishId: string) {
+    setStarterRequestStatusByDishId((current) => ({
+      ...current,
+      [dishId]: "dismissed"
+    }));
   }
 
   if (safeRecommendations.length === 0) {
@@ -313,8 +334,14 @@ export function RecommendationCard({
             : "";
           const starterPriceText = starter ? formatDisplayPrice(starter.priceRaw) : "";
           const starterRequestStatus = starterRequestStatusByDishId[rec.dishId];
-          const shouldShowStarterButton = situation !== "leicht" && !starter && starterRequestStatus !== "empty";
-          const shouldShowStarterAction = shouldShowStarterButton || starterRequestStatus === "empty";
+          const shouldShowStarterButton = situation !== "leicht" &&
+            !starter &&
+            starterRequestStatus !== "empty" &&
+            starterRequestStatus !== "retryable" &&
+            starterRequestStatus !== "dismissed";
+          const shouldShowStarterAction = shouldShowStarterButton ||
+            starterRequestStatus === "empty" ||
+            starterRequestStatus === "retryable";
           const isPrimaryRecommendation = index === 0;
 
           const priceText = typeof dishData.price === "number" ? formatEuroPrice(dishData.price) : "";
@@ -359,6 +386,25 @@ export function RecommendationCard({
                     {starterRequestStatus === "empty" ? (
                       <View style={local.starterEmptyHintBox}>
                         <Text style={local.starterActionText}>{content.recommendation.starterSearchEmpty}</Text>
+                      </View>
+                    ) : null}
+                    {starterRequestStatus === "retryable" ? (
+                      <View style={local.starterRetryBox}>
+                        <Text style={local.starterActionText}>{content.recommendation.starterRetryText}</Text>
+                        <PremiumCardAction
+                          disabled={isStarterSearchRunning}
+                          label={content.recommendation.starterRetryYes}
+                          onPress={() => handleStarterSearch(rec)}
+                          tone="secondary"
+                          hero={isPrimaryRecommendation}
+                        />
+                        <PremiumCardAction
+                          disabled={isStarterSearchRunning}
+                          label={content.recommendation.starterRetryNo}
+                          onPress={() => dismissStarterRetry(rec.dishId)}
+                          tone="secondary"
+                          hero={isPrimaryRecommendation}
+                        />
                       </View>
                     ) : null}
                     {shouldShowStarterButton ? (
@@ -423,6 +469,14 @@ export function RecommendationCard({
       {renderFooterActions()}
     </View>
   );
+}
+
+function isRetryableStarterError(error: unknown) {
+  return error instanceof PickForMeApiError &&
+    (error.code === "TEMPORARY_AI_ERROR" ||
+      error.code === "AI_RATE_LIMIT" ||
+      error.code === "STARTER_PAIRING_TIMEOUT" ||
+      error.code === "STARTER_PAIRING_UNAVAILABLE");
 }
 
 const local = StyleSheet.create({
@@ -691,6 +745,10 @@ const local = StyleSheet.create({
   },
 
   starterEmptyHintBox: {
+    paddingBottom: spacing.sm
+  },
+
+  starterRetryBox: {
     paddingBottom: spacing.sm
   },
 
