@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "../../../src/auth/requireUser";
-import { askPickForMeAI } from "../../../src/ai/askPickForMeAI";
 import { classifyDishRolesAI } from "../../../src/ai/classifyDishRolesAI";
-import { askPickForMePdfUrlAI } from "../../../src/ai/askPickForMePdfUrlAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
+import { recommendMainDishesAI } from "../../../src/ai/recommendMainDishesAI";
+import { commitMainDishRecommendationsAI } from "../../../src/ai/commitMainDishRecommendationsAI";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
@@ -23,12 +23,14 @@ import {
 } from "../../../src/menu/applyDishRoleClassifications";
 import { loadRestaurantDescriptionFromOrigin } from "../../../src/restaurant/extractRestaurantDescription";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
+import { mapCommittedMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
 import { blockReasonForRecommendation } from "../../../src/profile/profileRules";
 import type { AnalyzeMenuRequest } from "../../../src/types/api";
 import type { MenuExtractionResult } from "../../../src/menu/extraction/types";
 import type { RestaurantDescriptionResult } from "../../../src/restaurant/extractRestaurantDescription";
 import type { Dish } from "../../../src/types/menu";
 import type { Recommendation } from "../../../src/types/recommendations";
+import type { TwoStepMenuSourceInput } from "../../../src/ai/twoStepRecommendationSchemas";
 
 type FallbackHeroContext = {
   dishes?: Dish[];
@@ -69,6 +71,15 @@ const TEXT_AI_TIMEOUT_MS = 90000;
 const PDF_AI_TIMEOUT_MS = 90000;
 const DISH_ROLE_CLASSIFICATION_TIMEOUT_MS = 30000;
 const STARTER_CANDIDATE_DISH_LIMIT = 20;
+const SECOND_LEVEL_DOMAIN_SUFFIXES = new Set([
+  "co.uk",
+  "org.uk",
+  "com.br",
+  "com.ar",
+  "com.au",
+  "co.jp",
+  "com.mx"
+]);
 
 export async function POST(request: Request) {
   try {
@@ -149,66 +160,27 @@ export async function POST(request: Request) {
       }
 
       try {
-        const aiResult = await withTimeout(
-          askPickForMePdfUrlAI({
-            pdfUrls: pdfMenuUrls,
-            profile,
-            situation: body.situation,
-            userLocale: outputLocale
-          }),
-          PDF_AI_TIMEOUT_MS,
-          "PDF_AI_TIMEOUT"
-        );
-
-        if (aiResult.recommendations.length === 0) {
-          throw new AppError(
-            422,
-            "NO_SAFE_RECOMMENDATIONS",
-            "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
-          );
-        }
-
-        const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
-          officialWebsiteText: restaurantDescription?.text,
+        return await analyzeMenuWithTwoStepMainFlow({
+          source: {
+            kind: "pdf",
+            urls: pdfMenuUrls,
+            sourceUrl: pdfMenuUrl,
+            text: linkedPdfMenu?.restaurantContextText ?? rawMenuText
+          },
+          responseMode: "ai_pdf",
+          profile,
+          situation: body.situation,
+          outputLocale,
+          restaurantDescription,
+          localizedRestaurantDescription,
           restaurantUrl: officialRestaurantUrl,
-          fallbackHero: buildFallbackConciergeHero({
-            dishes: aiResult.dishes,
-            restaurantContextText: linkedPdfMenu?.restaurantContextText ?? rawMenuText
-          })
-        });
-
-        const allergySafeRecommendations = applyAllergySafetyGate({
-          dishes: aiResult.dishes,
-          recommendations: aiResult.recommendations,
-          profile
-        });
-
-        if (allergySafeRecommendations.length === 0) {
-          throw new AppError(
-            422,
-            "NO_SAFE_RECOMMENDATIONS",
-            "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
-          );
-        }
-
-        const recommendations = await localizeRecommendationsForPayload({
-          dishes: aiResult.dishes,
-          recommendations: allergySafeRecommendations,
-          userLocale: outputLocale
-        });
-        const starterCandidateDishes = await buildStarterCandidateDishesFromSourceUrls(pdfMenuUrls);
-
-        return NextResponse.json({
-          ok: true,
-          data: {
-            mode: "ai_pdf",
-            dishes: aiResult.dishes,
-            recommendations,
-            conciergeHero,
-            ...buildStarterCandidateDishesPayload(starterCandidateDishes),
-            ...sourceInputAllergenWarningPayload,
-            ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
-          }
+          fallbackHeroContextText: linkedPdfMenu?.restaurantContextText ?? rawMenuText,
+          htmlMenuExtraction: null,
+          starterCandidateSourceUrls: pdfMenuUrls,
+          extraPayload: {
+            ...sourceInputAllergenWarningPayload
+          },
+          timeoutMs: PDF_AI_TIMEOUT_MS
         });
       } catch (pdfAiError) {
         const message = pdfAiError instanceof Error ? pdfAiError.message : "";
@@ -225,7 +197,12 @@ export async function POST(request: Request) {
           );
         }
 
-        if (message.includes("PDF_LOCALIZATION_FAILED") || message.includes("PDF_AI_TIMEOUT")) {
+        if (
+          message.includes("PDF_LOCALIZATION_FAILED") ||
+          message.includes("PDF_AI_TIMEOUT") ||
+          message.includes("TWO_STEP_MAIN_AI_TIMEOUT") ||
+          message.includes("TWO_STEP_MAIN_COMMIT_TIMEOUT")
+        ) {
           throw new AppError(
             422,
             "ANALYSIS_NOT_SAFE",
@@ -255,66 +232,32 @@ export async function POST(request: Request) {
       }
 
       try {
-        const aiResult = await withTimeout(
-          askPickForMeImageUrlsAI({
-            imageUrls: [directImageUrl],
-            profile,
-            situation: body.situation,
-            userLocale: outputLocale
-          }),
-          45000,
-          "IMAGE_AI_TIMEOUT"
-        );
-
-        if (aiResult.recommendations.length === 0) {
-          throw new AppError(
-            422,
-            "NO_SAFE_RECOMMENDATIONS",
-            "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
-          );
-        }
-
-        const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
-          officialWebsiteText: restaurantDescription?.text,
+        return await analyzeMenuWithTwoStepMainFlow({
+          source: {
+            kind: "image",
+            urls: [directImageUrl],
+            sourceUrl: directImageUrl,
+            text: rawMenuText
+          },
+          responseMode: "ai_image",
+          profile,
+          situation: body.situation,
+          outputLocale,
+          restaurantDescription,
+          localizedRestaurantDescription,
           restaurantUrl: officialRestaurantUrl,
-          fallbackHero: buildFallbackConciergeHero({
-            dishes: aiResult.dishes,
-            restaurantContextText: rawMenuText
-          })
-        });
-
-        const allergySafeRecommendations = applyAllergySafetyGate({
-          dishes: aiResult.dishes,
-          recommendations: aiResult.recommendations,
-          profile
-        });
-
-        if (allergySafeRecommendations.length === 0) {
-          throw new AppError(
-            422,
-            "NO_SAFE_RECOMMENDATIONS",
-            "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
-          );
-        }
-
-        const recommendations = await localizeRecommendationsForPayload({
-          dishes: aiResult.dishes,
-          recommendations: allergySafeRecommendations,
-          userLocale: outputLocale
-        });
-
-        return NextResponse.json({
-          ok: true,
-          data: {
-            mode: "ai_image",
-            dishes: aiResult.dishes,
-            recommendations,
-            conciergeHero,
-            ...sourceInputAllergenWarningPayload,
-            ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
-          }
+          fallbackHeroContextText: rawMenuText,
+          htmlMenuExtraction: null,
+          extraPayload: {
+            ...sourceInputAllergenWarningPayload
+          },
+          timeoutMs: 45000
         });
       } catch (imageAiError) {
+        if (imageAiError instanceof AppError) {
+          throw imageAiError;
+        }
+
         console.error("GustaroAI Image AI failed.", imageAiError);
 
         const message = imageAiError instanceof Error ? imageAiError.message : "";
@@ -332,7 +275,11 @@ export async function POST(request: Request) {
           );
         }
 
-        if (message.includes("IMAGE_AI_TIMEOUT")) {
+        if (
+          message.includes("IMAGE_AI_TIMEOUT") ||
+          message.includes("TWO_STEP_MAIN_AI_TIMEOUT") ||
+          message.includes("TWO_STEP_MAIN_COMMIT_TIMEOUT")
+        ) {
           throw new AppError(
             422,
             "ANALYSIS_NOT_SAFE",
@@ -395,112 +342,68 @@ export async function POST(request: Request) {
       throw new AppError(400, "MENU_TOO_SHORT", "Aus dieser Eingabe konnte kein ausreichender Speisekartentext gelesen werden.");
     }
 
-    if (process.env.GUSTAROAI_AI_ENABLED === "true") {
-      try {
-        const textAllergenWarningPayload = buildAllergenInfoWarningPayload(
-          profile,
-          `${rawMenuText}\n${effectiveMenuText}`
-        );
-        const aiResult = await withAbortTimeout(
-          (signal) => askPickForMeAI({
-            menuText: effectiveMenuText,
-            profile,
-            situation: body.situation,
-            signal,
-            userLocale: outputLocale
-          }),
-          TEXT_AI_TIMEOUT_MS,
-          "TEXT_AI_TIMEOUT"
-        );
-        if (aiResult.recommendations.length > 0) {
-          const officialWebsiteText = restaurantDescription?.text;
-          const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
-            officialWebsiteText,
-            restaurantUrl: officialRestaurantUrl,
-            fallbackHero: buildFallbackConciergeHero({
-              dishes: aiResult.dishes,
-              menuType: aiResult.menuType,
-              recommendationMode: aiResult.recommendationMode,
-              restaurantContextText: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`
-            })
-          });
+    if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
+      throw new AppError(400, "AI_DISABLED", "Speisekartenempfehlungen benoetigen den KI-Modus.");
+    }
 
-          const allergySafeRecommendations = applyAllergySafetyGate({
-            dishes: aiResult.dishes,
-            recommendations: aiResult.recommendations,
-            profile
-          });
+    try {
+      const textAllergenWarningPayload = buildAllergenInfoWarningPayload(
+        profile,
+        `${rawMenuText}\n${effectiveMenuText}`
+      );
 
-          if (allergySafeRecommendations.length === 0) {
-            throw new AppError(
-              422,
-              "NO_SAFE_RECOMMENDATIONS",
-              "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
-              buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
-            );
-          }
+      return await analyzeMenuWithTwoStepMainFlow({
+        source: {
+          kind: htmlMenuExtraction ? "html" : "text",
+          text: effectiveMenuText,
+          sourceUrl: inputLooksLikeUrl ? rawMenuText : null
+        },
+        responseMode: "ai",
+        profile,
+        situation: body.situation,
+        outputLocale,
+        restaurantDescription,
+        localizedRestaurantDescription,
+        restaurantUrl: officialRestaurantUrl,
+        fallbackHeroContextText: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`,
+        htmlMenuExtraction,
+        extraPayload: {
+          ...textAllergenWarningPayload,
+          ...buildMenuExtractionPayload(htmlMenuExtraction)
+        },
+        timeoutMs: TEXT_AI_TIMEOUT_MS
+      });
+    } catch (aiError) {
+      const message = aiError instanceof Error ? aiError.message : "";
 
-          const recommendations = await localizeRecommendationsForPayload({
-            dishes: aiResult.dishes,
-            recommendations: allergySafeRecommendations,
-            userLocale: outputLocale
-          });
-
-          return NextResponse.json({
-            ok: true,
-            data: {
-              mode: "ai",
-              dishes: aiResult.dishes,
-              recommendations,
-              conciergeHero,
-              recommendationMode: aiResult.recommendationMode,
-              menuType: aiResult.menuType,
-              ...textAllergenWarningPayload,
-              ...buildRestaurantDescriptionPayload(localizedRestaurantDescription),
-              ...buildMenuExtractionPayload(htmlMenuExtraction)
-            }
-          });
-        }
-
-        const partialData = buildPartialAnalysisPayload(localizedRestaurantDescription, htmlMenuExtraction, aiResult.dishes);
-
-        if (partialData) {
-          return NextResponse.json({
-            ok: true,
-            data: partialData
-          });
-        }
-
-        throw new AppError(
-          422,
-          "NO_SAFE_RECOMMENDATIONS",
-          "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
-          buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
-        );
-      } catch (aiError) {
-        const message = aiError instanceof Error ? aiError.message : "";
-
-        if (isRateLimitError(aiError)) {
-          throw new AppError(
-            429,
-            "AI_RATE_LIMIT",
-            "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
-          );
-        }
-
-        if (message.includes("TEXT_AI_TIMEOUT")) {
-          throw new AppError(
-            422,
-            "ANALYSIS_NOT_SAFE",
-            SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE,
-            buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
-          );
-        }
-
-        console.error("GustaroAI AI failed.", aiError);
-
+      if (aiError instanceof AppError) {
         throw aiError;
       }
+
+      if (isRateLimitError(aiError)) {
+        throw new AppError(
+          429,
+          "AI_RATE_LIMIT",
+          "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+        );
+      }
+
+      if (
+        message.includes("TEXT_AI_TIMEOUT") ||
+        message.includes("TWO_STEP_MAIN_AI_TIMEOUT") ||
+        message.includes("TWO_STEP_MAIN_COMMIT_TIMEOUT")
+      ) {
+        throw new AppError(
+          422,
+          "ANALYSIS_NOT_SAFE",
+          SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE,
+          buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
+        );
+      }
+
+      console.error("GustaroAI AI failed.", aiError);
+
+      throw aiError;
     }
 
     const parsedMenuItems = htmlMenuDishes ?? parseMenu(effectiveMenuText);
@@ -573,7 +476,7 @@ export async function POST(request: Request) {
         } catch (imageAiError) {
           console.error("GustaroAI linked Image AI failed.", imageAiError);
 
-          const message = imageAiError instanceof Error ? imageAiError.message : "";
+          const message = getErrorMessage(imageAiError);
 
           if (
             message.includes("429") ||
@@ -736,6 +639,255 @@ async function localizeRecommendationsForPayload(
 
     return stripUnsafeRecommendationTranslations(input.recommendations, input.dishes, input.userLocale);
   }
+}
+
+type TwoStepAnalyzeResponseMode = "ai" | "ai_pdf" | "ai_image";
+
+async function analyzeMenuWithTwoStepMainFlow({
+  source,
+  responseMode,
+  profile,
+  situation,
+  outputLocale,
+  restaurantDescription,
+  localizedRestaurantDescription,
+  restaurantUrl,
+  fallbackHeroContextText,
+  htmlMenuExtraction,
+  starterCandidateSourceUrls = [],
+  extraPayload = {},
+  timeoutMs
+}: {
+  source: TwoStepMenuSourceInput;
+  responseMode: TwoStepAnalyzeResponseMode;
+  profile: AnalyzeMenuRequest["profile"];
+  situation: AnalyzeMenuRequest["situation"];
+  outputLocale: string;
+  restaurantDescription: RestaurantDescriptionResult | null;
+  localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null;
+  restaurantUrl?: string;
+  fallbackHeroContextText: string;
+  htmlMenuExtraction: MenuExtractionResult | null;
+  starterCandidateSourceUrls?: string[];
+  extraPayload?: Record<string, unknown>;
+  timeoutMs: number;
+}) {
+  const sourceKind = source.kind;
+  const sourceCount = getTwoStepMainSourceCount(source);
+  let proposedMainDishes: Awaited<ReturnType<typeof recommendMainDishesAI>>;
+  let committedMainDishes: Awaited<ReturnType<typeof commitMainDishRecommendationsAI>>;
+
+  const mainStartedAt = Date.now();
+  try {
+    proposedMainDishes = await withAbortTimeout(
+      (signal) => recommendMainDishesAI({
+        source,
+        profile,
+        situation,
+        userLocale: outputLocale,
+        signal
+      }),
+      timeoutMs,
+      "TWO_STEP_MAIN_AI_TIMEOUT"
+    );
+    logTwoStepMain({
+      phase: "main-ai",
+      responseMode,
+      sourceKind,
+      sourceCount,
+      mainAiCount: proposedMainDishes.length,
+      mainAiTranslatedNameCount: countDisplaySafeTranslatedNames(proposedMainDishes),
+      durationMs: Date.now() - mainStartedAt
+    });
+  } catch (error) {
+    logTwoStepMainError({
+      phase: "main-ai-error",
+      responseMode,
+      sourceKind,
+      sourceCount,
+      durationMs: Date.now() - mainStartedAt,
+      error
+    });
+    throw error;
+  }
+
+  const commitStartedAt = Date.now();
+  try {
+    committedMainDishes = await withAbortTimeout(
+      (signal) => commitMainDishRecommendationsAI({
+        source,
+        profile,
+        situation,
+        recommendations: proposedMainDishes,
+        userLocale: outputLocale,
+        signal
+      }),
+      timeoutMs,
+      "TWO_STEP_MAIN_COMMIT_TIMEOUT"
+    );
+    logTwoStepMain({
+      phase: "commit",
+      responseMode,
+      sourceKind,
+      sourceCount,
+      commitAcceptedCount: committedMainDishes.filter((item) => item.committed).length,
+      commitRejectedCount: committedMainDishes.filter((item) => !item.committed).length,
+      durationMs: Date.now() - commitStartedAt
+    });
+  } catch (error) {
+    logTwoStepMainError({
+      phase: "commit-error",
+      responseMode,
+      sourceKind,
+      sourceCount,
+      durationMs: Date.now() - commitStartedAt,
+      error
+    });
+    throw error;
+  }
+
+  const mapperStartedAt = Date.now();
+  const mapped = mapCommittedMainRecommendationsToAnalyzeData(committedMainDishes);
+  logTwoStepMain({
+    phase: "mapper",
+    responseMode,
+    sourceKind,
+    sourceCount,
+    mapperRecommendationCount: mapped.recommendations.length,
+    mapperTranslatedNameCount: countDisplaySafeRecommendationTranslations(mapped.recommendations, mapped.dishes),
+    durationMs: Date.now() - mapperStartedAt
+  });
+
+  if (mapped.recommendations.length === 0) {
+    throw new AppError(
+      422,
+      "NO_SAFE_RECOMMENDATIONS",
+      "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
+      buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
+    );
+  }
+
+  const allergySafeRecommendations = applyAllergySafetyGate({
+    dishes: mapped.dishes,
+    recommendations: mapped.recommendations,
+    profile
+  });
+
+  if (allergySafeRecommendations.length === 0) {
+    throw new AppError(
+      422,
+      "NO_SAFE_RECOMMENDATIONS",
+      "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
+      buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
+    );
+  }
+
+  const starterCandidateDishes = starterCandidateSourceUrls.length > 0
+    ? await buildStarterCandidateDishesFromSourceUrls(starterCandidateSourceUrls)
+    : [];
+  const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
+    officialWebsiteText: restaurantDescription?.text,
+    restaurantUrl,
+    fallbackHero: buildFallbackConciergeHero({
+      dishes: mapped.dishes,
+      restaurantContextText: fallbackHeroContextText,
+      officialWebsiteText: restaurantDescription?.text
+    })
+  });
+
+  return NextResponse.json({
+    ok: true,
+    data: {
+      mode: responseMode,
+      dishes: mapped.dishes,
+      recommendations: allergySafeRecommendations,
+      conciergeHero,
+      ...buildStarterCandidateDishesPayload(starterCandidateDishes),
+      ...extraPayload,
+      ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
+    }
+  });
+}
+
+type TwoStepMainLogValue = string | number | boolean | null | undefined;
+
+function logTwoStepMain(fields: Record<string, TwoStepMainLogValue>) {
+  const payload = Object.entries(fields)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${formatTwoStepMainLogValue(value)}`)
+    .join(" ");
+
+  console.info(`[GUSTARO_2STEP_MAIN] ${payload}`);
+}
+
+function logTwoStepMainError({
+  phase,
+  responseMode,
+  sourceKind,
+  sourceCount,
+  durationMs,
+  error
+}: {
+  phase: string;
+  responseMode: TwoStepAnalyzeResponseMode;
+  sourceKind: string;
+  sourceCount: number;
+  durationMs: number;
+  error: unknown;
+}) {
+  logTwoStepMain({
+    phase,
+    responseMode,
+    sourceKind,
+    sourceCount,
+    durationMs,
+    errorName: error instanceof Error ? error.name : typeof error,
+    errorMessage: getShortLogMessage(getErrorMessage(error)),
+    statusCode: getErrorStatusCode(error)
+  });
+}
+
+function formatTwoStepMainLogValue(value: TwoStepMainLogValue) {
+  if (typeof value === "string") {
+    return value.replace(/\s+/g, "_").slice(0, 160);
+  }
+
+  return String(value);
+}
+
+function getShortLogMessage(value: string) {
+  return value.replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+function getErrorStatusCode(error: unknown) {
+  return typeof error === "object" && error !== null && "status" in error
+    ? (error as { status?: unknown }).status as TwoStepMainLogValue
+    : undefined;
+}
+
+function getTwoStepMainSourceCount(source: TwoStepMenuSourceInput) {
+  const urlCount = source.urls?.filter((url) => url.trim().length > 0).length ?? 0;
+  if (urlCount > 0) return urlCount;
+  if (source.sourceUrl) return 1;
+  return source.text?.trim() ? 1 : 0;
+}
+
+function countDisplaySafeTranslatedNames(values: Array<{ nameOriginal: string; translatedName?: string | null }>) {
+  return values.filter((item) => hasDisplaySafeTranslatedName(item.nameOriginal, item.translatedName)).length;
+}
+
+function countDisplaySafeRecommendationTranslations(recommendations: Recommendation[], dishes: Dish[]) {
+  const dishesById = new Map(dishes.map((dish) => [dish.id, dish]));
+
+  return recommendations.filter((recommendation) => {
+    const dish = dishesById.get(recommendation.dishId);
+    return Boolean(dish && hasDisplaySafeTranslatedName(dish.nameOriginal, recommendation.translatedName));
+  }).length;
+}
+
+function hasDisplaySafeTranslatedName(nameOriginal: string, translatedName: string | null | undefined) {
+  const cleaned = translatedName?.trim() ?? "";
+  return cleaned.length > 0 && normalizeDisplayName(cleaned) !== normalizeDisplayName(nameOriginal);
 }
 
 function applyAllergySafetyGate({
@@ -1714,13 +1866,17 @@ function isRateLimitError(error: unknown) {
   const status = typeof error === "object" && error !== null && "status" in error
     ? (error as { status?: unknown }).status
     : undefined;
-  const message = error instanceof Error ? error.message : "";
+  const message = getErrorMessage(error);
 
   return status === 429 ||
     message.includes("429") ||
     message.includes("Rate limit") ||
     message.includes("rate limit") ||
     message.includes("TPM");
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "";
 }
 
 function getShortRetryDelayMs(error: unknown) {
@@ -2397,6 +2553,23 @@ function isKnownDynamicMenuPlatform(value: string): boolean {
     return hostname === "menury.com" || hostname.endsWith(".menury.com");
   } catch {
     return false;
+  }
+}
+
+function getRegistrableDomain(value: string) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+    const parts = hostname.split(".").filter(Boolean);
+    if (parts.length <= 2) return hostname;
+
+    const lastTwo = parts.slice(-2).join(".");
+    if (SECOND_LEVEL_DOMAIN_SUFFIXES.has(lastTwo) && parts.length >= 3) {
+      return parts.slice(-3).join(".");
+    }
+
+    return lastTwo;
+  } catch {
+    return "";
   }
 }
 
