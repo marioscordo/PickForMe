@@ -5,7 +5,6 @@ import { classifyDishRolesAI } from "../../../src/ai/classifyDishRolesAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
 import { recommendMainDishesAI } from "../../../src/ai/recommendMainDishesAI";
-import { commitMainDishRecommendationsAI } from "../../../src/ai/commitMainDishRecommendationsAI";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
@@ -23,7 +22,8 @@ import {
 } from "../../../src/menu/applyDishRoleClassifications";
 import { loadRestaurantDescriptionFromOrigin } from "../../../src/restaurant/extractRestaurantDescription";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
-import { mapCommittedMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
+import { gatekeepMainDishRecommendations } from "../../../src/recommendation/gatekeeper";
+import { mapGatekeptMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
 import { blockReasonForRecommendation } from "../../../src/profile/profileRules";
 import type { AnalyzeMenuRequest } from "../../../src/types/api";
 import type { MenuExtractionResult } from "../../../src/menu/extraction/types";
@@ -200,8 +200,7 @@ export async function POST(request: Request) {
         if (
           message.includes("PDF_LOCALIZATION_FAILED") ||
           message.includes("PDF_AI_TIMEOUT") ||
-          message.includes("TWO_STEP_MAIN_AI_TIMEOUT") ||
-          message.includes("TWO_STEP_MAIN_COMMIT_TIMEOUT")
+          message.includes("TWO_STEP_MAIN_AI_TIMEOUT")
         ) {
           throw new AppError(
             422,
@@ -277,8 +276,7 @@ export async function POST(request: Request) {
 
         if (
           message.includes("IMAGE_AI_TIMEOUT") ||
-          message.includes("TWO_STEP_MAIN_AI_TIMEOUT") ||
-          message.includes("TWO_STEP_MAIN_COMMIT_TIMEOUT")
+          message.includes("TWO_STEP_MAIN_AI_TIMEOUT")
         ) {
           throw new AppError(
             422,
@@ -390,8 +388,7 @@ export async function POST(request: Request) {
 
       if (
         message.includes("TEXT_AI_TIMEOUT") ||
-        message.includes("TWO_STEP_MAIN_AI_TIMEOUT") ||
-        message.includes("TWO_STEP_MAIN_COMMIT_TIMEOUT")
+        message.includes("TWO_STEP_MAIN_AI_TIMEOUT")
       ) {
         throw new AppError(
           422,
@@ -675,7 +672,6 @@ async function analyzeMenuWithTwoStepMainFlow({
   const sourceKind = source.kind;
   const sourceCount = getTwoStepMainSourceCount(source);
   let proposedMainDishes: Awaited<ReturnType<typeof recommendMainDishesAI>>;
-  let committedMainDishes: Awaited<ReturnType<typeof commitMainDishRecommendationsAI>>;
 
   const mainStartedAt = Date.now();
   try {
@@ -711,43 +707,20 @@ async function analyzeMenuWithTwoStepMainFlow({
     throw error;
   }
 
-  const commitStartedAt = Date.now();
-  try {
-    committedMainDishes = await withAbortTimeout(
-      (signal) => commitMainDishRecommendationsAI({
-        source,
-        profile,
-        situation,
-        recommendations: proposedMainDishes,
-        userLocale: outputLocale,
-        signal
-      }),
-      timeoutMs,
-      "TWO_STEP_MAIN_COMMIT_TIMEOUT"
-    );
-    logTwoStepMain({
-      phase: "commit",
-      responseMode,
-      sourceKind,
-      sourceCount,
-      commitAcceptedCount: committedMainDishes.filter((item) => item.committed).length,
-      commitRejectedCount: committedMainDishes.filter((item) => !item.committed).length,
-      durationMs: Date.now() - commitStartedAt
-    });
-  } catch (error) {
-    logTwoStepMainError({
-      phase: "commit-error",
-      responseMode,
-      sourceKind,
-      sourceCount,
-      durationMs: Date.now() - commitStartedAt,
-      error
-    });
-    throw error;
-  }
+  const gatekeeperStartedAt = Date.now();
+  const gatekeeperResult = gatekeepMainDishRecommendations(proposedMainDishes);
+  logTwoStepMain({
+    phase: "gatekeeper",
+    responseMode,
+    sourceKind,
+    sourceCount,
+    gatekeeperAcceptedCount: gatekeeperResult.accepted.length,
+    gatekeeperRejectedCount: gatekeeperResult.rejected.length,
+    durationMs: Date.now() - gatekeeperStartedAt
+  });
 
   const mapperStartedAt = Date.now();
-  const mapped = mapCommittedMainRecommendationsToAnalyzeData(committedMainDishes);
+  const mapped = mapGatekeptMainRecommendationsToAnalyzeData(gatekeeperResult.accepted);
   logTwoStepMain({
     phase: "mapper",
     responseMode,
