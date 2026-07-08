@@ -33,7 +33,21 @@
     "mainButtonLoading": "I am looking at the menu ...",
     "openMenu": "Open menu",
     "findMenuButton": "Find menu",
+    "photoMenuButton": "Photograph menu",
     "moodHint": "Choose what you feel like today."
+  },
+  "photoMenu": {
+    "title": "Photograph menu",
+    "preparing": "Preparing camera...",
+    "permissionText": "GustaroAI needs the camera to photograph menus.",
+    "allowCamera": "Allow camera",
+    "instruction": "Photograph the menu as straight, bright, and complete as possible.",
+    "captureButton": "Take photo",
+    "capturing": "Taking photo...",
+    "extracting": "I am reading the menu text...",
+    "close": "Close camera",
+    "noTextError": "I could not read enough menu text from the photo. Please photograph the menu brighter and more completely, or paste the text.",
+    "genericError": "I could not read the menu photo just now. Please try again or paste the text."
   },
   "menuInput": {
     "kicker": "Menu",

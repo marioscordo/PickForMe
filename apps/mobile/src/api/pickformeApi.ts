@@ -12,6 +12,12 @@ type AnalyzeMenuMobileArgs = {
   signal?: AbortSignal;
 };
 
+type ExtractMenuTextFromPhotoArgs = {
+  imageBase64: string;
+  mimeType: "image/jpeg" | "image/png";
+  signal?: AbortSignal;
+};
+
 type RequestStarterPairingsMobileArgs = AnalyzeMenuMobileArgs & {
   result: AnalyzeData;
   targetDishId: string;
@@ -28,6 +34,11 @@ type AnalyzeMenuApiBody = {
   menuText: string;
   situation: Situation;
   profile: UserProfile;
+};
+
+type ExtractMenuTextFromPhotoBody = {
+  imageBase64: string;
+  mimeType: "image/jpeg" | "image/png";
 };
 
 type LogAllergyWarningConfirmationBody = {
@@ -70,6 +81,17 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
   };
 
   return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body, {
+    signal: args.signal
+  });
+}
+
+export function extractMenuTextFromPhoto(args: ExtractMenuTextFromPhotoArgs) {
+  const body: ExtractMenuTextFromPhotoBody = {
+    imageBase64: args.imageBase64,
+    mimeType: args.mimeType
+  };
+
+  return apiPost<{ menuText: string }, ExtractMenuTextFromPhotoBody>("/api/menu-photo-text", body, {
     signal: args.signal
   });
 }

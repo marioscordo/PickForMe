@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Dimensions, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
-import { logAllergyWarningConfirmation } from "../../api/pickformeApi";
+import { extractMenuTextFromPhoto, logAllergyWarningConfirmation } from "../../api/pickformeApi";
+import { PickForMeApiError } from "../../api/apiClient";
 import { Screen } from "../../components/ui/Screen";
 import { MenuInputCard } from "../../components/pick/MenuInputCard";
+import { PhotoMenuCamera } from "../../components/pick/PhotoMenuCamera";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
 import { RecommendationCard } from "../../components/pick/RecommendationCard";
 import { RestaurantDiscoveryDialog } from "../../components/pick/RestaurantDiscoveryDialog";
@@ -52,10 +54,14 @@ export function PickScreen({
   const [menuText, setMenuText] = useState("");
   const [situation, setSituation] = useState<Situation>("leicht");
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [showPhotoCamera, setShowPhotoCamera] = useState(false);
+  const [photoMenuLoading, setPhotoMenuLoading] = useState(false);
+  const [photoMenuError, setPhotoMenuError] = useState("");
   const [showRestaurantDiscovery, setShowRestaurantDiscovery] = useState(false);
   const analyze = useAnalyzeMenu();
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
   const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
+  const pendingConfirmedMenuTextRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!analyze.loading) {
@@ -87,6 +93,8 @@ export function PickScreen({
   }
 
   function handleAnalyze() {
+    pendingConfirmedMenuTextRef.current = null;
+
     if (hasAllergiesOrIntolerances(profile)) {
       analyze.reset();
       showAllergyWarningBeforeAnalyze();
@@ -101,8 +109,23 @@ export function PickScreen({
     analyze.run(menuText, situation);
   }
 
+  function startAnalyzeWithExtractedMenuText(value: string) {
+    setMenuText(value);
+    setLastAnalyzedMenuUrl("");
+
+    if (hasAllergiesOrIntolerances(profile)) {
+      pendingConfirmedMenuTextRef.current = value;
+      analyze.reset();
+      showAllergyWarningBeforeAnalyze();
+      return;
+    }
+
+    analyze.run(value, situation);
+  }
+
   function resetAnalysisState() {
     analyze.reset();
+    setMenuText("");
     setLastAnalyzedMenuUrl("");
     setLoadingStepIndex(0);
   }
@@ -114,7 +137,36 @@ export function PickScreen({
   function applyDiscoveredMenuUrl(value: string) {
     setMenuText(value);
     setShowQrScanner(false);
+    setShowPhotoCamera(false);
+    setPhotoMenuError("");
     setShowRestaurantDiscovery(false);
+  }
+
+  function openPhotoCamera() {
+    setShowQrScanner(false);
+    setShowRestaurantDiscovery(false);
+    setPhotoMenuError("");
+    setShowPhotoCamera(true);
+  }
+
+  async function handlePhotoCaptured(photo: { imageBase64: string; mimeType: "image/jpeg" }) {
+    setPhotoMenuError("");
+    setPhotoMenuLoading(true);
+
+    try {
+      const result = await extractMenuTextFromPhoto(photo);
+      const extractedMenuText = result.menuText.trim();
+
+      setShowPhotoCamera(false);
+      startAnalyzeWithExtractedMenuText(extractedMenuText);
+    } catch (error) {
+      const isNoTextError =
+        error instanceof PickForMeApiError &&
+        error.code === "NO_MENU_TEXT_RECOGNIZED";
+      setPhotoMenuError(isNoTextError ? content.photoMenu.noTextError : content.photoMenu.genericError);
+    } finally {
+      setPhotoMenuLoading(false);
+    }
   }
 
   function showAllergyWarningBeforeAnalyze() {
@@ -125,7 +177,10 @@ export function PickScreen({
         {
           text: content.allergyWarning.rejectButton,
           style: "destructive",
-          onPress: analyze.reset
+          onPress: () => {
+            pendingConfirmedMenuTextRef.current = null;
+            analyze.reset();
+          }
         },
         {
           text: content.allergyWarning.confirmButton,
@@ -142,8 +197,15 @@ export function PickScreen({
         confirmationTimestamp: new Date().toISOString(),
         confirmationVersion: ALLERGY_WARNING_CONFIRMATION_VERSION
       });
+      const pendingMenuText = pendingConfirmedMenuTextRef.current;
+      pendingConfirmedMenuTextRef.current = null;
+      if (pendingMenuText) {
+        analyze.run(pendingMenuText, situation);
+        return;
+      }
       startAnalyze();
     } catch {
+      pendingConfirmedMenuTextRef.current = null;
       analyze.reset();
       Alert.alert(
         content.allergyWarning.logFailedTitle,
@@ -173,7 +235,7 @@ export function PickScreen({
           result={analyze.result}
           menuText={menuText}
           situation={situation}
-          onReset={analyze.reset}
+          onReset={resetAnalysisState}
           openMenuLabel={lastAnalyzedMenuUrl ? content.pick.openMenu : undefined}
           onOpenMenu={lastAnalyzedMenuUrl ? openAnalyzedMenu : undefined}
         />
@@ -181,8 +243,36 @@ export function PickScreen({
     );
   }
 
+  if (showPhotoCamera) {
+    return (
+      <Screen
+        bottomScrollInset={s(48)}
+        contentContainerStyle={local.photoScreenContent}
+        scrollToTopKey="pick-entry-photo-camera"
+      >
+        <PhotoMenuCamera
+          loading={photoMenuLoading}
+          onCancel={() => {
+            if (photoMenuLoading) return;
+            setShowPhotoCamera(false);
+            setPhotoMenuError("");
+          }}
+          onPhotoCaptured={handlePhotoCaptured}
+        />
+
+        {photoMenuError ? (
+          <Text style={local.photoMenuError}>{photoMenuError}</Text>
+        ) : null}
+      </Screen>
+    );
+  }
+
   return (
-    <Screen bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET} contentContainerStyle={local.entryScreenContent} scrollToTopKey="pick-entry">
+    <Screen
+      bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET}
+      contentContainerStyle={local.entryScreenContent}
+      scrollToTopKey="pick-entry"
+    >
       <View style={local.conciergeIntro}>
         <GustaroHelp common={content.help.common} topic={content.help.pickInput} style={local.entryHelpButton} />
         <View style={local.introAccentRow}>
@@ -230,6 +320,8 @@ export function PickScreen({
             onUrlScanned={(value: string) => {
               setMenuText(value);
               setShowQrScanner(false);
+              setShowPhotoCamera(false);
+              setPhotoMenuError("");
               setShowRestaurantDiscovery(false);
             }}
             onClose={() => setShowQrScanner(false)}
@@ -237,6 +329,25 @@ export function PickScreen({
         ) : (
           <MenuInputCard menuText={menuText} setMenuText={setMenuText} compact />
         )}
+
+        {photoMenuError ? (
+          <Text style={local.photoMenuError}>{photoMenuError}</Text>
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={photoMenuLoading}
+          style={[local.findMenuRow, photoMenuLoading && local.findMenuRowDisabled]}
+          onPress={openPhotoCamera}
+        >
+          <View style={local.findMenuLeft}>
+            <Feather color={premiumPalette.gold} name="camera" size={s(19)} />
+            <Text style={local.findMenuText}>
+              {photoMenuLoading ? content.photoMenu.extracting : content.pick.photoMenuButton}
+            </Text>
+          </View>
+          <Feather color={premiumPalette.textSoft} name="chevron-right" size={s(24)} />
+        </Pressable>
 
         <Pressable accessibilityRole="button" style={local.findMenuRow} onPress={() => setShowRestaurantDiscovery(true)}>
           <View style={local.findMenuLeft}>
@@ -334,6 +445,12 @@ const local = StyleSheet.create({
     backgroundColor: premiumPalette.background,
     paddingBottom: s(42),
     paddingTop: s(26)
+  },
+
+  photoScreenContent: {
+    backgroundColor: premiumPalette.background,
+    paddingBottom: s(18),
+    paddingTop: s(8)
   },
 
   resultScreenContent: {
@@ -505,6 +622,16 @@ const local = StyleSheet.create({
     fontSize: fs(16),
     fontWeight: "800",
     lineHeight: fs(21)
+  },
+  findMenuRowDisabled: {
+    opacity: 0.62
+  },
+  photoMenuError: {
+    color: "#8A341E",
+    fontSize: fs(14),
+    fontWeight: "700",
+    lineHeight: fs(20),
+    marginTop: s(10)
   },
 
   feedbackCard: {

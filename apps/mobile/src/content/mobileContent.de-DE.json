@@ -33,7 +33,21 @@
     "mainButtonLoading": "Ich schaue auf die Karte ...",
     "openMenu": "Speisekarte öffnen",
     "findMenuButton": "Speisekarte finden",
+    "photoMenuButton": "Speisekarte fotografieren",
     "moodHint": "Wähle, wonach Dir gerade ist."
+  },
+  "photoMenu": {
+    "title": "Speisekarte fotografieren",
+    "preparing": "Kamera wird vorbereitet...",
+    "permissionText": "GustaroAI benötigt die Kamera, um Speisekarten zu fotografieren.",
+    "allowCamera": "Kamera erlauben",
+    "instruction": "Fotografiere die Speisekarte möglichst gerade, hell und vollständig.",
+    "captureButton": "Foto aufnehmen",
+    "capturing": "Foto wird aufgenommen...",
+    "extracting": "Ich lese den Speisekartentext...",
+    "close": "Kamera schließen",
+    "noTextError": "Ich konnte auf dem Foto keinen ausreichenden Speisekartentext lesen. Bitte fotografiere die Karte heller und vollständiger oder füge den Text ein.",
+    "genericError": "Ich konnte das Speisekartenfoto gerade nicht auslesen. Bitte versuche es erneut oder füge den Text ein."
   },
   "menuInput": {
     "kicker": "Speisekarte",
