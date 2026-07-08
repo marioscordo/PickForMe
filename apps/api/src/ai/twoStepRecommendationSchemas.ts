@@ -6,6 +6,12 @@ export const TwoStepCommittedConfidenceSchema = z.enum(["high", "medium"]);
 
 const OptionalNullableStringSchema = z.string().trim().min(1).nullable().optional();
 
+export const TwoStepProfileSafetySchema = z.object({
+  hasKnownConflict: z.boolean(),
+  uncertainForAllergy: z.boolean(),
+  conflictReason: OptionalNullableStringSchema
+});
+
 export const TwoStepMenuSourceInputSchema = z.object({
   kind: TwoStepSourceKindSchema,
   text: z.string().optional(),
@@ -19,12 +25,13 @@ export const MainDishAIRecommendationSchema = z.object({
   nameOriginal: z.string().trim().min(1),
   translatedName: z.string().trim().min(1),
   priceRaw: OptionalNullableStringSchema,
-  sourceEvidence: z.string().trim().min(1),
+  sourceEvidence: OptionalNullableStringSchema,
   sourceKind: TwoStepSourceKindSchema.optional(),
   sourceUrl: OptionalNullableStringSchema,
   sourceCategoryOriginal: OptionalNullableStringSchema,
   reason: z.string().trim().min(1),
-  confidence: TwoStepConfidenceSchema
+  confidence: TwoStepConfidenceSchema,
+  profileSafety: TwoStepProfileSafetySchema
 });
 
 export const CommittedMainDishRecommendationSchema = z.object({
@@ -56,12 +63,13 @@ export const StarterAIRecommendationSchema = z.object({
   nameOriginal: z.string().trim().min(1),
   translatedName: z.string().trim().min(1),
   priceRaw: OptionalNullableStringSchema,
-  sourceEvidence: z.string().trim().min(1),
+  sourceEvidence: OptionalNullableStringSchema,
   sourceKind: TwoStepSourceKindSchema.optional(),
   sourceUrl: OptionalNullableStringSchema,
   sourceCategoryOriginal: OptionalNullableStringSchema,
   pairingReason: z.string().trim().min(1),
-  confidence: TwoStepConfidenceSchema
+  confidence: TwoStepConfidenceSchema,
+  profileSafety: TwoStepProfileSafetySchema
 });
 
 export const CommittedStarterRecommendationSchema = z.object({
@@ -106,6 +114,7 @@ export const StarterCommitResponseSchema = z.object({
 export type TwoStepSourceKind = z.infer<typeof TwoStepSourceKindSchema>;
 export type TwoStepConfidence = z.infer<typeof TwoStepConfidenceSchema>;
 export type TwoStepCommittedConfidence = z.infer<typeof TwoStepCommittedConfidenceSchema>;
+export type TwoStepProfileSafety = z.infer<typeof TwoStepProfileSafetySchema>;
 export type TwoStepMenuSourceInput = z.infer<typeof TwoStepMenuSourceInputSchema>;
 export type MainDishAIRecommendation = z.infer<typeof MainDishAIRecommendationSchema>;
 export type CommittedMainDishRecommendation = z.infer<typeof CommittedMainDishRecommendationSchema>;

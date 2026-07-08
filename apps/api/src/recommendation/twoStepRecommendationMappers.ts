@@ -3,8 +3,12 @@ import type { Recommendation, StarterPairing } from "../types/recommendations";
 import {
   CommittedMainDishRecommendationSchema,
   CommittedStarterRecommendationSchema,
+  MainDishAIRecommendationSchema,
+  StarterAIRecommendationSchema,
   type CommittedMainDishRecommendation,
-  type CommittedStarterRecommendation
+  type CommittedStarterRecommendation,
+  type MainDishAIRecommendation,
+  type StarterAIRecommendation
 } from "../ai/twoStepRecommendationSchemas";
 
 export type TwoStepAnalyzeDataParts = {
@@ -60,6 +64,52 @@ export function mapCommittedMainRecommendationsToAnalyzeData(
   };
 }
 
+export function mapGatekeptMainRecommendationsToAnalyzeData(
+  values: unknown[]
+): TwoStepAnalyzeDataParts {
+  const accepted = values
+    .map((value) => MainDishAIRecommendationSchema.safeParse(value))
+    .filter((result) => result.success)
+    .map((result) => result.data)
+    .filter(isGatekeeperSafeMainRecommendation);
+
+  const dishes: Dish[] = accepted.map((item, index) => {
+    const evidence = normalizeOptionalString(item.sourceEvidence);
+
+    return {
+      id: `gatekept_main_${String(index + 1).padStart(3, "0")}`,
+      nameOriginal: item.nameOriginal,
+      price: parseOptionalPrice(item.priceRaw),
+      category: "AI-Hauptempfehlung",
+      itemType: "dish",
+      sourceFormat: "ai",
+      sourceCategoryOriginal: normalizeOptionalString(item.sourceCategoryOriginal),
+      sourceUrl: normalizeOptionalString(item.sourceUrl),
+      dishRole: "main",
+      dishRoles: ["main"],
+      primaryRole: "main",
+      roleConfidence: confidenceToRoleConfidence(item.confidence),
+      roleEvidence: evidence,
+      isMainCourseCandidate: true,
+      isSafeRecommendationCandidate: true,
+      sourceLine: evidence ?? item.nameOriginal
+    };
+  });
+
+  const recommendations: Recommendation[] = accepted.map((item, index) => ({
+    dishId: dishes[index]!.id,
+    rank: item.rank,
+    reason: item.reason,
+    facts: normalizeOptionalString(item.sourceEvidence),
+    translatedName: item.translatedName
+  }));
+
+  return {
+    dishes,
+    recommendations
+  };
+}
+
 export function mapCommittedStarterPairingToRecommendation({
   recommendation,
   starter
@@ -85,12 +135,49 @@ export function mapCommittedStarterPairingToRecommendation({
   };
 }
 
+export function mapGatekeptStarterRecommendationToRecommendation({
+  recommendation,
+  starter
+}: {
+  recommendation: Recommendation;
+  starter: unknown;
+}): Recommendation | RecommendationWithTwoStepStarter {
+  const parsed = StarterAIRecommendationSchema.safeParse(starter);
+
+  if (!parsed.success || !isGatekeeperSafeStarterRecommendation(parsed.data)) {
+    return recommendation;
+  }
+
+  return {
+    ...recommendation,
+    starter: {
+      nameOriginal: parsed.data.nameOriginal,
+      translatedName: parsed.data.translatedName,
+      priceRaw: normalizeOptionalString(parsed.data.priceRaw),
+      evidence: normalizeOptionalString(parsed.data.sourceEvidence),
+      pairingReason: parsed.data.pairingReason
+    }
+  };
+}
+
 function hasRequiredMainEvidence(value: CommittedMainDishRecommendation) {
   return value.sourceEvidence.trim().length > 0;
 }
 
 function hasRequiredStarterEvidence(value: CommittedStarterRecommendation) {
   return value.sourceEvidence.trim().length > 0;
+}
+
+function isGatekeeperSafeMainRecommendation(value: MainDishAIRecommendation) {
+  return value.confidence !== "low" &&
+    value.profileSafety.hasKnownConflict === false &&
+    value.profileSafety.uncertainForAllergy === false;
+}
+
+function isGatekeeperSafeStarterRecommendation(value: StarterAIRecommendation) {
+  return value.confidence !== "low" &&
+    value.profileSafety.hasKnownConflict === false &&
+    value.profileSafety.uncertainForAllergy === false;
 }
 
 function normalizeOptionalString(value: string | null | undefined) {
@@ -110,6 +197,8 @@ function parseOptionalPrice(value: string | null | undefined) {
   return Number.isFinite(price) ? price : undefined;
 }
 
-function confidenceToRoleConfidence(value: "high" | "medium") {
-  return value === "high" ? 0.95 : 0.75;
+function confidenceToRoleConfidence(value: "high" | "medium" | "low") {
+  if (value === "high") return 0.95;
+  if (value === "medium") return 0.75;
+  return 0.4;
 }
