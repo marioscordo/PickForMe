@@ -37,4 +37,13 @@ export type StarterPairingsData = {
   starterErrorCode?: "TEMPORARY_AI_ERROR";
 };
 
+export type RestaurantIntroData = {
+  title: string;
+  introText: string;
+  sourceKind?: "official_website" | "pdf" | "html" | "text" | "unknown";
+  sourceUrl?: string;
+  limitedSource?: boolean;
+  fallback?: boolean;
+};
+
 

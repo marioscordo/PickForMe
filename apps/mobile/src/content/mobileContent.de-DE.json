@@ -100,6 +100,11 @@
   ],
   "recommendation": {
     "restaurantTitle": "Über das Restaurant",
+    "restaurantIntroTeaser": "Wenn Du magst, stimme ich Dich mit ein paar Worten auf das Restaurant ein.",
+    "restaurantIntroButton": "Über das Restaurant",
+    "restaurantIntroLoading": "Ich stimme Dich kurz auf das Restaurant ein ...",
+    "restaurantIntroError": "Ich konnte den Restauranttext gerade nicht laden.",
+    "restaurantIntroRetry": "Erneut versuchen",
     "fallbackTitle": "Das passt heute zu Dir",
     "fallbackText": "Ich ordne die erkannten Gerichte für Deinen Moment ein.",
     "warningTitle": "Wichtiger Hinweis",

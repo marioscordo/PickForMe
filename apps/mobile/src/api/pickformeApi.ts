@@ -1,7 +1,7 @@
 import { apiPost } from "./apiClient";
 import { DEFAULT_OUTPUT_LOCALE } from "../config/outputLocales";
 import type { UserProfile } from "../types/profile";
-import type { AnalyzeData, StarterPairingsData } from "../types/recommendations";
+import type { AnalyzeData, RestaurantIntroData, StarterPairingsData } from "../types/recommendations";
 
 type Situation = "richtig_hunger" | "leicht" | "neues_probieren" | "sicher";
 
@@ -15,6 +15,12 @@ type AnalyzeMenuMobileArgs = {
 type RequestStarterPairingsMobileArgs = AnalyzeMenuMobileArgs & {
   result: AnalyzeData;
   targetDishId: string;
+};
+
+type RequestRestaurantIntroMobileArgs = {
+  menuText: string;
+  profile: UserProfile;
+  signal?: AbortSignal;
 };
 
 type AnalyzeMenuApiBody = {
@@ -85,6 +91,21 @@ export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
 
   return apiPost<StarterPairingsData, typeof body>(
     "/api/starter-pairings",
+    body,
+    {
+      signal: args.signal
+    }
+  );
+}
+
+export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {
+  const body = {
+    menuText: args.menuText,
+    userLocale: args.profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE
+  };
+
+  return apiPost<RestaurantIntroData, typeof body>(
+    "/api/restaurant-intro",
     body,
     {
       signal: args.signal

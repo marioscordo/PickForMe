@@ -20,7 +20,6 @@ import {
   applyDishRoleClassifications,
   getDishesNeedingRoleClassification
 } from "../../../src/menu/applyDishRoleClassifications";
-import { loadRestaurantDescriptionFromOrigin } from "../../../src/restaurant/extractRestaurantDescription";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import { gatekeepMainDishRecommendations } from "../../../src/recommendation/gatekeeper";
 import { mapGatekeptMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
@@ -145,13 +144,8 @@ export async function POST(request: Request) {
     const officialRestaurantUrl = inputLooksLikeUrl
       ? getOfficialRestaurantHomepageUrl(rawMenuText)
       : undefined;
-    const restaurantDescription = officialRestaurantUrl
-      ? await loadRestaurantDescriptionFromOrigin(officialRestaurantUrl)
-      : null;
-    const localizedRestaurantDescription = await localizeRestaurantDescriptionForPayload(
-      restaurantDescription,
-      outputLocale
-    );
+    const restaurantDescription: RestaurantDescriptionResult | null = null;
+    const localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null = null;
     const sourceInputAllergenWarningPayload = buildAllergenInfoWarningPayload(profile, rawMenuText);
 
     if (pdfMenuUrl) {
@@ -669,9 +663,11 @@ async function analyzeMenuWithTwoStepMainFlow({
   extraPayload?: Record<string, unknown>;
   timeoutMs: number;
 }) {
+  const flowStartedAt = Date.now();
   const sourceKind = source.kind;
   const sourceCount = getTwoStepMainSourceCount(source);
   let proposedMainDishes: Awaited<ReturnType<typeof recommendMainDishesAI>>;
+  let mainAiDurationMs = 0;
 
   const mainStartedAt = Date.now();
   try {
@@ -686,6 +682,7 @@ async function analyzeMenuWithTwoStepMainFlow({
       timeoutMs,
       "TWO_STEP_MAIN_AI_TIMEOUT"
     );
+    mainAiDurationMs = Date.now() - mainStartedAt;
     logTwoStepMain({
       phase: "main-ai",
       responseMode,
@@ -693,7 +690,7 @@ async function analyzeMenuWithTwoStepMainFlow({
       sourceCount,
       mainAiCount: proposedMainDishes.length,
       mainAiTranslatedNameCount: countDisplaySafeTranslatedNames(proposedMainDishes),
-      durationMs: Date.now() - mainStartedAt
+      durationMs: mainAiDurationMs
     });
   } catch (error) {
     logTwoStepMainError({
@@ -755,17 +752,21 @@ async function analyzeMenuWithTwoStepMainFlow({
     );
   }
 
-  const starterCandidateDishes = starterCandidateSourceUrls.length > 0
-    ? await buildStarterCandidateDishesFromSourceUrls(starterCandidateSourceUrls)
-    : [];
-  const conciergeHero = await buildConciergeHeroFromOfficialWebsiteText({
-    officialWebsiteText: restaurantDescription?.text,
-    restaurantUrl,
-    fallbackHero: buildFallbackConciergeHero({
-      dishes: mapped.dishes,
-      restaurantContextText: fallbackHeroContextText,
-      officialWebsiteText: restaurantDescription?.text
-    })
+  const conciergeHero = buildFallbackConciergeHero({
+    dishes: mapped.dishes,
+    restaurantContextText: fallbackHeroContextText
+  });
+
+  logAnalyzePerf({
+    phase: "response",
+    skippedRestaurantIntro: true,
+    skippedHero: true,
+    skippedStarterCandidates: true,
+    mainAiDurationMs,
+    totalDurationMs: Date.now() - flowStartedAt,
+    responseMode,
+    sourceKind,
+    sourceCount
   });
 
   return NextResponse.json({
@@ -775,7 +776,6 @@ async function analyzeMenuWithTwoStepMainFlow({
       dishes: mapped.dishes,
       recommendations: allergySafeRecommendations,
       conciergeHero,
-      ...buildStarterCandidateDishesPayload(starterCandidateDishes),
       ...extraPayload,
       ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
     }
@@ -791,6 +791,15 @@ function logTwoStepMain(fields: Record<string, TwoStepMainLogValue>) {
     .join(" ");
 
   console.info(`[GUSTARO_2STEP_MAIN] ${payload}`);
+}
+
+function logAnalyzePerf(fields: Record<string, TwoStepMainLogValue>) {
+  const payload = Object.entries(fields)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${formatTwoStepMainLogValue(value)}`)
+    .join(" ");
+
+  console.info(`[GUSTARO_ANALYZE_PERF] ${payload}`);
 }
 
 function logTwoStepMainError({

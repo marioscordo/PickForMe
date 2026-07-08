@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { PickForMeApiError } from "../../api/apiClient";
-import { requestStarterPairings } from "../../api/pickformeApi";
+import { requestRestaurantIntro, requestStarterPairings } from "../../api/pickformeApi";
+import { DEFAULT_OUTPUT_LOCALE } from "../../config/outputLocales";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
 import { premiumColors, radius, semanticColors, spacing, typography } from "../../theme/tokens";
@@ -25,6 +26,7 @@ type ProfileWithFeedback = {
 };
 
 type StarterRequestStatus = "loading" | "error" | "empty" | "retryable" | "dismissed";
+type RestaurantIntroStatus = "idle" | "loading" | "loaded" | "error";
 type PremiumActionTone = "primary" | "secondary";
 
 function buildDisplayTranslation(originalName: string, translatedName?: string) {
@@ -146,6 +148,9 @@ export function RecommendationCard({
   const [selectedDishId, setSelectedDishId] = useState<string | null>(null);
   const [recommendationsWithStarters, setRecommendationsWithStarters] = useState<Recommendation[] | null>(null);
   const [starterRequestStatusByDishId, setStarterRequestStatusByDishId] = useState<Record<string, StarterRequestStatus>>({});
+  const [restaurantIntroStatus, setRestaurantIntroStatus] = useState<RestaurantIntroStatus>("idle");
+  const [restaurantIntroText, setRestaurantIntroText] = useState("");
+  const [restaurantIntroVisible, setRestaurantIntroVisible] = useState(false);
 
   const dishesById = useMemo(() => new Map(result.dishes.map((dish) => [dish.id, dish])), [result.dishes]);
   const visibleRecommendations = recommendationsWithStarters ?? result.recommendations;
@@ -154,14 +159,47 @@ export function RecommendationCard({
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
   const isStarterSearchRunning = Object.values(starterRequestStatusByDishId).some((status) => status === "loading");
-  const restaurantDescription = result.restaurantDescription?.trim() ?? "";
-  const topBoxTitle = restaurantDescription ? content.recommendation.restaurantTitle : content.recommendation.fallbackTitle;
-  const topBoxText = restaurantDescription || content.recommendation.fallbackText;
+  const restaurantIntroLocale = profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE;
+  const cachedRestaurantIntro = restaurantIntroText.trim();
+  const hasRestaurantIntro = restaurantIntroVisible && cachedRestaurantIntro.length > 0;
+  const isRestaurantIntroLoading = restaurantIntroStatus === "loading";
   const topBox = (
     <Surface style={local.topBox}>
       <View style={local.topBoxAccent} />
-      <Text style={local.title}>{topBoxTitle}</Text>
-      <Text style={local.subtitle}>{topBoxText}</Text>
+      {hasRestaurantIntro ? (
+        <Pressable
+          accessibilityLabel={content.common.cancel}
+          accessibilityRole="button"
+          onPress={closeRestaurantIntro}
+          style={({ pressed }) => [local.restaurantIntroCloseButton, pressed ? local.restaurantIntroCloseButtonPressed : null]}
+        >
+          <Feather color={premiumColors.textMuted} name="x" size={20} />
+        </Pressable>
+      ) : null}
+      <Text style={local.title}>{content.recommendation.restaurantTitle}</Text>
+      {hasRestaurantIntro ? (
+        <Text style={local.restaurantIntroText}>{cachedRestaurantIntro}</Text>
+      ) : (
+        <Text style={local.subtitle}>{content.recommendation.restaurantIntroTeaser}</Text>
+      )}
+      {isRestaurantIntroLoading ? (
+        <Text style={local.restaurantIntroStatusText}>{content.recommendation.restaurantIntroLoading}</Text>
+      ) : null}
+      {restaurantIntroStatus === "error" ? (
+        <Text style={local.restaurantIntroStatusText}>{content.recommendation.restaurantIntroError}</Text>
+      ) : null}
+      {!hasRestaurantIntro ? (
+        <PremiumCardAction
+          disabled={isRestaurantIntroLoading}
+          label={
+            restaurantIntroStatus === "error"
+              ? content.recommendation.restaurantIntroRetry
+              : content.recommendation.restaurantIntroButton
+          }
+          onPress={handleRestaurantIntro}
+          tone="secondary"
+        />
+      ) : null}
     </Surface>
   );
   const analysisWarning = result.analysisWarning?.trim() ?? "";
@@ -182,7 +220,48 @@ export function RecommendationCard({
   useEffect(() => {
     setRecommendationsWithStarters(null);
     setStarterRequestStatusByDishId({});
-  }, [result]);
+    setRestaurantIntroStatus("idle");
+    setRestaurantIntroText("");
+    setRestaurantIntroVisible(false);
+  }, [restaurantIntroLocale, result]);
+
+  async function handleRestaurantIntro() {
+    if (isRestaurantIntroLoading) {
+      return;
+    }
+
+    if (cachedRestaurantIntro) {
+      setRestaurantIntroVisible(true);
+      setRestaurantIntroStatus("loaded");
+      return;
+    }
+
+    setRestaurantIntroStatus("loading");
+
+    try {
+      const data = await requestRestaurantIntro({
+        menuText,
+        profile
+      });
+      const nextText = data.introText.trim();
+
+      if (!nextText) {
+        setRestaurantIntroStatus("error");
+        return;
+      }
+
+      setRestaurantIntroText(nextText);
+      setRestaurantIntroVisible(true);
+      setRestaurantIntroStatus("loaded");
+    } catch {
+      setRestaurantIntroStatus("error");
+    }
+  }
+
+  function closeRestaurantIntro() {
+    setRestaurantIntroVisible(false);
+    setRestaurantIntroStatus("idle");
+  }
 
   async function handleStarterSearch(recommendation: Recommendation) {
     if (isStarterSearchRunning) {
@@ -491,7 +570,9 @@ const local = StyleSheet.create({
     borderWidth: 1,
     marginBottom: spacing.xxl,
     paddingHorizontal: 22,
+    paddingRight: 54,
     paddingVertical: 20,
+    position: "relative",
     shadowColor: premiumColors.olive,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.045,
@@ -506,6 +587,22 @@ const local = StyleSheet.create({
     marginBottom: spacing.md,
     opacity: 0.72,
     width: 40
+  },
+
+  restaurantIntroCloseButton: {
+    alignItems: "center",
+    borderRadius: radius.pill,
+    height: 34,
+    justifyContent: "center",
+    position: "absolute",
+    right: 14,
+    top: 14,
+    width: 34
+  },
+
+  restaurantIntroCloseButtonPressed: {
+    backgroundColor: "rgba(116, 109, 100, 0.10)",
+    opacity: 0.82
   },
 
   unsafeBox: {
@@ -557,6 +654,21 @@ const local = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 22
+  },
+
+  restaurantIntroText: {
+    color: premiumColors.textMuted,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 23
+  },
+
+  restaurantIntroStatusText: {
+    color: premiumColors.textMuted,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
+    marginTop: spacing.sm
   },
 
   list: {

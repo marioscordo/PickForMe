@@ -100,6 +100,11 @@
   ],
   "recommendation": {
     "restaurantTitle": "About the restaurant",
+    "restaurantIntroTeaser": "If you like, I can set the scene for the restaurant before you choose.",
+    "restaurantIntroButton": "About the restaurant",
+    "restaurantIntroLoading": "I am setting the scene for the restaurant ...",
+    "restaurantIntroError": "I could not load the restaurant text just now.",
+    "restaurantIntroRetry": "Try again",
     "fallbackTitle": "This fits you today",
     "fallbackText": "I am putting the recognized dishes into context for your moment.",
     "warningTitle": "Important note",
