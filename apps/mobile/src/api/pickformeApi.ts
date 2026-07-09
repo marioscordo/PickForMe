@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { apiPost } from "./apiClient";
 import { DEFAULT_OUTPUT_LOCALE } from "../config/outputLocales";
 import { profileFeatures } from "../config/profileFeatures";
@@ -50,6 +51,44 @@ type LogAllergyWarningConfirmationBody = {
   confirmationVersion: string;
   confirmationTimestamp: string;
 };
+
+export type TestFeedbackCategory =
+  | "menu_discovery"
+  | "photo_menu"
+  | "recommendation"
+  | "profile"
+  | "allergens_exclusions"
+  | "login"
+  | "display"
+  | "other";
+
+export type TestFeedbackSeverity = "blocker" | "annoying" | "minor";
+
+export type SubmitTestFeedbackArgs = {
+  category: TestFeedbackCategory;
+  city?: string;
+  contactAllowed: boolean;
+  description: string;
+  expectedBehavior?: string;
+  locale?: string;
+  restaurantName?: string;
+  screenContext?: string;
+  severity?: TestFeedbackSeverity;
+  stepsToReproduce?: string;
+};
+
+type SubmitTestFeedbackBody = SubmitTestFeedbackArgs & {
+  appVersion: string;
+  buildNumber: string;
+  deviceModel?: string;
+  osVersion: string;
+  platform: string;
+  submittedAt: string;
+};
+
+const MOBILE_APP_VERSION = "1.0.0";
+const IOS_BUILD_NUMBER = "1.0.12";
+const ANDROID_BUILD_NUMBER = "1";
 
 export type ProfilePreferenceClassificationResult = {
   allowed: boolean;
@@ -199,6 +238,30 @@ export function logAllergyWarningConfirmation(body: LogAllergyWarningConfirmatio
     "/api/safety/allergy-warning-confirmation",
     body
   );
+}
+
+export function submitTestFeedback(args: SubmitTestFeedbackArgs) {
+  const body: SubmitTestFeedbackBody = {
+    ...args,
+    appVersion: MOBILE_APP_VERSION,
+    buildNumber: Platform.OS === "ios" ? IOS_BUILD_NUMBER : ANDROID_BUILD_NUMBER,
+    deviceModel: getDeviceModel(),
+    osVersion: String(Platform.Version ?? ""),
+    platform: Platform.OS,
+    submittedAt: new Date().toISOString()
+  };
+
+  return apiPost<{ submitted: boolean }, SubmitTestFeedbackBody>(
+    "/api/test-feedback",
+    body
+  );
+}
+
+function getDeviceModel() {
+  const constants = Platform.constants as Record<string, unknown> | undefined;
+  const model = constants?.Model ?? constants?.model;
+
+  return typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined;
 }
 
 function sanitizeProfileForApi(profile: UserProfile): UserProfile {

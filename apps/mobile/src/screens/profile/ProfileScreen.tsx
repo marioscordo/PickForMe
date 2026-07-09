@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Dimensions, Linking, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { classifyProfileInput, classifyProfilePreference } from "../../api/pickformeApi";
+import { classifyProfileInput, classifyProfilePreference, submitTestFeedback, type TestFeedbackCategory, type TestFeedbackSeverity } from "../../api/pickformeApi";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { ProfileEditor, type ProfileEditorSection } from "../../components/profile/ProfileEditor";
@@ -35,6 +35,54 @@ function fs(value: number) {
 const premiumFont = Platform.select({ ios: "Georgia", android: "serif", default: undefined });
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
+
+const TEST_FEEDBACK_CATEGORIES: TestFeedbackCategory[] = [
+  "menu_discovery",
+  "photo_menu",
+  "recommendation",
+  "profile",
+  "allergens_exclusions",
+  "login",
+  "display",
+  "other"
+];
+
+const TEST_FEEDBACK_SEVERITIES: TestFeedbackSeverity[] = ["blocker", "annoying", "minor"];
+const TEST_FEEDBACK_DESCRIPTION_MAX_LENGTH = 1600;
+const TEST_FEEDBACK_LONG_TEXT_MAX_LENGTH = 1200;
+const TEST_FEEDBACK_SHORT_TEXT_MAX_LENGTH = 160;
+
+type TestFeedbackFormState = {
+  category: TestFeedbackCategory | "";
+  city: string;
+  contactAllowed: boolean;
+  description: string;
+  expectedBehavior: string;
+  restaurantName: string;
+  screenContext: string;
+  severity: TestFeedbackSeverity | "";
+  stepsToReproduce: string;
+};
+
+function createEmptyTestFeedbackForm(): TestFeedbackFormState {
+  return {
+    category: "",
+    city: "",
+    contactAllowed: false,
+    description: "",
+    expectedBehavior: "",
+    restaurantName: "",
+    screenContext: "profile",
+    severity: "",
+    stepsToReproduce: ""
+  };
+}
+
+function optionalTestFeedbackText(value: string) {
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : undefined;
+}
 
 type PreferenceOption = {
   label: string;
@@ -74,6 +122,11 @@ export function ProfileScreen({
   const [overviewContentHeight, setOverviewContentHeight] = useState(0);
   const [overviewViewportHeight, setOverviewViewportHeight] = useState(0);
   const [overviewScrollY, setOverviewScrollY] = useState(0);
+  const [testFeedbackOpen, setTestFeedbackOpen] = useState(false);
+  const [testFeedbackForm, setTestFeedbackForm] = useState<TestFeedbackFormState>(() => createEmptyTestFeedbackForm());
+  const [testFeedbackPending, setTestFeedbackPending] = useState(false);
+  const [testFeedbackError, setTestFeedbackError] = useState("");
+  const [testFeedbackSubmitted, setTestFeedbackSubmitted] = useState(false);
 
   const editor = content.profileEditor;
   const preferenceOptions = editor.preferenceOptions as PreferenceOption[];
@@ -144,6 +197,240 @@ export function ProfileScreen({
     setOverviewScrollY(event.nativeEvent.contentOffset.y);
   }
 
+
+  function openTestFeedback() {
+    setTestFeedbackForm(createEmptyTestFeedbackForm());
+    setTestFeedbackError("");
+    setTestFeedbackSubmitted(false);
+    setTestFeedbackOpen(true);
+  }
+
+  function closeTestFeedback() {
+    if (testFeedbackPending) {
+      return;
+    }
+
+    setTestFeedbackOpen(false);
+  }
+
+  function updateTestFeedbackForm(patch: Partial<TestFeedbackFormState>) {
+    setTestFeedbackForm((current) => ({
+      ...current,
+      ...patch
+    }));
+    setTestFeedbackError("");
+    setTestFeedbackSubmitted(false);
+  }
+
+  async function submitTestFeedbackForm() {
+    const category = testFeedbackForm.category;
+    const description = testFeedbackForm.description.trim();
+
+    if (!category) {
+      setTestFeedbackError(content.testFeedback.categoryRequired);
+      return;
+    }
+
+    if (!description) {
+      setTestFeedbackError(content.testFeedback.descriptionRequired);
+      return;
+    }
+
+    setTestFeedbackPending(true);
+    setTestFeedbackError("");
+
+    try {
+      await submitTestFeedback({
+        category,
+        city: optionalTestFeedbackText(testFeedbackForm.city),
+        contactAllowed: testFeedbackForm.contactAllowed,
+        description,
+        expectedBehavior: optionalTestFeedbackText(testFeedbackForm.expectedBehavior),
+        locale: profile.outputLocale,
+        restaurantName: optionalTestFeedbackText(testFeedbackForm.restaurantName),
+        screenContext: testFeedbackForm.screenContext,
+        severity: testFeedbackForm.severity || undefined,
+        stepsToReproduce: optionalTestFeedbackText(testFeedbackForm.stepsToReproduce)
+      });
+      setTestFeedbackSubmitted(true);
+      setTestFeedbackForm(createEmptyTestFeedbackForm());
+    } catch {
+      setTestFeedbackError(content.testFeedback.submitError);
+    } finally {
+      setTestFeedbackPending(false);
+    }
+  }
+
+  function renderTestFeedbackDialog() {
+    const feedback = content.testFeedback;
+
+    return (
+      <Modal visible={testFeedbackOpen} transparent animationType="fade" onRequestClose={closeTestFeedback}>
+        <View style={local.testFeedbackBackdrop}>
+          <View style={local.testFeedbackPanel}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={local.testFeedbackContent}
+            >
+              <View style={local.testFeedbackHeaderRow}>
+                <View style={local.testFeedbackTitleBlock}>
+                  <Text style={local.testFeedbackTitle}>{feedback.title}</Text>
+                  <Text style={local.testFeedbackSubtitle}>{feedback.subtitle}</Text>
+                </View>
+                <Pressable accessibilityRole="button" hitSlop={8} onPress={closeTestFeedback} style={local.testFeedbackCloseButton}>
+                  <Feather color="#AA7C1E" name="x" size={s(22)} />
+                </Pressable>
+              </View>
+
+              <Text style={local.testFeedbackPrivacy}>{feedback.privacyNotice}</Text>
+
+              <Text style={local.testFeedbackLabel}>{feedback.categoryLabel}</Text>
+              <View style={local.testFeedbackChipRow}>
+                {TEST_FEEDBACK_CATEGORIES.map((category) => {
+                  const active = category === testFeedbackForm.category;
+
+                  return (
+                    <Pressable
+                      key={category}
+                      accessibilityRole="button"
+                      onPress={() => updateTestFeedbackForm({ category })}
+                      style={[local.testFeedbackChip, active ? local.testFeedbackChipActive : null]}
+                    >
+                      <Text style={[local.testFeedbackChipText, active ? local.testFeedbackChipTextActive : null]}>
+                        {feedback.categoryLabels[category]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={local.testFeedbackLabel}>{feedback.severityLabel}</Text>
+              <View style={local.testFeedbackChipRow}>
+                {TEST_FEEDBACK_SEVERITIES.map((severity) => {
+                  const active = severity === testFeedbackForm.severity;
+
+                  return (
+                    <Pressable
+                      key={severity}
+                      accessibilityRole="button"
+                      onPress={() => updateTestFeedbackForm({ severity: active ? "" : severity })}
+                      style={[local.testFeedbackChip, active ? local.testFeedbackChipActive : null]}
+                    >
+                      <Text style={[local.testFeedbackChipText, active ? local.testFeedbackChipTextActive : null]}>
+                        {feedback.severityLabels[severity]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={local.testFeedbackLabel}>{feedback.descriptionLabel}</Text>
+              <TextInput
+                multiline
+                maxLength={TEST_FEEDBACK_DESCRIPTION_MAX_LENGTH}
+                onChangeText={(description) => updateTestFeedbackForm({ description })}
+                placeholder={feedback.descriptionPlaceholder}
+                placeholderTextColor="#8A8378"
+                style={[local.testFeedbackInput, local.testFeedbackTextArea]}
+                textAlignVertical="top"
+                value={testFeedbackForm.description}
+              />
+
+              <Text style={local.testFeedbackLabel}>{feedback.restaurantNameLabel}</Text>
+              <TextInput
+                maxLength={TEST_FEEDBACK_SHORT_TEXT_MAX_LENGTH}
+                onChangeText={(restaurantName) => updateTestFeedbackForm({ restaurantName })}
+                placeholder={feedback.restaurantNamePlaceholder}
+                placeholderTextColor="#8A8378"
+                style={local.testFeedbackInput}
+                value={testFeedbackForm.restaurantName}
+              />
+
+              <Text style={local.testFeedbackLabel}>{feedback.cityLabel}</Text>
+              <TextInput
+                maxLength={TEST_FEEDBACK_SHORT_TEXT_MAX_LENGTH}
+                onChangeText={(city) => updateTestFeedbackForm({ city })}
+                placeholder={feedback.cityPlaceholder}
+                placeholderTextColor="#8A8378"
+                style={local.testFeedbackInput}
+                value={testFeedbackForm.city}
+              />
+
+              <Text style={local.testFeedbackLabel}>{feedback.expectedBehaviorLabel}</Text>
+              <TextInput
+                multiline
+                maxLength={TEST_FEEDBACK_LONG_TEXT_MAX_LENGTH}
+                onChangeText={(expectedBehavior) => updateTestFeedbackForm({ expectedBehavior })}
+                placeholder={feedback.expectedBehaviorPlaceholder}
+                placeholderTextColor="#8A8378"
+                style={[local.testFeedbackInput, local.testFeedbackTextArea]}
+                textAlignVertical="top"
+                value={testFeedbackForm.expectedBehavior}
+              />
+
+              <Text style={local.testFeedbackLabel}>{feedback.stepsLabel}</Text>
+              <TextInput
+                multiline
+                maxLength={TEST_FEEDBACK_LONG_TEXT_MAX_LENGTH}
+                onChangeText={(stepsToReproduce) => updateTestFeedbackForm({ stepsToReproduce })}
+                placeholder={feedback.stepsPlaceholder}
+                placeholderTextColor="#8A8378"
+                style={[local.testFeedbackInput, local.testFeedbackTextArea]}
+                textAlignVertical="top"
+                value={testFeedbackForm.stepsToReproduce}
+              />
+
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: testFeedbackForm.contactAllowed }}
+                onPress={() => updateTestFeedbackForm({ contactAllowed: !testFeedbackForm.contactAllowed })}
+                style={local.testFeedbackToggleRow}
+              >
+                <View style={[local.testFeedbackToggle, testFeedbackForm.contactAllowed ? local.testFeedbackToggleActive : null]}>
+                  {testFeedbackForm.contactAllowed ? <Feather color="#FFFDF8" name="check" size={s(16)} /> : null}
+                </View>
+                <Text style={local.testFeedbackToggleText}>{feedback.contactAllowedLabel}</Text>
+                <Text style={local.testFeedbackToggleValue}>
+                  {testFeedbackForm.contactAllowed ? feedback.contactAllowedYes : feedback.contactAllowedNo}
+                </Text>
+              </Pressable>
+
+              {testFeedbackSubmitted ? (
+                <View style={local.testFeedbackSuccessBox}>
+                  <Text style={local.testFeedbackSuccessTitle}>{feedback.successTitle}</Text>
+                  <Text style={local.testFeedbackSuccessText}>{feedback.successMessage}</Text>
+                </View>
+              ) : null}
+
+              {testFeedbackError ? <Text style={local.testFeedbackError}>{testFeedbackError}</Text> : null}
+
+              <View style={local.testFeedbackActionRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={testFeedbackPending}
+                  onPress={closeTestFeedback}
+                  style={[local.testFeedbackSecondaryButton, testFeedbackPending ? local.disabled : null]}
+                >
+                  <Text style={local.testFeedbackSecondaryButtonText}>{content.common.cancel}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={testFeedbackPending}
+                  onPress={submitTestFeedbackForm}
+                  style={[local.testFeedbackPrimaryButton, testFeedbackPending ? local.disabled : null]}
+                >
+                  <Text style={local.testFeedbackPrimaryButtonText}>
+                    {testFeedbackPending ? feedback.submittingButton : feedback.submitButton}
+                  </Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
   if (activeSection) {
     const activeTitle =
       activeSection === "general"
@@ -914,6 +1201,7 @@ export function ProfileScreen({
   }
 
   return (
+    <>
     <SafeAreaView style={local.overviewShell}>
       <ScrollView
         contentContainerStyle={local.overviewContent}
@@ -936,6 +1224,13 @@ export function ProfileScreen({
             title={content.profileScreen.generalButton}
             detail={formatCompactLocaleLabel(profile.outputLocale)}
             onPress={() => setActiveSection("general")}
+          />
+          <ProfileMenuRow
+            icon=""
+            iconVariant="feedback"
+            title={content.testFeedback.openButton}
+            detail={content.testFeedback.overviewHint}
+            onPress={openTestFeedback}
             isLast
           />
         </View>
@@ -976,6 +1271,8 @@ export function ProfileScreen({
         </View>
       </ScrollView>
     </SafeAreaView>
+    {renderTestFeedbackDialog()}
+    </>
   );
 }
 
@@ -1214,7 +1511,7 @@ function ProfileMenuRow({
   isLast
 }: {
   icon: string;
-  iconVariant?: "general" | "preferences" | "exclusions" | "intolerances";
+  iconVariant?: "general" | "preferences" | "exclusions" | "intolerances" | "feedback";
   title: string;
   detail: string;
   onPress: () => void;
@@ -1241,12 +1538,14 @@ function ProfileIcon({
   iconVariant
 }: {
   fallback: string;
-  iconVariant?: "general" | "preferences" | "exclusions" | "intolerances";
+  iconVariant?: "general" | "preferences" | "exclusions" | "intolerances" | "feedback";
 }) {
   const iconName = iconVariant === "general"
     ? "globe"
-    : iconVariant === "preferences"
-      ? "heart"
+    : iconVariant === "feedback"
+      ? "flag"
+      : iconVariant === "preferences"
+        ? "heart"
       : iconVariant === "exclusions"
         ? "minus-circle"
         : iconVariant === "intolerances"
@@ -1576,6 +1875,219 @@ const local = StyleSheet.create({
     fontSize: fs(17),
     fontWeight: "800",
     lineHeight: fs(23)
+  },
+  testFeedbackBackdrop: {
+    alignItems: "center",
+    backgroundColor: "rgba(24, 44, 27, 0.34)",
+    flex: 1,
+    justifyContent: "center",
+    padding: s(18)
+  },
+  testFeedbackPanel: {
+    backgroundColor: "#FFFDF8",
+    borderColor: "#E4D4B6",
+    borderRadius: s(26),
+    borderWidth: 1,
+    maxHeight: "90%",
+    maxWidth: 460,
+    shadowColor: "#1F271C",
+    shadowOffset: { width: 0, height: s(18) },
+    shadowOpacity: 0.22,
+    shadowRadius: s(26),
+    width: "100%"
+  },
+  testFeedbackContent: {
+    gap: s(12),
+    padding: s(18)
+  },
+  testFeedbackHeaderRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: s(12)
+  },
+  testFeedbackTitleBlock: {
+    flex: 1
+  },
+  testFeedbackTitle: {
+    color: premiumColors.olive,
+    fontFamily: premiumFont,
+    fontSize: fs(28),
+    fontWeight: "700",
+    letterSpacing: 0,
+    lineHeight: fs(34)
+  },
+  testFeedbackSubtitle: {
+    color: premiumColors.textMuted,
+    fontSize: fs(15),
+    fontWeight: "500",
+    lineHeight: fs(21),
+    marginTop: s(4)
+  },
+  testFeedbackCloseButton: {
+    alignItems: "center",
+    backgroundColor: "#F7F1E7",
+    borderColor: "#E4D4B6",
+    borderRadius: s(17),
+    borderWidth: 1,
+    height: s(40),
+    justifyContent: "center",
+    width: s(40)
+  },
+  testFeedbackPrivacy: {
+    color: "#6F6A61",
+    fontSize: fs(13),
+    fontWeight: "600",
+    lineHeight: fs(19)
+  },
+  testFeedbackLabel: {
+    color: premiumColors.olive,
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20),
+    marginTop: s(4)
+  },
+  testFeedbackChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: s(8)
+  },
+  testFeedbackChip: {
+    backgroundColor: "#FFFDF8",
+    borderColor: "#E4D4B6",
+    borderRadius: s(999),
+    borderWidth: 1,
+    paddingHorizontal: s(12),
+    paddingVertical: s(9)
+  },
+  testFeedbackChipActive: {
+    backgroundColor: premiumColors.olive,
+    borderColor: premiumColors.olive
+  },
+  testFeedbackChipText: {
+    color: premiumColors.olive,
+    fontSize: fs(13),
+    fontWeight: "800",
+    lineHeight: fs(17)
+  },
+  testFeedbackChipTextActive: {
+    color: "#FFFDF8"
+  },
+  testFeedbackInput: {
+    backgroundColor: "#FFFDF8",
+    borderColor: "#E4D4B6",
+    borderRadius: s(18),
+    borderWidth: 1,
+    color: "#151510",
+    fontSize: fs(15),
+    fontWeight: "600",
+    lineHeight: fs(21),
+    minHeight: s(50),
+    paddingHorizontal: s(14),
+    paddingVertical: s(12)
+  },
+  testFeedbackTextArea: {
+    minHeight: s(96)
+  },
+  testFeedbackToggleRow: {
+    alignItems: "center",
+    backgroundColor: "#F7F1E7",
+    borderColor: "#E4D4B6",
+    borderRadius: s(18),
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: s(10),
+    minHeight: s(52),
+    paddingHorizontal: s(14)
+  },
+  testFeedbackToggle: {
+    alignItems: "center",
+    backgroundColor: "#FFFDF8",
+    borderColor: "#C6A04A",
+    borderRadius: s(12),
+    borderWidth: 1,
+    height: s(24),
+    justifyContent: "center",
+    width: s(24)
+  },
+  testFeedbackToggleActive: {
+    backgroundColor: premiumColors.olive,
+    borderColor: premiumColors.olive
+  },
+  testFeedbackToggleText: {
+    color: premiumColors.olive,
+    flex: 1,
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20)
+  },
+  testFeedbackToggleValue: {
+    color: "#6F6A61",
+    fontSize: fs(14),
+    fontWeight: "700",
+    lineHeight: fs(18)
+  },
+  testFeedbackSuccessBox: {
+    backgroundColor: "rgba(31, 59, 36, 0.08)",
+    borderColor: "rgba(31, 59, 36, 0.18)",
+    borderRadius: s(16),
+    borderWidth: 1,
+    padding: s(13)
+  },
+  testFeedbackSuccessTitle: {
+    color: premiumColors.olive,
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20)
+  },
+  testFeedbackSuccessText: {
+    color: "#6F6A61",
+    fontSize: fs(14),
+    fontWeight: "600",
+    lineHeight: fs(20),
+    marginTop: s(3)
+  },
+  testFeedbackError: {
+    color: semanticColors.danger,
+    fontSize: fs(14),
+    fontWeight: "800",
+    lineHeight: fs(20)
+  },
+  testFeedbackActionRow: {
+    flexDirection: "row",
+    gap: s(10),
+    marginTop: s(4)
+  },
+  testFeedbackSecondaryButton: {
+    alignItems: "center",
+    borderColor: "#E4D4B6",
+    borderRadius: s(999),
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: s(52),
+    paddingHorizontal: s(12)
+  },
+  testFeedbackSecondaryButtonText: {
+    color: premiumColors.olive,
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20)
+  },
+  testFeedbackPrimaryButton: {
+    alignItems: "center",
+    backgroundColor: premiumColors.olive,
+    borderRadius: s(999),
+    flex: 1,
+    justifyContent: "center",
+    minHeight: s(52),
+    paddingHorizontal: s(12)
+  },
+  testFeedbackPrimaryButtonText: {
+    color: "#FFFDF8",
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20),
+    textAlign: "center"
   },
   pressedSoft: {
     opacity: 0.82,
