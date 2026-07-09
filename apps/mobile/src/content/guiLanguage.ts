@@ -2,18 +2,16 @@ import { getLocales } from "expo-localization";
 import type { GuiLanguage } from "./mobileContent";
 
 export function resolveGuiLanguageFromDevice(): GuiLanguage {
-  const locales = getLocales().flatMap((locale) => [locale.languageTag, locale.languageCode]);
+  const [firstLocale] = getLocales();
 
-  return resolveSupportedGuiLanguage(locales) ?? "en-US";
+  return resolveSupportedGuiLanguage([firstLocale?.languageTag, firstLocale?.languageCode]) ?? "en-US";
 }
 
 export function resolveSupportedGuiLanguage(locales: Array<string | null | undefined>): GuiLanguage | undefined {
-  for (const locale of locales) {
-    const normalized = normalizeLocale(locale);
+  const normalized = normalizeLocale(locales.find((locale) => Boolean(locale?.trim())));
 
-    if (normalized.startsWith("de")) return "de-DE";
-    if (normalized.startsWith("en")) return "en-US";
-  }
+  if (normalized.startsWith("de")) return "de-DE";
+  if (normalized.startsWith("en")) return "en-US";
 
   return undefined;
 }
