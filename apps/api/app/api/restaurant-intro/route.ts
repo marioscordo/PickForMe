@@ -198,11 +198,19 @@ function getRestaurantIntroOutputLocale(body: z.infer<typeof RestaurantIntroRequ
 }
 
 function buildLimitedSourceIntro(outputLocale: string | undefined) {
-  if (getLanguageCode(outputLocale) === "en") {
-    return "I could not read enough reliable restaurant context from the source just now. Open the menu if you want to check the restaurant details directly, or try loading this section again in a moment.";
-  }
+  const languageCode = getLanguageCode(outputLocale);
+  const fallbackTexts: Record<string, string> = {
+    de: "Zu diesem Restaurant liegen nur begrenzte Informationen vor. Die Empfehlung basiert auf den verfuegbaren Angaben.",
+    en: "Only limited information is available for this restaurant. The recommendation is based on the available details.",
+    es: "Solo hay informacion limitada disponible sobre este restaurante. La recomendacion se basa en los datos disponibles.",
+    fr: "Seules des informations limitees sont disponibles sur ce restaurant. La recommandation s'appuie sur les informations disponibles.",
+    it: "Sono disponibili solo informazioni limitate su questo ristorante. La raccomandazione si basa sui dati disponibili.",
+    nl: "Er is slechts beperkte informatie over dit restaurant beschikbaar. De aanbeveling is gebaseerd op de beschikbare gegevens.",
+    pl: "Dostepne sa tylko ograniczone informacje o tej restauracji. Rekomendacja opiera sie na dostepnych danych.",
+    pt: "Ha apenas informacoes limitadas disponiveis sobre este restaurante. A recomendacao baseia-se nos dados disponiveis."
+  };
 
-  return "Ich konnte aus der Quelle gerade keinen belastbaren Restaurantkontext lesen. \u00d6ffne bitte die Speisekarte, wenn Du Details direkt pr\u00fcfen m\u00f6chtest, oder lade diesen Abschnitt gleich noch einmal.";
+  return fallbackTexts[languageCode] ?? fallbackTexts.de;
 }
 
 function getLanguageCode(userLocale: string | undefined) {
