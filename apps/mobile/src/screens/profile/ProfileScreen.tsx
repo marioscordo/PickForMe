@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Dimensions, Linking, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { Alert, Dimensions, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { classifyProfileInput, classifyProfilePreference, submitTestFeedback, type TestFeedbackCategory, type TestFeedbackSeverity } from "../../api/pickformeApi";
 import { useAuth } from "../../app/providers/AuthProvider";
@@ -267,12 +267,13 @@ export function ProfileScreen({
     return (
       <Modal visible={testFeedbackOpen} transparent animationType="fade" onRequestClose={closeTestFeedback}>
         <View style={local.testFeedbackBackdrop}>
-          <View style={local.testFeedbackPanel}>
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={local.testFeedbackContent}
-            >
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={local.testFeedbackKeyboardAvoider}>
+            <View style={local.testFeedbackPanel}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={local.testFeedbackContent}
+              >
               <View style={local.testFeedbackHeaderRow}>
                 <View style={local.testFeedbackTitleBlock}>
                   <Text style={local.testFeedbackTitle}>{feedback.title}</Text>
@@ -425,8 +426,9 @@ export function ProfileScreen({
                   </Text>
                 </Pressable>
               </View>
-            </ScrollView>
-          </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     );
@@ -1883,6 +1885,12 @@ const local = StyleSheet.create({
     justifyContent: "center",
     padding: s(18)
   },
+  testFeedbackKeyboardAvoider: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
+    width: "100%"
+  },
   testFeedbackPanel: {
     backgroundColor: "#FFFDF8",
     borderColor: "#E4D4B6",
@@ -1898,7 +1906,8 @@ const local = StyleSheet.create({
   },
   testFeedbackContent: {
     gap: s(12),
-    padding: s(18)
+    padding: s(18),
+    paddingBottom: s(30)
   },
   testFeedbackHeaderRow: {
     alignItems: "flex-start",
