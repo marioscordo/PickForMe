@@ -29,11 +29,53 @@ type HtmlCategoryClassification = {
   confidence: number;
 };
 
-const PRICE_SCAN_PATTERN = /(?:\u20ac\s*)?\d{1,3}(?:[.,]\d{2})(?:\s*(?:\u20ac|eur|euro))?/gi;
-const PRICE_LINE_PATTERN = /^(?:\u20ac\s*)?\d{1,3}(?:[.,]\d{2})(?:\s*(?:\u20ac|eur|euro))?$/i;
+const PRICE_SCAN_PATTERN = /(?:(?:\u20ac|eur|euro)\s*)?\d{1,3}(?:[.,]\d{2})(?:\s*(?:\u20ac|eur|euro))?/gi;
+const PRICE_LINE_PATTERN = /^(?:(?:\u20ac|eur|euro)\s*)?\d{1,3}(?:[.,]\d{2})(?:\s*(?:\u20ac|eur|euro))?$/i;
 const CURRENCY_ONLY_PATTERN = /^(?:\u20ac|eur|euro)$/i;
 const CATEGORY_CLASSIFICATIONS = htmlCategoryTaxonomy.categories as Record<string, HtmlCategoryClassification>;
 const CATEGORY_TERMS = new Set(Object.keys(CATEGORY_CLASSIFICATIONS));
+const ADJACENT_PRICE_FOOD_TERMS = [
+  "baguette",
+  "braten",
+  "burger",
+  "currywurst",
+  "dorade",
+  "ente",
+  "fisch",
+  "gulasch",
+  "kartoffel",
+  "klo",
+  "nudeln",
+  "paprika",
+  "pommes",
+  "rind",
+  "rostbraten",
+  "salat",
+  "schnitzel",
+  "spaetzle",
+  "spatzle",
+  "wurst"
+];
+const ADJACENT_PRICE_PACKAGE_TERMS = [
+  "aktion",
+  "angebot",
+  "becks",
+  "bier",
+  "dazu ein getraenk",
+  "dazu ein getrank",
+  "drink",
+  "getraenk",
+  "getrank",
+  "grunerla",
+  "jaegermeister",
+  "jagermeister",
+  "menue",
+  "menu",
+  "package",
+  "paket",
+  "pitcher",
+  "softdrink"
+];
 
 export async function extractHtmlMenuFromUrl(value: string): Promise<MenuExtractionResult | null> {
   let url: URL;
@@ -93,6 +135,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       PRICE_LINE_PATTERN.test(line) ||
       extractLastPrice(line) ||
       isCategoryLine(line) ||
+      looksLikeAdjacentPriceDishTitle(line) ||
       pending
     ) {
       fragments.push(line);
@@ -166,7 +209,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
           continue;
         }
 
-        if (isSafeDishTitle(title)) {
+        if (isSafeDishTitle(title) && !isPackageOrDrinkOfferTitle(title)) {
           const classification = classifyHtmlMenuCategory(currentCategory);
 
           items.push({
@@ -220,6 +263,16 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
     }
 
     if (currentCategory && looksLikeStandaloneDishTitle(line)) {
+      pending = {
+        title: cleanDishTitle(line),
+        descriptionParts: [],
+        sourceParts: [line],
+        category: currentCategory
+      };
+      continue;
+    }
+
+    if (looksLikeAdjacentPriceDishTitle(line)) {
       pending = {
         title: cleanDishTitle(line),
         descriptionParts: [],
@@ -476,7 +529,11 @@ function isNoiseLine(line: string) {
 }
 
 function isLikelyDescriptionNoise(line: string) {
-  return isNoiseLine(line) || CURRENCY_ONLY_PATTERN.test(line) || isAllergenCodeLine(line) || isCategoryLine(line);
+  return isNoiseLine(line) ||
+    CURRENCY_ONLY_PATTERN.test(line) ||
+    isAllergenCodeLine(line) ||
+    isCategoryLine(line) ||
+    isWeekdayDateHeading(line);
 }
 
 function isAllergenCodeLine(line: string) {
@@ -493,6 +550,36 @@ function looksLikeStandaloneDishTitle(line: string) {
   }
 
   return /^\p{Lu}/u.test(line);
+}
+
+function looksLikeAdjacentPriceDishTitle(line: string) {
+  const title = cleanDishTitle(line);
+
+  if (
+    !isSafeDishTitle(title) ||
+    isCategoryLine(title) ||
+    isWeekdayDateHeading(title) ||
+    isPackageOrDrinkOfferTitle(title)
+  ) {
+    return false;
+  }
+
+  if (!/^(?:\p{Lu}|\d)/u.test(title)) {
+    return false;
+  }
+
+  const normalized = normalizeForMatching(title);
+  return ADJACENT_PRICE_FOOD_TERMS.some((term) => normalized.includes(term));
+}
+
+function isWeekdayDateHeading(line: string) {
+  return /^(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)(?:\s+\d{1,2}[./]\d{1,2}\.?)?$/i
+    .test(line.trim());
+}
+
+function isPackageOrDrinkOfferTitle(line: string) {
+  const normalized = normalizeForMatching(line);
+  return ADJACENT_PRICE_PACKAGE_TERMS.some((term) => normalized.includes(term));
 }
 
 function isSafeDishTitle(title: string) {
