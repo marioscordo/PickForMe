@@ -148,7 +148,7 @@
     "generalButton": "Allgemein",
     "backToProfile": "‹ Profil",
     "preferencesButton": "Meine Vorlieben",
-    "exclusionsButton": "Meine Ausschlüsse",
+    "exclusionsButton": "Meine Ausschlüsse und Unverträglichkeiten",
     "intolerancesButton": "Allergien",
     "intolerancesOnlyButton": "Unverträglichkeiten",
     "subtitle": "GustaroAI merkt sich, was Dir wichtig ist - ohne Fragebogen.",
@@ -180,7 +180,7 @@
     "addPreferenceValidationError": "Bitte gib konkrete Lebensmittel, Zutaten, Gerichte oder Essenskategorien ein - keine Eigenschaften wie \"scharf\", \"günstig\" oder \"große Portion\".",
     "addPreferenceValidationUnavailable": "Ich konnte diese Vorliebe gerade nicht sicher prüfen. Bitte versuche es noch einmal.",
     "deleteActivePreferencesLabel": "Aktive Vorlieben löschen",
-    "exclusionsTitle": "Meine Ausschlüsse",
+    "exclusionsTitle": "Meine Ausschlüsse und Unverträglichkeiten",
     "exclusionsHint": "Was GustaroAI nicht empfehlen darf.",
     "addExclusionLabel": "Ausschluss hinzufügen",
     "addExclusionPlaceholder": "z. B. Knoblauch, Kümmel, Lamm ...",
@@ -592,14 +592,14 @@
       "tip": "Vorlieben erhöhen die Chance, dass GustaroAI Deinen Geschmack trifft."
     },
     "profileExclusions": {
-      "title": "Meine Ausschlüsse",
+      "title": "Meine Ausschlüsse und Unverträglichkeiten",
       "points": [
-        "Antippen wählt einen Ausschluss aus. Erneutes Antippen wählt ihn wieder ab.",
-        "Ausgewählte Ausschlüsse sagen GustaroAI, was nicht empfohlen werden soll.",
+        "Antippen wählt einen Ausschluss oder eine Unverträglichkeit aus. Erneutes Antippen wählt den Eintrag wieder ab.",
+        "Ausgewählte Ausschlüsse und Unverträglichkeiten sagen GustaroAI, was nicht empfohlen werden soll.",
         "Eigene Begriffe kannst Du im Eingabefeld hinzufügen. Ein einzelnes Wort als Begriff reicht, zum Beispiel „Lamm“ oder „Pilze“.",
-        "Aktive Ausschlüsse löschst Du unten im Bereich „Aktive Ausschlüsse löschen“."
+        "Aktive Ausschlüsse und Unverträglichkeiten löschst Du unten im Bereich „Aktive Ausschlüsse löschen“."
       ],
-      "tip": "Ausschlüsse sind hilfreich, wenn Du bestimmte Zutaten oder Gerichte vermeiden möchtest."
+      "tip": "Ausschlüsse und Unverträglichkeiten sind hilfreich, wenn Du bestimmte Zutaten oder Gerichte vermeiden möchtest."
     },
     "profileIntolerances": {
       "title": "Allergien",

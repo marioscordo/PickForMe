@@ -1063,8 +1063,8 @@ function PremiumProfileDetailHeader({ title, subtitle }: { title: string; subtit
     <View style={local.generalHeader}>
       <Text
         adjustsFontSizeToFit
-        minimumFontScale={0.78}
-        numberOfLines={1}
+        minimumFontScale={isLongTitle ? 0.9 : 0.78}
+        numberOfLines={isLongTitle ? 2 : 1}
         style={[local.detailTitle, isLongTitle ? local.detailTitleLong : null]}
       >
         {title}
@@ -1220,13 +1220,15 @@ function ProfileMenuRow({
   onPress: () => void;
   isLast?: boolean;
 }) {
+  const titleCanWrap = iconVariant === "exclusions" || iconVariant === "intolerances";
+
   return (
     <Pressable style={[local.menuRow, isLast && local.menuRowLast]} onPress={onPress}>
       <View style={local.menuIcon}>
         <ProfileIcon iconVariant={iconVariant} fallback={icon} />
       </View>
       <View style={local.menuTextBlock}>
-        <Text numberOfLines={iconVariant === "intolerances" ? 2 : 1} adjustsFontSizeToFit minimumFontScale={0.82} style={[local.menuTitle, iconVariant === "intolerances" ? local.menuTitleTwoLine : null]}>{title}</Text>
+        <Text numberOfLines={titleCanWrap ? 2 : 1} adjustsFontSizeToFit minimumFontScale={0.82} style={[local.menuTitle, titleCanWrap ? local.menuTitleTwoLine : null]}>{title}</Text>
         <Text style={local.menuDetail}>{detail}</Text>
       </View>
       <Feather color="#AA7C1E" name="chevron-right" size={s(30)} />
@@ -1493,8 +1495,8 @@ const local = StyleSheet.create({
     lineHeight: fs(43)
   },
   detailTitleLong: {
-    fontSize: fs(29),
-    lineHeight: fs(37)
+    fontSize: fs(34),
+    lineHeight: fs(41)
   },
   generalSubtitle: {
     color: "#6F6A61",
@@ -1897,6 +1899,7 @@ const local = StyleSheet.create({
   },
   menuTitle: {
     color: premiumColors.olive,
+    fontFamily: premiumFont,
     fontSize: fs(18),
     fontWeight: "800",
     lineHeight: fs(22)
