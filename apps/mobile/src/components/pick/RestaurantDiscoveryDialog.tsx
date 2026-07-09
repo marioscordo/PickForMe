@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Keyboard,
+  type LayoutChangeEvent,
   Modal,
   Pressable,
   ScrollView,
@@ -196,6 +197,12 @@ export function RestaurantDiscoveryDialog({
   const [message, setMessage] = useState("");
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [loadingMenu, setLoadingMenu] = useState(false);
+  const [selectionHintY, setSelectionHintY] = useState(0);
+  const [selectionHintScrollKey, setSelectionHintScrollKey] = useState(0);
+  const [selectionHintScrollRequestKey, setSelectionHintScrollRequestKey] = useState(0);
+  const [applyCardY, setApplyCardY] = useState(0);
+  const [applyCardScrollKey, setApplyCardScrollKey] = useState(0);
+  const [applyCardScrollRequestKey, setApplyCardScrollRequestKey] = useState(0);
   const sessionIdRef = useRef(0);
   const menuLookupIdRef = useRef(0);
   const visibleCountryOptions = COUNTRY_OPTIONS.filter((option) =>
@@ -206,6 +213,18 @@ export function RestaurantDiscoveryDialog({
     sessionIdRef.current += 1;
     resetDialogState();
   }, [visible]);
+
+  useEffect(() => {
+    if (selectionHintScrollRequestKey > 0 && selectionHintY > 0) {
+      setSelectionHintScrollKey(selectionHintScrollRequestKey);
+    }
+  }, [selectionHintScrollRequestKey, selectionHintY]);
+
+  useEffect(() => {
+    if (applyCardScrollRequestKey > 0 && applyCardY > 0) {
+      setApplyCardScrollKey(applyCardScrollRequestKey);
+    }
+  }, [applyCardScrollRequestKey, applyCardY]);
 
   function resetDialogState() {
     setRestaurantName("");
@@ -219,6 +238,12 @@ export function RestaurantDiscoveryDialog({
     setMessage("");
     setLoadingCandidates(false);
     setLoadingMenu(false);
+    setSelectionHintY(0);
+    setSelectionHintScrollKey(0);
+    setSelectionHintScrollRequestKey(0);
+    setApplyCardY(0);
+    setApplyCardScrollKey(0);
+    setApplyCardScrollRequestKey(0);
     menuLookupIdRef.current += 1;
   }
 
@@ -254,6 +279,9 @@ export function RestaurantDiscoveryDialog({
       if (!isCurrentSession(sessionId)) return;
       setCandidates(result);
       setMessage(result.length === 0 ? copy.noResults : "");
+      if (result.length > 0) {
+        setSelectionHintScrollRequestKey((current) => current + 1);
+      }
     } catch {
       if (!isCurrentSession(sessionId)) return;
       setCandidates([]);
@@ -269,6 +297,7 @@ export function RestaurantDiscoveryDialog({
     Keyboard.dismiss();
     setCountryMenuOpen(false);
     setSelectedCandidate(candidate);
+    setApplyCardScrollRequestKey((current) => current + 1);
     void findMenuUrl(candidate);
   }
 
@@ -285,6 +314,7 @@ export function RestaurantDiscoveryDialog({
       if (!isCurrentMenuLookup(sessionId, lookupId)) return;
       if (source.menuUrl) {
         setMenuUrl(source.menuUrl);
+        setApplyCardScrollRequestKey((current) => current + 1);
         return;
       }
 
@@ -321,6 +351,12 @@ export function RestaurantDiscoveryDialog({
     setSelectedCandidate(null);
     setMenuUrl("");
     setMessage("");
+    setSelectionHintY(0);
+    setSelectionHintScrollKey(0);
+    setSelectionHintScrollRequestKey(0);
+    setApplyCardY(0);
+    setApplyCardScrollKey(0);
+    setApplyCardScrollRequestKey(0);
     menuLookupIdRef.current += 1;
   }
 
@@ -332,6 +368,14 @@ export function RestaurantDiscoveryDialog({
     setMessage("");
   }
 
+  function handleSelectionHintLayout(event: LayoutChangeEvent) {
+    setSelectionHintY(event.nativeEvent.layout.y);
+  }
+
+  function handleApplyCardLayout(event: LayoutChangeEvent) {
+    setApplyCardY(event.nativeEvent.layout.y);
+  }
+
   if (!visible) {
     return null;
   }
@@ -339,7 +383,21 @@ export function RestaurantDiscoveryDialog({
   return (
     <Modal animationType="slide" visible={visible} onRequestClose={closeDialog}>
       <View style={local.modalShell}>
-        <Screen contentContainerStyle={local.screenContent} showScrollHint scrollToTopKey={visible ? "restaurant-discovery" : undefined}>
+        <Screen
+          contentContainerStyle={local.screenContent}
+          showScrollHint
+          scrollToOffsetKey={
+            applyCardScrollKey
+              ? `apply-card-${applyCardScrollKey}`
+              : selectionHintScrollKey
+                ? `selection-hint-${selectionHintScrollKey}`
+                : undefined
+          }
+          scrollToOffsetY={applyCardScrollKey
+            ? Math.max(applyCardY - s(12), 0)
+            : Math.max(selectionHintY - s(12), 0)}
+          scrollToTopKey={visible ? "restaurant-discovery" : undefined}
+        >
           <View style={local.header}>
             <GustaroHelp common={content.help.common} topic={content.help.menuDiscovery} style={local.headerHelpButton} />
             <View style={local.headerAccent}>
@@ -416,7 +474,7 @@ export function RestaurantDiscoveryDialog({
 
             {candidates.length > 0 ? (
               <>
-                <Text style={local.selectionHint}>{copy.selectRestaurantHint}</Text>
+                <Text onLayout={handleSelectionHintLayout} style={local.selectionHint}>{copy.selectRestaurantHint}</Text>
                 <View
                   testID="restaurant-discovery-candidate-list"
                   style={local.list}
@@ -437,7 +495,7 @@ export function RestaurantDiscoveryDialog({
             ) : null}
           </View>
 
-          <View style={local.card}>
+          <View onLayout={handleApplyCardLayout} style={local.card}>
             <View style={local.cardHeader}>
               <View style={local.cardIcon}>
                 <MaterialCommunityIcons color={premiumPalette.gold} name="book-open-variant" size={s(22)} />
