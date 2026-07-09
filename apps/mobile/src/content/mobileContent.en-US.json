@@ -68,7 +68,7 @@
     "camera": "GustaroAI needs the camera to scan menu QR codes."
   },
   "allergyWarning": {
-    "title": "Important note about allergies and intolerances",
+    "title": "Important note about allergies",
     "message": "You have entered allergies or intolerances. GustaroAI helps you choose dishes, but it does not replace medical advice or asking the restaurant staff.\n\nInformation may be incomplete or incorrect. Please check every dish yourself and do not rely only on the app.\n\nRecommendations can only be shown after you confirm this note.",
     "confirmButton": "Confirm",
     "rejectButton": "Do not confirm - delete recommendations",
@@ -149,7 +149,7 @@
     "backToProfile": "< Profile",
     "preferencesButton": "My preferences",
     "exclusionsButton": "My exclusions",
-    "intolerancesButton": "Allergies and intolerances",
+    "intolerancesButton": "Allergies",
     "intolerancesOnlyButton": "Intolerances",
     "subtitle": "GustaroAI remembers what matters to you - without a questionnaire.",
     "signOut": "Sign out",
@@ -189,7 +189,7 @@
     "addExclusionValidationError": "Please enter only foods, ingredients, or categories that can be identified on a menu. General seasonings, properties, or kitchen basics such as \"salt\" cannot be checked reliably.",
     "addExclusionValidationUnavailable": "I could not safely check this exclusion just now. Please try again.",
     "deleteActiveExclusionsLabel": "Delete active exclusions",
-    "intolerancesTitle": "Allergies & intolerances",
+    "intolerancesTitle": "Allergies",
     "intolerancesOnlyTitle": "Intolerances",
     "intolerancesHint": "These ingredients are considered especially strictly.",
     "safetyHint": "GustaroAI considers allergens where they can be identified from the menu. Always ask the restaurant directly if you have allergies.",
@@ -568,7 +568,7 @@
         "Under \"General\", you set the language GustaroAI uses for answers.",
         "Preferences help GustaroAI favor dishes that fit you better.",
         "Exclusions avoid ingredients or dishes you do not want recommended.",
-        "Allergies and intolerances are handled especially strictly."
+        "Allergies are handled especially strictly."
       ],
       "tip": "Everything is optional. Even a few details can make the recommendation feel more personal."
     },
@@ -602,9 +602,9 @@
       "tip": "Exclusions are useful when you want to avoid certain ingredients or dishes."
     },
     "profileIntolerances": {
-      "title": "Allergies and intolerances",
+      "title": "Allergies",
       "points": [
-        "Tap to select an allergy or intolerance. Tap again to deselect it.",
+        "Tap to select an allergy. Tap again to deselect it.",
         "These entries are considered especially strictly.",
         "You can add your own terms in the input field. A single word is enough, for example 'lactose' or 'histamine'.",
         "You can remove active entries in the active intolerances section."

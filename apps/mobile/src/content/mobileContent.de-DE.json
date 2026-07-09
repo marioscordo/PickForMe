@@ -68,7 +68,7 @@
     "camera": "GustaroAI benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
   },
   "allergyWarning": {
-    "title": "Wichtiger Hinweis zu Allergien und Unverträglichkeiten",
+    "title": "Wichtiger Hinweis zu Allergien",
     "message": "Du hast Allergien oder Unverträglichkeiten angegeben. GustaroAI unterstützt dich bei der Auswahl von Speisen, ersetzt aber keine medizinische Beratung und keine Rückfrage beim Servicepersonal.\n\nInformationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App.\n\nNur wenn du diesen Hinweis bestätigst, können Empfehlungen angezeigt werden.",
     "confirmButton": "Bestätigen",
     "rejectButton": "Nicht bestätigen - Empfehlungen löschen",
@@ -149,7 +149,7 @@
     "backToProfile": "‹ Profil",
     "preferencesButton": "Meine Vorlieben",
     "exclusionsButton": "Meine Ausschlüsse",
-    "intolerancesButton": "Allergien und Unverträglichkeiten",
+    "intolerancesButton": "Allergien",
     "intolerancesOnlyButton": "Unverträglichkeiten",
     "subtitle": "GustaroAI merkt sich, was Dir wichtig ist - ohne Fragebogen.",
     "signOut": "Abmelden",
@@ -189,7 +189,7 @@
     "addExclusionValidationError": "Bitte gib nur Lebensmittel, Zutaten oder Kategorien ein, die auf einer Speisekarte erkennbar sind. Allgemeine Gewürze, Eigenschaften oder Küchenbasics wie \"Salz\" können nicht zuverlässig geprüft werden.",
     "addExclusionValidationUnavailable": "Ich konnte diesen Ausschluss gerade nicht sicher prüfen. Bitte versuche es noch einmal.",
     "deleteActiveExclusionsLabel": "Aktive Ausschlüsse löschen",
-    "intolerancesTitle": "Allergien & Unverträglichkeiten",
+    "intolerancesTitle": "Allergien",
     "intolerancesOnlyTitle": "Unverträglichkeiten",
     "intolerancesHint": "Diese Zutaten werden besonders streng berücksichtigt.",
     "safetyHint": "GustaroAI berücksichtigt Allergene, soweit sie aus der Speisekarte erkennbar sind. Bitte frage bei Allergien immer im Restaurant nach.",
@@ -568,7 +568,7 @@
         "Unter „Allgemein“ stellst Du ein, in welcher Sprache GustaroAI antwortet.",
         "Vorlieben helfen GustaroAI, Gerichte zu bevorzugen, die besser zu Dir passen.",
         "Ausschlüsse vermeiden Zutaten oder Gerichte, die Du nicht empfohlen bekommen möchtest.",
-        "Allergien und Unverträglichkeiten werden besonders streng berücksichtigt."
+        "Allergien werden besonders streng berücksichtigt."
       ],
       "tip": "Alles ist freiwillig. Schon wenige Angaben machen die Empfehlung spürbar persönlicher."
     },
@@ -602,9 +602,9 @@
       "tip": "Ausschlüsse sind hilfreich, wenn Du bestimmte Zutaten oder Gerichte vermeiden möchtest."
     },
     "profileIntolerances": {
-      "title": "Allergien und Unverträglichkeiten",
+      "title": "Allergien",
       "points": [
-        "Antippen wählt eine Allergie oder Unverträglichkeit aus. Erneutes Antippen wählt sie wieder ab.",
+        "Antippen wählt eine Allergie aus. Erneutes Antippen wählt sie wieder ab.",
         "Diese Angaben werden besonders streng berücksichtigt.",
         "Eigene Begriffe kannst Du im Eingabefeld hinzufügen. Ein einzelnes Wort als Begriff reicht, zum Beispiel „Laktose“ oder „Histamin“.",
         "Aktive Einträge löschst Du unten im Bereich der aktiven Unverträglichkeiten."
