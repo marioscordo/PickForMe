@@ -1,4 +1,4 @@
-const contactEmail = "kontakt@gustaroai.com";
+const contactEmail = "info@nuvaisys.com";
 const updatedAt = "9. Juli 2026";
 
 const sectionStyle = {
@@ -26,14 +26,18 @@ export default function PrivacyPage() {
         <h2>1. Verantwortlicher</h2>
         <p>Verantwortlich für GustaroAI ist:</p>
         <p>
-          Mario Scordo - GustaroAI
+          NuvAIsys Digital – Mario Scordo
           <br />
           Einzelunternehmen
           <br />
-          Reuendorfer Weg 8a, 91336 Heroldsbach
+          Reuendorfer Weg 8a
+          <br />
+          91336 Heroldsbach
+          <br />
+          Deutschland
         </p>
         <p>
-          Kontakt für Datenschutz- und Supportanfragen:
+          Kontakt für Datenschutzanfragen:
           <br />
           <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
         </p>
