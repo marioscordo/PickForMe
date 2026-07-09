@@ -322,7 +322,6 @@
     "cityLabel": "Stadt",
     "showButton": "Zeigen",
     "restaurantOutputLabel": "Restaurant",
-    "menuButton": "Speisekarte",
     "linkOutputLabel": "Link",
     "applyButton": "Übernehmen",
     "backButton": "zurück",
@@ -361,7 +360,7 @@
       "title": "Speisekarte finden",
       "points": [
         "Du kannst ein Restaurant über Name und Stadt suchen.",
-        "Wenn eine Ergebnisliste erscheint, übernimmst Du ein Restaurant per Doppelklick bzw. Doppeltippen auf den passenden Eintrag.",
+        "Wenn eine Ergebnisliste erscheint, tippst Du auf das passende Restaurant. GustaroAI sucht den Speisekarten-Link automatisch.",
         "Der gefundene Speisekarten-Link wird in das Link-Feld übernommen. Danach kannst Du ihn übernehmen und die Analyse starten."
       ],
       "tip": "Wenn die Suche kein passendes Ergebnis liefert, prüfe Restaurantname und Stadt und versuche es erneut."

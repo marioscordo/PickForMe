@@ -9,6 +9,9 @@ type NominatimPlace = {
   place_id?: number;
   osm_type?: string;
   osm_id?: number;
+  category?: string;
+  class?: string;
+  type?: string;
   display_name?: string;
   name?: string;
   address?: {
@@ -33,7 +36,7 @@ type NominatimPlace = {
 const MAX_CANDIDATES = 5;
 const MAX_SEARCH_QUERIES = 4;
 const MAX_WEBSITE_RESOLVE_CANDIDATES = 3;
-const MAX_WEBSITE_ORIGINS_TO_CHECK = 14;
+const MAX_WEBSITE_ORIGINS_TO_CHECK = 32;
 const NOMINATIM_QUERY_DELAY_MS = 1100;
 const NOMINATIM_FETCH_TIMEOUT_MS = 5000;
 const WEBSITE_RESOLVE_TIMEOUT_MS = 5500;
@@ -87,6 +90,8 @@ const DOMAIN_STOP_WORDS = new Set([
   "a",
   "do"
 ]);
+const COMMON_RESTAURANT_DOMAIN_WORDS = ["ristorante", "restaurant", "trattoria", "pizzeria", "osteria", "cafe", "bistro"];
+const DOMAIN_ARTICLE_PREFIXES = ["il", "la", "le", "el", "the"];
 const LIKELY_OFFICIAL_DOMAIN_TLDS = ["de", "com", "it", "fr", "es", "nl", "co.uk", "com.br"];
 const PARKED_WEBSITE_TERMS = [
   "steht zum verkauf",
@@ -99,6 +104,16 @@ const PARKED_WEBSITE_TERMS = [
   "this domain is for sale",
   "parking page"
 ];
+const RESTAURANT_PLACE_TYPES = new Set([
+  "bar",
+  "biergarten",
+  "cafe",
+  "fast_food",
+  "food_court",
+  "ice_cream",
+  "pub",
+  "restaurant"
+]);
 
 export async function searchRestaurantCandidates(
   input: SearchRestaurantCandidatesInput
@@ -129,13 +144,21 @@ export async function searchRestaurantCandidates(
 
   const candidates = dedupeCandidates(
     places
+      .filter(isRestaurantPlace)
       .map(mapNominatimPlace)
       .filter((candidate): candidate is RestaurantDiscoveryCandidate => Boolean(candidate))
       .sort((a, b) => scoreCandidateMatch(b, { restaurantName, city }) - scoreCandidateMatch(a, { restaurantName, city }))
   ).slice(0, MAX_CANDIDATES);
+  const enrichedCandidates = await enrichCandidatesWithOfficialWebsites(candidates, { restaurantName, city });
+
+  if (enrichedCandidates.length > 0) {
+    return { candidates: enrichedCandidates };
+  }
+
+  const likelyOfficialCandidate = await resolveLikelyOfficialCandidate({ restaurantName, city });
 
   return {
-    candidates: await enrichCandidatesWithOfficialWebsites(candidates, { restaurantName, city })
+    candidates: likelyOfficialCandidate ? [likelyOfficialCandidate] : []
   };
 }
 
@@ -155,6 +178,13 @@ function mapNominatimPlace(place: NominatimPlace): RestaurantDiscoveryCandidate 
     address: formatNominatimAddress(place),
     ...(websiteUrl ? { websiteUrl } : {})
   };
+}
+
+function isRestaurantPlace(place: NominatimPlace) {
+  const category = normalizePlaceType(place.category ?? place.class);
+  const type = normalizePlaceType(place.type);
+
+  return category === "amenity" && RESTAURANT_PLACE_TYPES.has(type);
 }
 
 function buildRestaurantSearchQueries(input: SearchRestaurantCandidatesInput) {
@@ -245,10 +275,22 @@ async function resolveOfficialWebsiteUrl(
     .find(Boolean) ?? "";
 }
 
+async function resolveLikelyOfficialCandidate(input: SearchRestaurantCandidatesInput) {
+  const baseCandidate: RestaurantDiscoveryCandidate = {
+    id: stableSyntheticCandidateId(input),
+    name: input.restaurantName.trim(),
+    city: input.city.trim()
+  };
+  const websiteUrl = await resolveOfficialWebsiteUrl(baseCandidate, input);
+
+  return websiteUrl ? { ...baseCandidate, websiteUrl } : null;
+}
+
 function buildLikelyOfficialOrigins(
   candidate: RestaurantDiscoveryCandidate,
   input: SearchRestaurantCandidatesInput
 ) {
+  const tlds = getLikelyOfficialDomainTlds(input.city || candidate.city);
   const slugs = uniqueStrings(
     [candidate.name, input.restaurantName]
       .flatMap(buildLikelyDomainSlugs)
@@ -256,11 +298,30 @@ function buildLikelyOfficialOrigins(
   );
 
   return uniqueStrings(
-    LIKELY_OFFICIAL_DOMAIN_TLDS.flatMap((tld) => slugs.flatMap((slug) => [
+    slugs.flatMap((slug) => tlds.flatMap((tld) => [
       `https://www.${slug}.${tld}/`,
       `https://${slug}.${tld}/`
     ]))
   );
+}
+
+function getLikelyOfficialDomainTlds(city: string | undefined) {
+  const normalizedCity = normalizeDomainText(city);
+  const cityTokens = normalizedCity.split(" ").filter(Boolean);
+  const cityPreferredTlds: Record<string, string[]> = {
+    rom: ["it"],
+    roma: ["it"],
+    rome: ["it"]
+  };
+  const preferredTlds = [
+    ...(cityPreferredTlds[normalizedCity] ?? []),
+    ...cityTokens.flatMap((token) => cityPreferredTlds[token] ?? [])
+  ];
+
+  return uniqueStrings([
+    ...preferredTlds,
+    ...LIKELY_OFFICIAL_DOMAIN_TLDS
+  ]);
 }
 
 function buildLikelyDomainSlugs(value: string) {
@@ -271,10 +332,29 @@ function buildLikelyDomainSlugs(value: string) {
   const compactMeaningfulSlug = meaningfulWords.join("");
   const fullSlug = words.join("-");
   const compactFullSlug = words.join("");
+  const articleRestaurantSlugs = DOMAIN_ARTICLE_PREFIXES.flatMap((article) => (
+    COMMON_RESTAURANT_DOMAIN_WORDS.flatMap((restaurantWord) => [
+      meaningfulSlug ? `${article}-${meaningfulSlug}-${restaurantWord}` : "",
+      compactMeaningfulSlug ? `${article}${compactMeaningfulSlug}${restaurantWord}` : ""
+    ])
+  ));
+  const restaurantWordSlugs = COMMON_RESTAURANT_DOMAIN_WORDS.flatMap((restaurantWord) => [
+    meaningfulSlug ? `${restaurantWord}-${meaningfulSlug}` : "",
+    compactMeaningfulSlug ? `${restaurantWord}${compactMeaningfulSlug}` : "",
+    meaningfulSlug ? `${meaningfulSlug}-${restaurantWord}` : "",
+    compactMeaningfulSlug ? `${compactMeaningfulSlug}${restaurantWord}` : ""
+  ]);
+  const articleSlugs = DOMAIN_ARTICLE_PREFIXES.flatMap((article) => [
+    meaningfulSlug ? `${article}-${meaningfulSlug}` : "",
+    compactMeaningfulSlug ? `${article}${compactMeaningfulSlug}` : ""
+  ]);
 
   return uniqueStrings([
     meaningfulSlug,
     compactMeaningfulSlug,
+    ...articleRestaurantSlugs,
+    ...articleSlugs,
+    ...restaurantWordSlugs,
     meaningfulSlug ? `restaurant-${meaningfulSlug}` : "",
     compactMeaningfulSlug ? `restaurant${compactMeaningfulSlug}` : "",
     firstGenericWord && meaningfulSlug ? `${firstGenericWord}-${meaningfulSlug}` : "",
@@ -414,6 +494,13 @@ function normalizeSearchText(value: string) {
     .trim();
 }
 
+function normalizePlaceType(value: string | undefined) {
+  return normalizeSearchText(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function normalizeDomainText(value: string | undefined) {
   return normalizeSearchText(value ?? "")
     .replace(/\u00df/g, "ss")
@@ -485,6 +572,12 @@ function getOriginUrl(value: string) {
 
 function stableCandidateId(place: NominatimPlace, name: string) {
   return String(place.place_id ?? `${place.osm_type ?? "place"}-${place.osm_id ?? name}`);
+}
+
+function stableSyntheticCandidateId(input: SearchRestaurantCandidatesInput) {
+  return `official-${normalizeDomainText(`${input.restaurantName} ${input.city}`)
+    .replace(/\s+/g, "-")
+    .slice(0, 100)}`;
 }
 
 function dedupeCandidates(candidates: RestaurantDiscoveryCandidate[]) {

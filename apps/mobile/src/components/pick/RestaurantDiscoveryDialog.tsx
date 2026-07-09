@@ -31,7 +31,6 @@ type RestaurantDiscoveryDialogProps = {
   onApply: (menuUrl: string) => void;
 };
 
-const DOUBLE_TAP_WINDOW_MS = 500;
 const BASE_WIDTH = 393;
 const screenWidth = Dimensions.get("window").width;
 const scale = clamp(screenWidth / BASE_WIDTH, 0.92, 1.08);
@@ -122,8 +121,8 @@ export function RestaurantDiscoveryDialog({
   const [message, setMessage] = useState("");
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [loadingMenu, setLoadingMenu] = useState(false);
-  const [lastTap, setLastTap] = useState<{ id: string; time: number } | null>(null);
   const sessionIdRef = useRef(0);
+  const menuLookupIdRef = useRef(0);
 
   useEffect(() => {
     sessionIdRef.current += 1;
@@ -139,11 +138,15 @@ export function RestaurantDiscoveryDialog({
     setMessage("");
     setLoadingCandidates(false);
     setLoadingMenu(false);
-    setLastTap(null);
+    menuLookupIdRef.current += 1;
   }
 
   function isCurrentSession(sessionId: number) {
     return visible && sessionIdRef.current === sessionId;
+  }
+
+  function isCurrentMenuLookup(sessionId: number, lookupId: number) {
+    return isCurrentSession(sessionId) && menuLookupIdRef.current === lookupId;
   }
 
   function closeDialog() {
@@ -154,6 +157,7 @@ export function RestaurantDiscoveryDialog({
 
   async function showCandidates() {
     const sessionId = sessionIdRef.current;
+    menuLookupIdRef.current += 1;
     setLoadingCandidates(true);
     setSelectedCandidate(null);
     setMenuUrl("");
@@ -179,28 +183,21 @@ export function RestaurantDiscoveryDialog({
   }
 
   function handleCandidatePress(candidate: RestaurantCandidate) {
-    const now = Date.now();
-    const isDoubleTap = lastTap?.id === candidate.id && now - lastTap.time <= DOUBLE_TAP_WINDOW_MS;
-    setLastTap({ id: candidate.id, time: now });
-
-    if (!isDoubleTap) return;
-
     setSelectedCandidate(candidate);
-    setMenuUrl("");
-    setMessage("");
+    void findMenuUrl(candidate);
   }
 
-  async function findMenuUrl() {
-    if (!selectedCandidate) return;
-
+  async function findMenuUrl(candidate: RestaurantCandidate) {
     const sessionId = sessionIdRef.current;
+    const lookupId = menuLookupIdRef.current + 1;
+    menuLookupIdRef.current = lookupId;
     setLoadingMenu(true);
     setMenuUrl("");
     setMessage("");
 
     try {
-      const source = await resolveSelectedRestaurantSource(selectedCandidate, gustaroaiRestaurantDiscoveryProvider);
-      if (!isCurrentSession(sessionId)) return;
+      const source = await resolveSelectedRestaurantSource(candidate, gustaroaiRestaurantDiscoveryProvider);
+      if (!isCurrentMenuLookup(sessionId, lookupId)) return;
       if (source.menuUrl) {
         setMenuUrl(source.menuUrl);
         return;
@@ -208,10 +205,10 @@ export function RestaurantDiscoveryDialog({
 
       setMessage(copy.noMenuUrl);
     } catch {
-      if (!isCurrentSession(sessionId)) return;
+      if (!isCurrentMenuLookup(sessionId, lookupId)) return;
       setMessage(copy.noMenuUrl);
     } finally {
-      if (isCurrentSession(sessionId)) {
+      if (isCurrentMenuLookup(sessionId, lookupId)) {
         setLoadingMenu(false);
       }
     }
@@ -331,12 +328,7 @@ export function RestaurantDiscoveryDialog({
               />
             </View>
 
-            <PremiumButton
-              label={loadingMenu ? copy.loading : copy.menuButton}
-              onPress={findMenuUrl}
-              disabled={loadingMenu || !selectedCandidate}
-              icon={<MaterialCommunityIcons color={premiumPalette.gold} name="book-open-variant" size={s(18)} />}
-            />
+            {loadingMenu ? <ActivityIndicator color={premiumPalette.gold} style={local.loader} /> : null}
 
             <View style={local.fieldGroup}>
               <Text style={local.label}>{copy.linkOutputLabel}</Text>

@@ -27,6 +27,9 @@ type NominatimPlace = {
   place_id?: number;
   osm_type?: string;
   osm_id?: number;
+  category?: string;
+  class?: string;
+  type?: string;
   display_name?: string;
   name?: string;
   address?: {
@@ -103,6 +106,16 @@ const MENU_SOURCE_PATH_PARTS = [
   "gourmetkarte"
 ];
 const LIKELY_OFFICIAL_DOMAIN_TLDS = ["com", "de"];const NOMINATIM_QUERY_DELAY_MS = 1100;
+const RESTAURANT_PLACE_TYPES = new Set([
+  "bar",
+  "biergarten",
+  "cafe",
+  "fast_food",
+  "food_court",
+  "ice_cream",
+  "pub",
+  "restaurant"
+]);
 const SECOND_LEVEL_DOMAIN_SUFFIXES = new Set([
   "co.uk",
   "org.uk",
@@ -366,7 +379,10 @@ async function searchNominatimCandidates(input: DiscoverRestaurantSourcesInput):
     if (places.length >= MAX_CANDIDATES) break;
   }
 
-  return places.map(mapNominatimPlace).filter((candidate): candidate is RawDiscoveryCandidate => Boolean(candidate));
+  return places
+    .filter(isRestaurantPlace)
+    .map(mapNominatimPlace)
+    .filter((candidate): candidate is RawDiscoveryCandidate => Boolean(candidate));
 }
 
 function mapNominatimPlace(place: NominatimPlace): RawDiscoveryCandidate | null {
@@ -386,6 +402,13 @@ function mapNominatimPlace(place: NominatimPlace): RawDiscoveryCandidate | null 
     menuUrl: "",
     evidence: "openstreetmap-nominatim"
   };
+}
+
+function isRestaurantPlace(place: NominatimPlace) {
+  const category = normalizePlaceType(place.category ?? place.class);
+  const type = normalizePlaceType(place.type);
+
+  return category === "amenity" && RESTAURANT_PLACE_TYPES.has(type);
 }
 
 function formatNominatimAddress(place: NominatimPlace) {
@@ -431,6 +454,13 @@ function normalizeSearchText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizePlaceType(value: string | undefined) {
+  return normalizeSearchText(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function canAcceptRawMenuUrl(menuUrl: string, websiteUrl: string, websiteDomain: string) {

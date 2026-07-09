@@ -322,7 +322,6 @@
     "cityLabel": "City",
     "showButton": "Show",
     "restaurantOutputLabel": "Restaurant",
-    "menuButton": "Menu",
     "linkOutputLabel": "Link",
     "applyButton": "Apply",
     "backButton": "back",
@@ -361,7 +360,7 @@
       "title": "Find menu",
       "points": [
         "You can search for a restaurant by name and city.",
-        "When a result list appears, select a restaurant by double-tapping the matching entry.",
+        "When a result list appears, tap the matching restaurant. GustaroAI searches for the menu link automatically.",
         "The found menu link is copied into the link field. You can then apply it and start the analysis."
       ],
       "tip": "If the search does not find the right result, check the restaurant name and city and try again."
