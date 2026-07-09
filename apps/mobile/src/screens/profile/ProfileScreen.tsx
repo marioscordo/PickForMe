@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Dimensions, Linking, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { classifyProfilePreference } from "../../api/pickformeApi";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { ProfileEditor, type ProfileEditorSection } from "../../components/profile/ProfileEditor";
@@ -61,6 +62,8 @@ export function ProfileScreen({
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [customPreference, setCustomPreference] = useState("");
+  const [customPreferenceValidationError, setCustomPreferenceValidationError] = useState("");
+  const [customPreferenceValidationLoading, setCustomPreferenceValidationLoading] = useState(false);
   const [customExclusion, setCustomExclusion] = useState("");
   const [customIntolerance, setCustomIntolerance] = useState("");
   const [overviewContentHeight, setOverviewContentHeight] = useState(0);
@@ -224,27 +227,49 @@ export function ProfileScreen({
       });
     }
 
-    function addCustomPreference() {
+    async function addCustomPreference() {
       const value = customPreference.trim();
 
-      if (!value) {
+      if (!value || customPreferenceValidationLoading) {
         return;
       }
 
-      const isQuick = includesValue(quickPreferenceValues, value);
+      if (preferenceAlreadyExists(value)) {
+        setCustomPreferenceValidationError(editor.addPreferenceDuplicateError);
+        return;
+      }
 
-      updateProfile((currentProfile) => {
-        const currentCustomPreferences = currentProfile.customPreferences ?? [];
-        const currentHiddenPreferences = currentProfile.hiddenPreferences ?? [];
+      setCustomPreferenceValidationError("");
+      setCustomPreferenceValidationLoading(true);
 
-        return {
-          primaryLikes: addUnique(currentProfile.primaryLikes, value),
-          customPreferences: isQuick ? currentCustomPreferences : addUnique(currentCustomPreferences, value),
-          hiddenPreferences: removeValue(currentHiddenPreferences, value)
-        };
-      });
+      try {
+        const classification = await classifyProfilePreference(value);
 
-      setCustomPreference("");
+        if (!classification.allowed) {
+          setCustomPreferenceValidationError(editor.addPreferenceValidationError);
+          return;
+        }
+
+        const nextValue = classification.normalizedValue?.trim() || value;
+        const isQuick = includesValue(quickPreferenceValues, nextValue);
+
+        updateProfile((currentProfile) => {
+          const currentCustomPreferences = currentProfile.customPreferences ?? [];
+          const currentHiddenPreferences = currentProfile.hiddenPreferences ?? [];
+
+          return {
+            primaryLikes: addUnique(currentProfile.primaryLikes, nextValue),
+            customPreferences: isQuick ? currentCustomPreferences : addUnique(currentCustomPreferences, nextValue),
+            hiddenPreferences: removeValue(currentHiddenPreferences, nextValue)
+          };
+        });
+
+        setCustomPreference("");
+      } catch {
+        setCustomPreferenceValidationError(editor.addPreferenceValidationUnavailable);
+      } finally {
+        setCustomPreferenceValidationLoading(false);
+      }
     }
 
     function deleteDietStyle() {
@@ -264,6 +289,15 @@ export function ProfileScreen({
             hiddenPreferences: addUnique(currentProfile.hiddenPreferences ?? [], value)
           }))
       );
+    }
+
+    function preferenceAlreadyExists(value: string) {
+      return [
+        profile.primaryLikes,
+        customPreferences,
+        quickPreferenceValues,
+        hiddenPreferences
+      ].some((values) => includesValue(values, value));
     }
 
     function deletePreference(value: string) {
@@ -532,14 +566,21 @@ export function ProfileScreen({
             <PremiumProfileSubBlock title={editor.addPreferenceLabel}>
               <PremiumProfileInput
                 value={customPreference}
-                onChangeText={setCustomPreference}
+                onChangeText={(value) => {
+                  setCustomPreference(value);
+                  setCustomPreferenceValidationError("");
+                }}
                 placeholder={editor.addPreferencePlaceholder}
                 onSubmitEditing={addCustomPreference}
               />
+              {customPreferenceValidationError ? (
+                <Text style={local.preferenceValidationError}>{customPreferenceValidationError}</Text>
+              ) : null}
               <PremiumEditorButton
+                disabled={customPreference.trim().length === 0 || customPreferenceValidationLoading}
                 icon="thumbs-up"
                 label={editor.addPreferenceButton}
-                ready={customPreference.trim().length > 0}
+                ready={customPreference.trim().length > 0 && !customPreferenceValidationLoading}
                 onPress={addCustomPreference}
               />
             </PremiumProfileSubBlock>
@@ -974,11 +1015,13 @@ function PremiumProfileInput({
 }
 
 function PremiumEditorButton({
+  disabled,
   icon,
   label,
   onPress,
   ready
 }: {
+  disabled?: boolean;
   icon: FeatherName;
   label: string;
   onPress: () => void;
@@ -987,10 +1030,12 @@ function PremiumEditorButton({
   return (
     <Pressable
       accessibilityRole="button"
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         local.premiumEditorButton,
         ready ? local.premiumEditorButtonReady : null,
+        disabled ? local.disabled : null,
         pressed ? local.pressedSoft : null
       ]}
     >
@@ -1548,6 +1593,12 @@ const local = StyleSheet.create({
     lineHeight: fs(23),
     minHeight: s(58),
     paddingHorizontal: s(17)
+  },
+  preferenceValidationError: {
+    color: semanticColors.danger,
+    fontSize: fs(14),
+    fontWeight: "700",
+    lineHeight: fs(20)
   },
   premiumEditorButton: {
     alignItems: "center",

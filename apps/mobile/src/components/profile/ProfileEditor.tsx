@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Alert, Text, TextInput, View } from "react-native";
+import { classifyProfilePreference } from "../../api/pickformeApi";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
 import { styles } from "../../theme/styles";
@@ -41,6 +42,8 @@ export function ProfileEditor({
   const exclusiveDietPreferenceValues = editor.exclusiveDietPreferenceValues;
 
   const [customPreference, setCustomPreference] = useState("");
+  const [customPreferenceValidationError, setCustomPreferenceValidationError] = useState("");
+  const [customPreferenceValidationLoading, setCustomPreferenceValidationLoading] = useState(false);
   const [customExclusion, setCustomExclusion] = useState("");
   const [customIntolerance, setCustomIntolerance] = useState("");
 
@@ -117,27 +120,49 @@ export function ProfileEditor({
     });
   }
 
-  function addCustomPreference() {
+  async function addCustomPreference() {
     const value = customPreference.trim();
 
-    if (!value) {
+    if (!value || customPreferenceValidationLoading) {
       return;
     }
 
-    const isQuick = includesValue(quickPreferenceValues, value);
+    if (preferenceAlreadyExists(value)) {
+      setCustomPreferenceValidationError(editor.addPreferenceDuplicateError);
+      return;
+    }
 
-    updateProfile((currentProfile) => {
-      const currentCustomPreferences = currentProfile.customPreferences ?? [];
-      const currentHiddenPreferences = currentProfile.hiddenPreferences ?? [];
+    setCustomPreferenceValidationError("");
+    setCustomPreferenceValidationLoading(true);
 
-      return {
-        primaryLikes: addUnique(currentProfile.primaryLikes, value),
-        customPreferences: isQuick ? currentCustomPreferences : addUnique(currentCustomPreferences, value),
-        hiddenPreferences: removeValue(currentHiddenPreferences, value)
-      };
-    });
+    try {
+      const classification = await classifyProfilePreference(value);
 
-    setCustomPreference("");
+      if (!classification.allowed) {
+        setCustomPreferenceValidationError(editor.addPreferenceValidationError);
+        return;
+      }
+
+      const nextValue = classification.normalizedValue?.trim() || value;
+      const isQuick = includesValue(quickPreferenceValues, nextValue);
+
+      updateProfile((currentProfile) => {
+        const currentCustomPreferences = currentProfile.customPreferences ?? [];
+        const currentHiddenPreferences = currentProfile.hiddenPreferences ?? [];
+
+        return {
+          primaryLikes: addUnique(currentProfile.primaryLikes, nextValue),
+          customPreferences: isQuick ? currentCustomPreferences : addUnique(currentCustomPreferences, nextValue),
+          hiddenPreferences: removeValue(currentHiddenPreferences, nextValue)
+        };
+      });
+
+      setCustomPreference("");
+    } catch {
+      setCustomPreferenceValidationError(editor.addPreferenceValidationUnavailable);
+    } finally {
+      setCustomPreferenceValidationLoading(false);
+    }
   }
 
   function setDietStyle(dietStyle: UserProfile["dietStyle"]) {
@@ -148,6 +173,15 @@ export function ProfileEditor({
 
       return { dietStyle, primaryLikes };
     });
+  }
+
+  function preferenceAlreadyExists(value: string) {
+    return [
+      profile.primaryLikes,
+      customPreferences,
+      quickPreferenceValues,
+      hiddenPreferences
+    ].some((values) => includesValue(values, value));
   }
 
   function deleteDietStyle() {
@@ -348,15 +382,23 @@ export function ProfileEditor({
           <TextInput
             style={styles.input}
             value={customPreference}
-            onChangeText={setCustomPreference}
+            onChangeText={(value) => {
+              setCustomPreference(value);
+              setCustomPreferenceValidationError("");
+            }}
             placeholder={editor.addPreferencePlaceholder}
             returnKeyType="done"
             onSubmitEditing={addCustomPreference}
           />
 
+          {customPreferenceValidationError ? (
+            <Text style={styles.error}>{customPreferenceValidationError}</Text>
+          ) : null}
+
           <ActionButton
             label={labelWithIcon(editor.addPreferenceButton, editor.preferenceValueIcon)}
             variant="secondary"
+            disabled={customPreference.trim().length === 0 || customPreferenceValidationLoading}
             onPress={addCustomPreference}
           />
         </View>

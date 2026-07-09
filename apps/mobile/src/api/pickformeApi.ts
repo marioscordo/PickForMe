@@ -46,6 +46,28 @@ type LogAllergyWarningConfirmationBody = {
   confirmationTimestamp: string;
 };
 
+export type ProfilePreferenceClassificationResult = {
+  allowed: boolean;
+  classification:
+    | "food_item"
+    | "ingredient"
+    | "dish"
+    | "food_category"
+    | "property"
+    | "preparation"
+    | "nutrition_goal"
+    | "price_or_portion"
+    | "ubiquitous_basic"
+    | "ambiguous"
+    | "unsafe";
+  normalizedValue?: string;
+  reasonCode?: string;
+};
+
+type ClassifyProfilePreferenceBody = {
+  value: string;
+};
+
 export type RestaurantDiscoveryApiCandidate = {
   id: string;
   name: string;
@@ -133,6 +155,16 @@ export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {
     body,
     {
       signal: args.signal
+    }
+  );
+}
+
+export function classifyProfilePreference(value: string, signal?: AbortSignal) {
+  return apiPost<ProfilePreferenceClassificationResult, ClassifyProfilePreferenceBody>(
+    "/api/profile-preference-classification",
+    { value },
+    {
+      signal
     }
   );
 }
