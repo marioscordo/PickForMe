@@ -31,7 +31,7 @@ type RestaurantDiscoveryDialogProps = {
   onGoHome?: () => void;
   visible: boolean;
   onClose: () => void;
-  onApply: (menuUrl: string) => void;
+  onApply: (menuUrl: string, restaurantName?: string) => void;
 };
 
 const BASE_WIDTH = 393;
@@ -332,9 +332,10 @@ export function RestaurantDiscoveryDialog({
   function applyMenuUrl() {
     if (!menuUrl) return;
     const nextMenuUrl = menuUrl;
+    const nextRestaurantName = selectedCandidate?.name.trim();
     sessionIdRef.current += 1;
     resetDialogState();
-    onApply(nextMenuUrl);
+    onApply(nextMenuUrl, nextRestaurantName || undefined);
   }
 
   function goHomeFromDialog() {

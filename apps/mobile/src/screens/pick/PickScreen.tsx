@@ -51,6 +51,7 @@ export function PickScreen({
   const { profile } = useProfile();
   const loadingSteps = content.pick.loadingSteps;
   const [menuText, setMenuText] = useState("");
+  const [selectedRestaurantName, setSelectedRestaurantName] = useState("");
   const [situation, setSituation] = useState<Situation>("leicht");
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showPhotoCamera, setShowPhotoCamera] = useState(false);
@@ -92,6 +93,11 @@ export function PickScreen({
     return "";
   }
 
+  function updateMenuText(value: string) {
+    setMenuText(value);
+    setSelectedRestaurantName("");
+  }
+
   function handleAnalyze() {
     pendingConfirmedMenuTextRef.current = null;
 
@@ -111,6 +117,7 @@ export function PickScreen({
 
   function startAnalyzeWithExtractedMenuText(value: string) {
     setMenuText(value);
+    setSelectedRestaurantName("");
     setLastAnalyzedMenuUrl("");
 
     if (hasAllergiesOrIntolerances(profile)) {
@@ -126,6 +133,7 @@ export function PickScreen({
   function resetAnalysisState() {
     analyze.reset();
     setMenuText("");
+    setSelectedRestaurantName("");
     setLastAnalyzedMenuUrl("");
     setLoadingStepIndex(0);
     setEntryScrollToActionKey(0);
@@ -135,8 +143,9 @@ export function PickScreen({
     setShowRestaurantDiscovery(false);
   }
 
-  function applyDiscoveredMenuUrl(value: string) {
+  function applyDiscoveredMenuUrl(value: string, restaurantName?: string) {
     setMenuText(value);
+    setSelectedRestaurantName(restaurantName?.trim() ?? "");
     setShowQrScanner(false);
     setShowPhotoCamera(false);
     setPhotoMenuError("");
@@ -269,6 +278,9 @@ export function PickScreen({
     );
   }
 
+  const restaurantContextName = selectedRestaurantName.trim();
+  const showRestaurantContext = Boolean(menuText.trim() && restaurantContextName);
+
   return (
     <Screen
       bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET}
@@ -322,6 +334,7 @@ export function PickScreen({
           <QrMenuScanner
             onUrlScanned={(value: string) => {
               setMenuText(value);
+              setSelectedRestaurantName("");
               setShowQrScanner(false);
               setShowPhotoCamera(false);
               setPhotoMenuError("");
@@ -330,7 +343,7 @@ export function PickScreen({
             onClose={() => setShowQrScanner(false)}
           />
         ) : (
-          <MenuInputCard menuText={menuText} setMenuText={setMenuText} compact />
+          <MenuInputCard menuText={menuText} setMenuText={updateMenuText} compact />
         )}
 
         {photoMenuError ? (
@@ -367,6 +380,13 @@ export function PickScreen({
         onGoHome={onGoHome}
         onApply={applyDiscoveredMenuUrl}
       />
+
+      {showRestaurantContext ? (
+        <View style={local.restaurantContextCard}>
+          <Text style={local.restaurantContextLabel}>{content.pick.restaurantContextLabel}</Text>
+          <Text style={local.restaurantContextName}>{restaurantContextName}</Text>
+        </View>
+      ) : null}
 
       <View style={local.premiumCard}>
         <View style={local.cardHeader}>
@@ -521,6 +541,35 @@ const local = StyleSheet.create({
     shadowOffset: { width: 0, height: s(10) },
     shadowOpacity: 0.08,
     shadowRadius: s(20)
+  },
+
+  restaurantContextCard: {
+    backgroundColor: premiumPalette.surface,
+    borderColor: premiumPalette.border,
+    borderRadius: s(24),
+    borderWidth: 1,
+    marginBottom: s(18),
+    paddingHorizontal: s(20),
+    paddingVertical: s(18),
+    shadowColor: "#6F5522",
+    shadowOffset: { width: 0, height: s(8) },
+    shadowOpacity: 0.06,
+    shadowRadius: s(16)
+  },
+
+  restaurantContextLabel: {
+    color: premiumPalette.textSoft,
+    fontSize: fs(14),
+    fontWeight: "700",
+    lineHeight: fs(20),
+    marginBottom: s(4)
+  },
+
+  restaurantContextName: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(22),
+    fontWeight: "800",
+    lineHeight: fs(28)
   },
 
   cardHeader: {
