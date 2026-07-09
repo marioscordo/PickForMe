@@ -338,6 +338,9 @@ async function findMenuFromOfficialSource(
     const source = await loadPageSource(sourceUrl);
     if (!source) continue;
     if (requireSourceMatch && !sourceMatchesRestaurant(source.html, source.finalUrl, candidate)) continue;
+    if (await isDirectlyAnalyzableMenuUrl(source.finalUrl)) {
+      return source.finalUrl;
+    }
 
     const websiteDomain = getRegistrableDomain(source.finalUrl);
     const sourceLinks = extractSourceLinks(source.html, source.finalUrl)
