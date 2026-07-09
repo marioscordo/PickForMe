@@ -18,6 +18,7 @@ type PendingHtmlDish = {
   descriptionParts: string[];
   sourceParts: string[];
   category?: string;
+  sourceSectionOriginal?: string;
 };
 
 type HtmlCategoryClassification = {
@@ -38,6 +39,7 @@ const ADJACENT_PRICE_FOOD_TERMS = [
   "baguette",
   "braten",
   "burger",
+  "chili",
   "currywurst",
   "dorade",
   "ente",
@@ -124,6 +126,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
   const items: MenuExtractionItem[] = [];
   let pending: PendingHtmlDish | null = null;
   let currentCategory: string | undefined;
+  let currentSourceSectionOriginal: string | undefined;
 
   const rememberFragment = (line: string) => {
     if (fragments.length >= 80 || isNoiseLine(line) || isAllergenCodeLine(line)) {
@@ -135,6 +138,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       PRICE_LINE_PATTERN.test(line) ||
       extractLastPrice(line) ||
       isCategoryLine(line) ||
+      isWeekdayDateHeading(line) ||
       looksLikeAdjacentPriceDishTitle(line) ||
       pending
     ) {
@@ -162,6 +166,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       price: normalizePrice(price),
       category: pending.category,
       sourceCategory: pending.category,
+      sourceSectionOriginal: pending.sourceSectionOriginal,
       sourceFormat: "html",
       ...classification,
       confidence: 0.9,
@@ -218,6 +223,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
             price: normalizePrice(inlinePrice.raw),
             category: currentCategory,
             sourceCategory: currentCategory,
+            sourceSectionOriginal: currentSourceSectionOriginal,
             sourceFormat: "html",
             ...classification,
             confidence: 0.85,
@@ -226,6 +232,13 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
         }
       }
 
+      pending = null;
+      continue;
+    }
+
+    if (isWeekdayDateHeading(line)) {
+      currentSourceSectionOriginal = line;
+      currentCategory = undefined;
       pending = null;
       continue;
     }
@@ -246,7 +259,8 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
             title,
             descriptionParts: [],
             sourceParts: [line],
-            category: currentCategory
+            category: currentCategory,
+            sourceSectionOriginal: currentSourceSectionOriginal
           }
         : null;
 
@@ -267,7 +281,8 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
         title: cleanDishTitle(line),
         descriptionParts: [],
         sourceParts: [line],
-        category: currentCategory
+        category: currentCategory,
+        sourceSectionOriginal: currentSourceSectionOriginal
       };
       continue;
     }
@@ -277,7 +292,8 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
         title: cleanDishTitle(line),
         descriptionParts: [],
         sourceParts: [line],
-        category: currentCategory
+        category: currentCategory,
+        sourceSectionOriginal: currentSourceSectionOriginal
       };
     }
   }

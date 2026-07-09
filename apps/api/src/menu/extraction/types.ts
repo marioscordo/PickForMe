@@ -14,6 +14,7 @@ export type MenuExtractionItem = {
   price?: string;
   category?: string;
   sourceCategory?: string;
+  sourceSectionOriginal?: string;
   sourceFormat: MenuSourceFormat;
   dishRole?: DishRole;
   mealType?: MealType;

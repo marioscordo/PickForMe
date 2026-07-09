@@ -13,6 +13,7 @@ import {
   htmlMenuExtractionToDishes,
   htmlMenuExtractionToMenuText
 } from "../../../src/menu/extraction/extractHtmlMenu";
+import { prepareRecommendationSearchSpace } from "../../../src/menu/prepareRecommendationSearchSpace";
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import { findLinkedMenuImageUrls, looksLikeImageUrl } from "../../../src/menu/findLinkedMenuImageUrls";
 import { loadMenuTextFromMenury, looksLikeMenuryUrl } from "../../../src/menu/loadMenuTextFromMenury";
@@ -661,6 +662,20 @@ async function analyzeMenuWithTwoStepMainFlow({
   const flowStartedAt = Date.now();
   const sourceKind = source.kind;
   const sourceCount = getTwoStepMainSourceCount(source);
+  const searchSpace = prepareRecommendationSearchSpace({
+    sourceKind,
+    menuText: source.text ?? "",
+    htmlMenuExtraction,
+    timezone: "Europe/Berlin",
+    now: new Date()
+  });
+  const canApplySearchSpaceRestriction = sourceKind === "html" || sourceKind === "text";
+  const sourceForMainAi = searchSpace.restrictionApplied && canApplySearchSpaceRestriction
+    ? {
+        ...source,
+        text: searchSpace.text
+      }
+    : source;
   let proposedMainDishes: Awaited<ReturnType<typeof recommendMainDishesAI>>;
   let mainAiDurationMs = 0;
 
@@ -668,7 +683,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   try {
     proposedMainDishes = await withAbortTimeout(
       (signal) => recommendMainDishesAI({
-        source,
+        source: sourceForMainAi,
         profile,
         userLocale: outputLocale,
         signal
