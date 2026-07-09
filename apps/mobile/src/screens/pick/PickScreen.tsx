@@ -22,6 +22,7 @@ import type { Situation, UserProfile } from "../../types/profile";
 
 type PickScreenProps = {
   onGoHome?: () => void;
+  onOpenProfile?: () => void;
 };
 
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
@@ -46,7 +47,8 @@ function fs(value: number) {
 }
 
 export function PickScreen({
-  onGoHome
+  onGoHome,
+  onOpenProfile
 }: PickScreenProps) {
   const content = useMobileContent();
   const { profile } = useProfile();
@@ -281,6 +283,7 @@ export function PickScreen({
 
   const restaurantContextName = selectedRestaurantName.trim();
   const showRestaurantContext = Boolean(menuText.trim() && restaurantContextName);
+  const showEmptyProfileHint = !hasActiveProfileChips(profile);
 
   return (
     <Screen
@@ -386,6 +389,30 @@ export function PickScreen({
         <View style={local.restaurantContextCard}>
           <Text style={local.restaurantContextLabel}>{content.pick.restaurantContextLabel}</Text>
           <Text style={local.restaurantContextName}>{restaurantContextName}</Text>
+        </View>
+      ) : null}
+
+      {showEmptyProfileHint ? (
+        <View style={local.profileHintCard}>
+          <View style={local.profileHintIcon}>
+            <Feather color={premiumPalette.gold} name="user" size={s(19)} />
+          </View>
+          <View style={local.profileHintCopy}>
+            <Text style={local.profileHintTitle}>{content.pick.profileHintTitle}</Text>
+            <Text style={local.profileHintText}>{content.pick.profileHintText}</Text>
+          </View>
+          {onOpenProfile ? (
+            <Pressable
+              accessibilityRole="link"
+              onPress={onOpenProfile}
+              style={({ pressed }) => [
+                local.profileHintButton,
+                pressed ? local.profileHintButtonPressed : null
+              ]}
+            >
+              <Text style={local.profileHintButtonText}>{content.pick.profileHintAction}</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -575,6 +602,72 @@ const local = StyleSheet.create({
     fontSize: fs(22),
     fontWeight: "800",
     lineHeight: fs(28)
+  },
+
+  profileHintCard: {
+    alignItems: "flex-start",
+    backgroundColor: premiumPalette.surface,
+    borderColor: premiumPalette.border,
+    borderRadius: s(24),
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: s(12),
+    marginBottom: s(18),
+    padding: s(18),
+    shadowColor: "#6F5522",
+    shadowOffset: { width: 0, height: s(8) },
+    shadowOpacity: 0.06,
+    shadowRadius: s(16)
+  },
+
+  profileHintIcon: {
+    alignItems: "center",
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.borderSoft,
+    borderRadius: s(17),
+    borderWidth: 1,
+    height: s(38),
+    justifyContent: "center",
+    width: s(38)
+  },
+
+  profileHintCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+
+  profileHintTitle: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(16),
+    fontWeight: "800",
+    lineHeight: fs(21),
+    marginBottom: s(4)
+  },
+
+  profileHintText: {
+    color: premiumPalette.textSoft,
+    fontSize: fs(14),
+    fontWeight: "600",
+    lineHeight: fs(20)
+  },
+
+  profileHintButton: {
+    borderColor: premiumPalette.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: s(12),
+    paddingVertical: s(8)
+  },
+
+  profileHintButtonPressed: {
+    opacity: 0.72
+  },
+
+  profileHintButtonText: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(13),
+    fontWeight: "800",
+    lineHeight: fs(17)
   },
 
   cardHeader: {
@@ -795,6 +888,14 @@ function hasAllergiesOrIntolerances(profile: UserProfile) {
   const allergenValues = profileFeatures.allergenModuleEnabled ? profile.allergens : [];
 
   return [allergenValues, profile.intolerances, profile.customIntolerances].some((items) =>
+    (items ?? []).some((item) => item.trim().length > 0)
+  );
+}
+
+function hasActiveProfileChips(profile: UserProfile) {
+  const allergenValues = profileFeatures.allergenModuleEnabled ? profile.allergens : [];
+
+  return profile.dietStyle !== "normal" || [profile.primaryLikes, profile.dislikes, profile.intolerances, allergenValues].some((items) =>
     (items ?? []).some((item) => item.trim().length > 0)
   );
 }

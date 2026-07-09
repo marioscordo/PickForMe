@@ -36,7 +36,10 @@
     "openMenu": "Speisekarte öffnen",
     "findMenuButton": "Speisekarte finden",
     "photoMenuButton": "Speisekarte fotografieren",
-    "moodHint": "Wähle, wonach Dir gerade ist."
+    "moodHint": "Wähle, wonach Dir gerade ist.",
+    "profileHintTitle": "Profil noch leer",
+    "profileHintText": "Aktiviere in Deinem Profil mindestens einen Chip für Vorlieben, Ausschlüsse, Unverträglichkeiten oder Allergien, damit GustaroAI persönlicher empfehlen kann.",
+    "profileHintAction": "Zum Profil"
   },
   "photoMenu": {
     "title": "Speisekarte fotografieren",

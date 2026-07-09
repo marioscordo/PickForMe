@@ -44,6 +44,7 @@ export function RootNavigator({ auth }: { auth: AuthState }) {
       <View style={[styles.flex, activeTab !== "pick" && local.hiddenScreen]}>
         <PickScreen
           onGoHome={goHome}
+          onOpenProfile={openProfileFromStart}
         />
       </View>
 

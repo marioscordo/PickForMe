@@ -36,7 +36,10 @@
     "openMenu": "Open menu",
     "findMenuButton": "Find menu",
     "photoMenuButton": "Photograph menu",
-    "moodHint": "Choose what you feel like today."
+    "moodHint": "Choose what you feel like today.",
+    "profileHintTitle": "Profile still empty",
+    "profileHintText": "Activate at least one chip for preferences, exclusions, intolerances, or allergies in your profile so GustaroAI can recommend more personally.",
+    "profileHintAction": "Go to profile"
   },
   "photoMenu": {
     "title": "Photograph menu",
