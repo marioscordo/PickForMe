@@ -8,7 +8,8 @@ import { searchRestaurantCandidates } from "../../../src/restaurant/searchRestau
 
 const RestaurantDiscoveryRequestSchema = z.object({
   restaurantName: z.string().trim().min(1).max(160),
-  city: z.string().trim().min(1).max(120)
+  city: z.string().trim().min(1).max(120),
+  country: z.string().trim().max(80).optional().default("")
 });
 
 export async function POST(request: Request) {

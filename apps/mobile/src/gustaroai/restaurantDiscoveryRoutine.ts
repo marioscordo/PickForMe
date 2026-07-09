@@ -3,12 +3,14 @@ import { discoverRestaurantMenu, discoverRestaurants } from "../api/pickformeApi
 export type RestaurantDiscoveryInput = {
   restaurantName: string;
   city: string;
+  country?: string;
 };
 
 export type RestaurantCandidate = {
   id: string;
   name: string;
   city: string;
+  country?: string;
   address?: string;
   websiteUrl?: string;
   menuUrl?: string;
@@ -139,6 +141,7 @@ export const gustaroaiRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
       id: candidate.id,
       name: candidate.name,
       city: candidate.city,
+      country: candidate.country,
       address: candidate.address,
       websiteUrl: candidate.websiteUrl,
       menuUrl: candidate.menuUrl
@@ -173,7 +176,9 @@ export const nominatimRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
       }
 
       const query = encodeURIComponent(queryText);
-      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${DISCOVERY_LIMIT}&addressdetails=1&extratags=1&q=${query}`;
+      const countryCode = getNominatimCountryCode(input.country);
+      const countryCodeParam = countryCode ? `&countrycodes=${encodeURIComponent(countryCode)}` : "";
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${DISCOVERY_LIMIT}&addressdetails=1&extratags=1${countryCodeParam}&q=${query}`;
       const response = await fetch(url, { headers: DISCOVERY_FETCH_HEADERS });
 
       if (!response.ok) {
@@ -185,7 +190,7 @@ export const nominatimRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
     }
 
     return places
-      .map(mapNominatimPlace)
+      .map((place) => mapNominatimPlace(place, input.country))
       .filter((candidate): candidate is RestaurantCandidate => Boolean(candidate))
       .sort((a, b) => scoreCandidateMatch(b, input) - scoreCandidateMatch(a, input));
   },
@@ -219,7 +224,7 @@ export const nominatimRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
   }
 };
 
-function mapNominatimPlace(place: NominatimPlace): RestaurantCandidate | null {
+function mapNominatimPlace(place: NominatimPlace, country: string | undefined): RestaurantCandidate | null {
   const name = (place.name || firstDisplayNamePart(place.display_name)).trim();
   const city = (place.address?.city || place.address?.town || place.address?.village || place.address?.municipality || "").trim();
   const websiteUrl = normalizeOfficialUrl(
@@ -232,6 +237,7 @@ function mapNominatimPlace(place: NominatimPlace): RestaurantCandidate | null {
     id: String(place.place_id ?? `${place.osm_type ?? "place"}-${place.osm_id ?? name}`),
     name,
     city,
+    ...(country ? { country } : {}),
     address: formatAddress(place),
     ...(websiteUrl ? { websiteUrl } : {})
   };
@@ -293,6 +299,11 @@ function getCityAliases(city: string) {
   };
 
   return aliases[normalizedCity] ?? [];
+}
+
+function getNominatimCountryCode(country: string | undefined) {
+  const code = country?.trim().slice(0, 2).toLowerCase();
+  return code && /^[a-z]{2}$/.test(code) ? code : "";
 }
 
 function normalizeOfficialUrl(value: string | undefined, baseUrl?: string) {

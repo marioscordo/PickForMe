@@ -57,6 +57,7 @@ export function PickScreen({
   const [photoMenuLoading, setPhotoMenuLoading] = useState(false);
   const [photoMenuError, setPhotoMenuError] = useState("");
   const [showRestaurantDiscovery, setShowRestaurantDiscovery] = useState(false);
+  const [entryScrollToActionKey, setEntryScrollToActionKey] = useState(0);
   const analyze = useAnalyzeMenu();
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
   const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
@@ -127,6 +128,7 @@ export function PickScreen({
     setMenuText("");
     setLastAnalyzedMenuUrl("");
     setLoadingStepIndex(0);
+    setEntryScrollToActionKey(0);
   }
 
   function closeRestaurantDiscovery() {
@@ -139,6 +141,7 @@ export function PickScreen({
     setShowPhotoCamera(false);
     setPhotoMenuError("");
     setShowRestaurantDiscovery(false);
+    setEntryScrollToActionKey((current) => current + 1);
   }
 
   function openPhotoCamera() {
@@ -270,6 +273,7 @@ export function PickScreen({
     <Screen
       bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET}
       contentContainerStyle={local.entryScreenContent}
+      scrollToEndKey={entryScrollToActionKey || undefined}
       scrollToTopKey="pick-entry"
     >
       <View style={local.conciergeIntro}>

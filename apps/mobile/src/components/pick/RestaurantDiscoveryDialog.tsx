@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  Keyboard,
   Modal,
   Pressable,
+  ScrollView,
   type StyleProp,
   StyleSheet,
   Text,
@@ -59,6 +61,76 @@ const premiumPalette = {
   textSoft: "#6F6A61",
   disabledText: "#9B9285"
 };
+const COUNTRY_OPTIONS = [
+  "AL",
+  "AD",
+  "AM",
+  "AT",
+  "AZ",
+  "BY",
+  "BE",
+  "BA",
+  "BG",
+  "HR",
+  "CY",
+  "CZ",
+  "DK",
+  "EE",
+  "FI",
+  "FR",
+  "GE",
+  "DE",
+  "GR",
+  "HU",
+  "IS",
+  "IE",
+  "IT",
+  "XK",
+  "LV",
+  "LI",
+  "LT",
+  "LU",
+  "MT",
+  "MD",
+  "MC",
+  "ME",
+  "NL",
+  "MK",
+  "NO",
+  "PL",
+  "PT",
+  "RO",
+  "RU",
+  "SM",
+  "RS",
+  "SK",
+  "SI",
+  "ES",
+  "SE",
+  "CH",
+  "TR",
+  "UA",
+  "GB",
+  "VA",
+  "US",
+  "CA",
+  "CN",
+  "JP",
+  "AU",
+  "BR",
+  "MX",
+  "AR",
+  "CL",
+  "IN",
+  "TH",
+  "VN",
+  "KR",
+  "SG",
+  "AE",
+  "ZA"
+] as const;
+type RestaurantDiscoveryCountryCode = (typeof COUNTRY_OPTIONS)[number];
+const DEFAULT_COUNTRY: RestaurantDiscoveryCountryCode = "DE";
 
 function PremiumButton({
   disabled,
@@ -115,6 +187,9 @@ export function RestaurantDiscoveryDialog({
   const copy = content.restaurantDiscovery;
   const [restaurantName, setRestaurantName] = useState("");
   const [city, setCity] = useState("");
+  const [country, setCountry] = useState<RestaurantDiscoveryCountryCode>(DEFAULT_COUNTRY);
+  const [countryMenuOpen, setCountryMenuOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
   const [candidates, setCandidates] = useState<RestaurantCandidate[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<RestaurantCandidate | null>(null);
   const [menuUrl, setMenuUrl] = useState("");
@@ -123,6 +198,9 @@ export function RestaurantDiscoveryDialog({
   const [loadingMenu, setLoadingMenu] = useState(false);
   const sessionIdRef = useRef(0);
   const menuLookupIdRef = useRef(0);
+  const visibleCountryOptions = COUNTRY_OPTIONS.filter((option) =>
+    matchesCountrySearch(option, copy.countries[option], countrySearch)
+  );
 
   useEffect(() => {
     sessionIdRef.current += 1;
@@ -132,6 +210,9 @@ export function RestaurantDiscoveryDialog({
   function resetDialogState() {
     setRestaurantName("");
     setCity("");
+    setCountry(DEFAULT_COUNTRY);
+    setCountryMenuOpen(false);
+    setCountrySearch("");
     setCandidates([]);
     setSelectedCandidate(null);
     setMenuUrl("");
@@ -158,6 +239,8 @@ export function RestaurantDiscoveryDialog({
   async function showCandidates() {
     const sessionId = sessionIdRef.current;
     menuLookupIdRef.current += 1;
+    Keyboard.dismiss();
+    setCountryMenuOpen(false);
     setLoadingCandidates(true);
     setSelectedCandidate(null);
     setMenuUrl("");
@@ -165,7 +248,7 @@ export function RestaurantDiscoveryDialog({
 
     try {
       const result = await generateRestaurantCandidates(
-        { restaurantName, city },
+        { restaurantName, city, country },
         gustaroaiRestaurantDiscoveryProvider
       );
       if (!isCurrentSession(sessionId)) return;
@@ -183,6 +266,8 @@ export function RestaurantDiscoveryDialog({
   }
 
   function handleCandidatePress(candidate: RestaurantCandidate) {
+    Keyboard.dismiss();
+    setCountryMenuOpen(false);
     setSelectedCandidate(candidate);
     void findMenuUrl(candidate);
   }
@@ -225,6 +310,26 @@ export function RestaurantDiscoveryDialog({
   function goHomeFromDialog() {
     closeDialog();
     onGoHome?.();
+  }
+
+  function selectCountry(nextCountry: RestaurantDiscoveryCountryCode) {
+    Keyboard.dismiss();
+    setCountry(nextCountry);
+    setCountryMenuOpen(false);
+    setCountrySearch("");
+    setCandidates([]);
+    setSelectedCandidate(null);
+    setMenuUrl("");
+    setMessage("");
+    menuLookupIdRef.current += 1;
+  }
+
+  function cancelSearch() {
+    sessionIdRef.current += 1;
+    menuLookupIdRef.current += 1;
+    setLoadingCandidates(false);
+    setLoadingMenu(false);
+    setMessage("");
   }
 
   if (!visible) {
@@ -279,6 +384,23 @@ export function RestaurantDiscoveryDialog({
               />
             </View>
 
+            <View style={local.fieldGroup}>
+              <Text style={local.label}>{copy.countryLabel}</Text>
+              <Pressable
+                accessibilityRole="button"
+                testID="restaurant-discovery-country-select"
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setCountrySearch("");
+                  setCountryMenuOpen((open) => !open);
+                }}
+                style={({ pressed }) => [local.countrySelect, pressed ? local.countrySelectPressed : null]}
+              >
+                <Text style={local.countrySelectText}>{copy.countries[country]}</Text>
+                <Feather color={premiumPalette.gold} name={countryMenuOpen ? "chevron-up" : "chevron-down"} size={s(18)} />
+              </Pressable>
+            </View>
+
             <PremiumButton
               label={loadingCandidates ? copy.loading : copy.showButton}
               onPress={showCandidates}
@@ -288,24 +410,30 @@ export function RestaurantDiscoveryDialog({
             />
 
             {loadingCandidates ? <ActivityIndicator color={premiumPalette.gold} style={local.loader} /> : null}
+            {loadingCandidates ? (
+              <PremiumButton label={copy.cancelSearchButton} onPress={cancelSearch} style={local.cancelButton} />
+            ) : null}
 
             {candidates.length > 0 ? (
-              <View
-                testID="restaurant-discovery-candidate-list"
-                style={local.list}
-              >
-                {candidates.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    testID="restaurant-discovery-candidate"
-                    onPress={() => handleCandidatePress(item)}
-                    style={[local.candidate, selectedCandidate?.id === item.id && local.candidateSelected]}
-                  >
-                    <Text style={local.candidateName}>{item.name}</Text>
-                    <Text style={local.candidateMeta}>{[item.address, item.websiteUrl].filter(Boolean).join(" - ")}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              <>
+                <Text style={local.selectionHint}>{copy.selectRestaurantHint}</Text>
+                <View
+                  testID="restaurant-discovery-candidate-list"
+                  style={local.list}
+                >
+                  {candidates.map((item) => (
+                    <Pressable
+                      key={item.id}
+                      testID="restaurant-discovery-candidate"
+                      onPress={() => handleCandidatePress(item)}
+                      style={[local.candidate, selectedCandidate?.id === item.id && local.candidateSelected]}
+                    >
+                      <Text style={local.candidateName}>{item.name}</Text>
+                      <Text style={local.candidateMeta}>{[item.address, item.websiteUrl].filter(Boolean).join(" - ")}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
             ) : null}
           </View>
 
@@ -316,6 +444,8 @@ export function RestaurantDiscoveryDialog({
               </View>
               <Text style={local.cardTitle}>{copy.applyCardTitle}</Text>
             </View>
+
+            {menuUrl ? <Text style={local.applyHint}>{copy.applyHint}</Text> : null}
 
             <View style={local.fieldGroup}>
               <Text style={local.label}>{copy.restaurantOutputLabel}</Text>
@@ -329,6 +459,9 @@ export function RestaurantDiscoveryDialog({
             </View>
 
             {loadingMenu ? <ActivityIndicator color={premiumPalette.gold} style={local.loader} /> : null}
+            {loadingMenu ? (
+              <PremiumButton label={copy.cancelSearchButton} onPress={cancelSearch} style={local.cancelButton} />
+            ) : null}
 
             <View style={local.fieldGroup}>
               <Text style={local.label}>{copy.linkOutputLabel}</Text>
@@ -358,6 +491,58 @@ export function RestaurantDiscoveryDialog({
             </View>
           </View>
         </Screen>
+
+        <Modal animationType="fade" transparent visible={countryMenuOpen} onRequestClose={() => setCountryMenuOpen(false)}>
+          <View style={local.countryPickerOverlay}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setCountryMenuOpen(false)}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={local.countryPickerSheet}>
+              <View style={local.countryPickerHeader}>
+                <Text style={local.countryPickerTitle}>{copy.countryLabel}</Text>
+                <Pressable accessibilityRole="button" onPress={() => setCountryMenuOpen(false)} style={local.countryPickerClose}>
+                  <Feather color={premiumPalette.oliveDeep} name="x" size={s(20)} />
+                </Pressable>
+              </View>
+              <View style={local.countrySearchBox}>
+                <Feather color={premiumPalette.textSoft} name="search" size={s(17)} />
+                <TextInput
+                  testID="restaurant-discovery-country-search"
+                  value={countrySearch}
+                  onChangeText={setCountrySearch}
+                  style={local.countrySearchInput}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  placeholder={copy.countrySearchPlaceholder}
+                  placeholderTextColor={premiumPalette.disabledText}
+                />
+              </View>
+              <ScrollView keyboardShouldPersistTaps="handled" style={local.countryPickerScroll}>
+                {visibleCountryOptions.map((option) => {
+                  const active = option === country;
+                  return (
+                    <Pressable
+                      key={option}
+                      accessibilityRole="button"
+                      testID="restaurant-discovery-country-option"
+                      onPress={() => selectCountry(option)}
+                      style={[local.countryOption, active ? local.countryOptionActive : null]}
+                    >
+                      <Text style={[local.countryOptionText, active ? local.countryOptionTextActive : null]}>
+                        {copy.countries[option]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                {visibleCountryOptions.length === 0 ? (
+                  <Text style={local.countryNoResults}>{copy.countrySearchNoResults}</Text>
+                ) : null}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         {onGoHome ? <BottomTabs onGoHome={goHomeFromDialog} /> : null}
       </View>
@@ -468,6 +653,120 @@ const local = StyleSheet.create({
   linkInput: {
     minHeight: s(84)
   },
+  countrySelect: {
+    alignItems: "center",
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.border,
+    borderRadius: s(20),
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    minHeight: s(58),
+    paddingHorizontal: s(16),
+    paddingVertical: s(12)
+  },
+  countrySelectPressed: {
+    opacity: 0.86
+  },
+  countrySelectText: {
+    color: premiumPalette.oliveDeep,
+    flex: 1,
+    fontSize: fs(16),
+    fontWeight: "700",
+    lineHeight: fs(22)
+  },
+  countryPickerOverlay: {
+    alignItems: "center",
+    backgroundColor: "rgba(24, 44, 27, 0.34)",
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: s(24)
+  },
+  countryPickerSheet: {
+    backgroundColor: premiumPalette.surface,
+    borderColor: premiumPalette.border,
+    borderRadius: s(24),
+    borderWidth: 1,
+    maxHeight: Math.round(Dimensions.get("window").height * 0.68),
+    overflow: "hidden",
+    width: "100%"
+  },
+  countryPickerHeader: {
+    alignItems: "center",
+    borderBottomColor: premiumPalette.borderSoft,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: s(16),
+    paddingVertical: s(14)
+  },
+  countryPickerTitle: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(18),
+    fontWeight: "800",
+    lineHeight: fs(23)
+  },
+  countryPickerClose: {
+    alignItems: "center",
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.borderSoft,
+    borderRadius: s(16),
+    borderWidth: 1,
+    height: s(34),
+    justifyContent: "center",
+    width: s(34)
+  },
+  countrySearchBox: {
+    alignItems: "center",
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.borderSoft,
+    borderRadius: s(18),
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: s(9),
+    marginHorizontal: s(14),
+    marginVertical: s(12),
+    minHeight: s(48),
+    paddingHorizontal: s(13)
+  },
+  countrySearchInput: {
+    color: premiumPalette.oliveDeep,
+    flex: 1,
+    fontSize: fs(15),
+    fontWeight: "700",
+    lineHeight: fs(20),
+    paddingVertical: s(8)
+  },
+  countryPickerScroll: {
+    maxHeight: Math.round(Dimensions.get("window").height * 0.56)
+  },
+  countryOption: {
+    borderBottomColor: premiumPalette.borderSoft,
+    borderBottomWidth: 1,
+    paddingHorizontal: s(14),
+    paddingVertical: s(12)
+  },
+  countryOptionActive: {
+    backgroundColor: premiumPalette.surfaceSoft
+  },
+  countryOptionText: {
+    color: premiumPalette.textSoft,
+    fontSize: fs(15),
+    fontWeight: "700",
+    lineHeight: fs(20)
+  },
+  countryOptionTextActive: {
+    color: premiumPalette.oliveDeep
+  },
+  countryNoResults: {
+    color: premiumPalette.textSoft,
+    fontSize: fs(14),
+    fontWeight: "700",
+    lineHeight: fs(20),
+    paddingHorizontal: s(16),
+    paddingVertical: s(14),
+    textAlign: "center"
+  },
   premiumButton: {
     alignItems: "center",
     borderRadius: radius.pill,
@@ -526,6 +825,22 @@ const local = StyleSheet.create({
   loader: {
     marginBottom: s(12)
   },
+  cancelButton: {
+    marginBottom: s(14)
+  },
+  selectionHint: {
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.borderSoft,
+    borderRadius: s(16),
+    borderWidth: 1,
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(14),
+    fontWeight: "700",
+    lineHeight: fs(20),
+    marginBottom: s(12),
+    paddingHorizontal: s(14),
+    paddingVertical: s(10)
+  },
   list: {
     marginBottom: s(14),
     maxHeight: s(208)
@@ -563,6 +878,13 @@ const local = StyleSheet.create({
     lineHeight: fs(20),
     marginBottom: s(14)
   },
+  applyHint: {
+    color: premiumPalette.textSoft,
+    fontSize: fs(14),
+    fontWeight: "700",
+    lineHeight: fs(20),
+    marginBottom: s(14)
+  },
   footerRow: {
     flexDirection: "row",
     gap: s(11)
@@ -573,3 +895,21 @@ const local = StyleSheet.create({
     minHeight: s(58)
   }
 });
+
+function matchesCountrySearch(code: string, label: string, search: string) {
+  const query = normalizeCountrySearchText(search);
+  if (!query) return true;
+
+  return normalizeCountrySearchText(code).startsWith(query) ||
+    normalizeCountrySearchText(label).startsWith(query);
+}
+
+function normalizeCountrySearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ß/g, "ss")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}

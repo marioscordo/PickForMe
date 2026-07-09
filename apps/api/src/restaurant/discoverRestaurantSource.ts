@@ -2,11 +2,18 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { loadMenuTextFromUrl } from "../menu/loadMenuTextFromUrl";
 import { parseMenu } from "../menu/parseMenu";
+import {
+  getRestaurantDiscoveryCountryCode,
+  getRestaurantDiscoveryCountryNames,
+  getRestaurantDiscoveryCountryTlds,
+  getRestaurantDiscoveryNominatimCountryCode
+} from "./restaurantDiscoveryCountries";
 
 export type RestaurantDiscoveryCandidate = {
   id: string;
   name: string;
   city: string;
+  country?: string;
   address?: string;
   websiteUrl?: string;
   menuUrl?: string;
@@ -19,6 +26,7 @@ export type RestaurantDiscoveryResult = {
 type DiscoverRestaurantSourcesInput = {
   restaurantName: string;
   city: string;
+  country?: string;
 };
 
 type RawDiscoveryCandidate = z.infer<typeof RawDiscoveryCandidateSchema>;
@@ -50,6 +58,7 @@ type NominatimPlace = {
 const RawDiscoveryCandidateSchema = z.object({
   name: z.string().min(1),
   city: z.string().min(1),
+  country: z.string().optional().default(""),
   address: z.string().optional().default(""),
   websiteUrl: z.string().optional().default(""),
   menuUrl: z.string().optional().default(""),
@@ -105,7 +114,8 @@ const MENU_SOURCE_PATH_PARTS = [
   "dining",
   "gourmetkarte"
 ];
-const LIKELY_OFFICIAL_DOMAIN_TLDS = ["com", "de"];const NOMINATIM_QUERY_DELAY_MS = 1100;
+const LIKELY_OFFICIAL_DOMAIN_TLDS = ["com", "de"];
+const NOMINATIM_QUERY_DELAY_MS = 1100;
 const RESTAURANT_PLACE_TYPES = new Set([
   "bar",
   "biergarten",
@@ -250,14 +260,18 @@ function buildDiscoveryPrompt(input: DiscoverRestaurantSourcesInput) {
     "menuUrl nur setzen, wenn eine oeffentlich erreichbare und durch GustaroAI probeweise auswertbare Speisekarten- oder PDF-URL auf derselben registrierbaren Domain wie websiteUrl gefunden wurde.",
     "Wenn keine sichere Speisekarten-URL gefunden wird, menuUrl leer lassen.",
     "Wenn keine offizielle Website gefunden wird, diesen Kandidaten nicht ausgeben.",
+    input.country
+      ? "Wenn ein Land angegeben ist, suche ausschliesslich in diesem Land und gib keine gleichnamigen Restaurants aus anderen Laendern aus."
+      : "",
     "Gib hoechstens 5 Kandidaten zurueck, beste zuerst.",
     "Antwort ausschliesslich als valides JSON ohne Markdown.",
     "Schema:",
     "{\"candidates\":[{\"name\":\"\",\"city\":\"\",\"address\":\"\",\"websiteUrl\":\"\",\"menuUrl\":\"\",\"evidence\":\"\"}]}",
     "",
     `Restaurantname: ${input.restaurantName}`,
-    `Stadt/Ort: ${input.city}`
-  ].join("\n");
+    `Stadt/Ort: ${input.city}`,
+    `Land: ${getRestaurantDiscoveryCountryNames(input.country)[0] ?? input.country ?? ""}`
+  ].filter(Boolean).join("\n");
 }
 
 function buildMenuRecoveryPrompt(
@@ -282,6 +296,9 @@ function buildMenuRecoveryPrompt(
     "menuUrl nur setzen, wenn eine oeffentlich erreichbare Speisekarten- oder PDF-URL auf derselben registrierbaren Domain wie websiteUrl gefunden wurde.",
     "Wenn keine sichere Speisekarten-URL gefunden wird, menuUrl leer lassen.",
     "Wenn keine offizielle Website gefunden wird, diesen Kandidaten nicht ausgeben.",
+    input.country
+      ? "Wenn ein Land angegeben ist, suche ausschliesslich in diesem Land und gib keine gleichnamigen Restaurants oder Quellen aus anderen Laendern aus."
+      : "",
     "Gib hoechstens 5 Kandidaten zurueck, beste zuerst.",
     "Antwort ausschliesslich als valides JSON ohne Markdown.",
     "Schema:",
@@ -289,10 +306,11 @@ function buildMenuRecoveryPrompt(
     "",
     `Restaurantname: ${input.restaurantName}`,
     `Stadt/Ort: ${input.city}`,
+    `Land: ${getRestaurantDiscoveryCountryNames(input.country)[0] ?? input.country ?? ""}`,
     "",
     "Bereits gepruefte Treffer ohne analysierbaren Speisekartenlink:",
     checked
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 async function verifyCandidate(rawCandidate: RawDiscoveryCandidate): Promise<RestaurantDiscoveryCandidate | null> {
@@ -319,6 +337,7 @@ async function verifyCandidate(rawCandidate: RawDiscoveryCandidate): Promise<Res
     id: stableCandidateId(rawCandidate, reachableWebsiteUrl),
     name: rawCandidate.name.trim(),
     city: rawCandidate.city.trim(),
+    ...(getRestaurantDiscoveryCountryCode(rawCandidate.country) ? { country: getRestaurantDiscoveryCountryCode(rawCandidate.country) } : {}),
     ...(rawCandidate.address.trim() ? { address: rawCandidate.address.trim() } : {}),
     websiteUrl: reachableWebsiteUrl,
     ...(menuUrl ? { menuUrl } : {})
@@ -334,13 +353,16 @@ function buildLikelyOfficialWebsiteCandidates(input: DiscoverRestaurantSourcesIn
     slug,
     `${slug}-restaurant`
   ]);
+  const countryTlds = getRestaurantDiscoveryCountryTlds(input.country);
+  const tlds = countryTlds.length > 0 ? countryTlds : LIKELY_OFFICIAL_DOMAIN_TLDS;
 
-  return domainPrefixes.flatMap((domainPrefix) => LIKELY_OFFICIAL_DOMAIN_TLDS.flatMap((tld) => [
+  return tlds.flatMap((tld) => domainPrefixes.flatMap((domainPrefix) => [
     `https://www.${domainPrefix}.${tld}/`,
     `https://${domainPrefix}.${tld}/`
   ])).map((websiteUrl) => ({
     name: input.restaurantName,
     city: input.city,
+    country: getRestaurantDiscoveryCountryCode(input.country) || input.country || "",
     address: "",
     websiteUrl,
     menuUrl: "",
@@ -358,14 +380,17 @@ function slugifyDomainPart(value: string) {
 }
 async function searchNominatimCandidates(input: DiscoverRestaurantSourcesInput): Promise<RawDiscoveryCandidate[]> {
   const places: NominatimPlace[] = [];
+  const country = getRestaurantDiscoveryCountryCode(input.country);
 
-  for (const [index, queryText] of buildRestaurantSearchQueries(input).entries()) {
+  for (const [index, queryText] of buildRestaurantSearchQueries({ ...input, country }).entries()) {
     if (index > 0) {
       await delay(NOMINATIM_QUERY_DELAY_MS);
     }
 
     const query = encodeURIComponent(queryText);
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${MAX_CANDIDATES}&addressdetails=1&extratags=1&q=${query}`;
+    const countryCodes = getRestaurantDiscoveryNominatimCountryCode(country);
+    const countryCodesParam = countryCodes ? `&countrycodes=${encodeURIComponent(countryCodes)}` : "";
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${MAX_CANDIDATES}&addressdetails=1&extratags=1${countryCodesParam}&q=${query}`;
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
@@ -381,11 +406,11 @@ async function searchNominatimCandidates(input: DiscoverRestaurantSourcesInput):
 
   return places
     .filter(isRestaurantPlace)
-    .map(mapNominatimPlace)
+    .map((place) => mapNominatimPlace(place, country))
     .filter((candidate): candidate is RawDiscoveryCandidate => Boolean(candidate));
 }
 
-function mapNominatimPlace(place: NominatimPlace): RawDiscoveryCandidate | null {
+function mapNominatimPlace(place: NominatimPlace, country: string): RawDiscoveryCandidate | null {
   const name = (place.name || firstDisplayNamePart(place.display_name)).trim();
   const city = (place.address?.city || place.address?.town || place.address?.village || place.address?.municipality || "").trim();
   const websiteUrl = normalizeOfficialUrl(
@@ -397,6 +422,7 @@ function mapNominatimPlace(place: NominatimPlace): RawDiscoveryCandidate | null 
   return {
     name,
     city,
+    country,
     address: formatNominatimAddress(place),
     websiteUrl,
     menuUrl: "",
@@ -429,7 +455,14 @@ function buildRestaurantSearchQueries(input: DiscoverRestaurantSourcesInput) {
   const normalizedRestaurantName = normalizeSearchText(restaurantName);
   const normalizedCity = normalizeSearchText(city);
   const shortenedNames = getShortenedRestaurantNames(restaurantName);
+  const countryNames = getRestaurantDiscoveryCountryNames(input.country).slice(0, 1);
+  const countryQueries = countryNames.flatMap((countryName) => [
+    `${restaurantName} ${city} ${countryName}`,
+    `Restaurant ${restaurantName} ${city} ${countryName}`,
+    `${normalizedRestaurantName} ${normalizedCity} ${countryName}`
+  ]);
   const queries = [
+    ...countryQueries,
     `${restaurantName} ${city}`,
     `Restaurant ${restaurantName} ${city}`,
     `${normalizedRestaurantName} ${city}`,

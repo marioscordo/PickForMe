@@ -50,6 +50,7 @@ export type RestaurantDiscoveryApiCandidate = {
   id: string;
   name: string;
   city: string;
+  country?: string;
   address?: string;
   websiteUrl?: string;
   menuUrl?: string;
@@ -58,6 +59,7 @@ export type RestaurantDiscoveryApiCandidate = {
 type DiscoverRestaurantsBody = {
   restaurantName: string;
   city: string;
+  country?: string;
 };
 
 type DiscoverRestaurantMenuBody = {

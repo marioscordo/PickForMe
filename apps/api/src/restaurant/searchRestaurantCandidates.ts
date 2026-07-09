@@ -1,8 +1,15 @@
 import type { RestaurantDiscoveryCandidate, RestaurantDiscoveryResult } from "./discoverRestaurantSource";
+import {
+  getRestaurantDiscoveryCountryCode,
+  getRestaurantDiscoveryCountryNames,
+  getRestaurantDiscoveryCountryTlds,
+  getRestaurantDiscoveryNominatimCountryCode
+} from "./restaurantDiscoveryCountries";
 
 type SearchRestaurantCandidatesInput = {
   restaurantName: string;
   city: string;
+  country?: string;
 };
 
 type NominatimPlace = {
@@ -34,7 +41,7 @@ type NominatimPlace = {
 };
 
 const MAX_CANDIDATES = 5;
-const MAX_SEARCH_QUERIES = 4;
+const MAX_SEARCH_QUERIES = 6;
 const MAX_WEBSITE_RESOLVE_CANDIDATES = 3;
 const MAX_WEBSITE_ORIGINS_TO_CHECK = 32;
 const NOMINATIM_QUERY_DELAY_MS = 1100;
@@ -120,6 +127,7 @@ export async function searchRestaurantCandidates(
 ): Promise<RestaurantDiscoveryResult> {
   const restaurantName = input.restaurantName.trim();
   const city = input.city.trim();
+  const country = getRestaurantDiscoveryCountryCode(input.country);
 
   if (!restaurantName || !city) {
     return { candidates: [] };
@@ -127,13 +135,15 @@ export async function searchRestaurantCandidates(
 
   const places: NominatimPlace[] = [];
 
-  for (const [index, queryText] of buildRestaurantSearchQueries({ restaurantName, city }).entries()) {
+  for (const [index, queryText] of buildRestaurantSearchQueries({ restaurantName, city, country }).entries()) {
     if (index > 0) {
       await delay(NOMINATIM_QUERY_DELAY_MS);
     }
 
     const query = encodeURIComponent(queryText);
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${MAX_CANDIDATES}&addressdetails=1&extratags=1&q=${query}`;
+    const countryCodes = getRestaurantDiscoveryNominatimCountryCode(country);
+    const countryCodesParam = countryCodes ? `&countrycodes=${encodeURIComponent(countryCodes)}` : "";
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${MAX_CANDIDATES}&addressdetails=1&extratags=1${countryCodesParam}&q=${query}`;
     const response = await fetchWithTimeout(url, NOMINATIM_FETCH_TIMEOUT_MS);
 
     if (!response?.ok) continue;
@@ -145,24 +155,24 @@ export async function searchRestaurantCandidates(
   const candidates = dedupeCandidates(
     places
       .filter(isRestaurantPlace)
-      .map(mapNominatimPlace)
+      .map((place) => mapNominatimPlace(place, country))
       .filter((candidate): candidate is RestaurantDiscoveryCandidate => Boolean(candidate))
-      .sort((a, b) => scoreCandidateMatch(b, { restaurantName, city }) - scoreCandidateMatch(a, { restaurantName, city }))
+      .sort((a, b) => scoreCandidateMatch(b, { restaurantName, city, country }) - scoreCandidateMatch(a, { restaurantName, city, country }))
   ).slice(0, MAX_CANDIDATES);
-  const enrichedCandidates = await enrichCandidatesWithOfficialWebsites(candidates, { restaurantName, city });
+  const enrichedCandidates = await enrichCandidatesWithOfficialWebsites(candidates, { restaurantName, city, country });
 
   if (enrichedCandidates.length > 0) {
     return { candidates: enrichedCandidates };
   }
 
-  const likelyOfficialCandidate = await resolveLikelyOfficialCandidate({ restaurantName, city });
+  const likelyOfficialCandidate = await resolveLikelyOfficialCandidate({ restaurantName, city, country });
 
   return {
     candidates: likelyOfficialCandidate ? [likelyOfficialCandidate] : []
   };
 }
 
-function mapNominatimPlace(place: NominatimPlace): RestaurantDiscoveryCandidate | null {
+function mapNominatimPlace(place: NominatimPlace, country: string): RestaurantDiscoveryCandidate | null {
   const name = (place.name || firstDisplayNamePart(place.display_name)).trim();
   const city = getPrimaryLocality(place).trim();
   const websiteUrl = normalizeOfficialUrl(
@@ -175,6 +185,7 @@ function mapNominatimPlace(place: NominatimPlace): RestaurantDiscoveryCandidate 
     id: stableCandidateId(place, name),
     name,
     city,
+    ...(country ? { country } : {}),
     address: formatNominatimAddress(place),
     ...(websiteUrl ? { websiteUrl } : {})
   };
@@ -194,7 +205,14 @@ function buildRestaurantSearchQueries(input: SearchRestaurantCandidatesInput) {
   const normalizedCity = normalizeSearchText(city);
   const shortenedNames = getShortenedRestaurantNames(restaurantName);
   const cityAliases = getCityAliases(city);
+  const countryNames = getRestaurantDiscoveryCountryNames(input.country).slice(0, 1);
+  const countryQueries = countryNames.flatMap((countryName) => [
+    `${restaurantName} ${city} ${countryName}`,
+    `Restaurant ${restaurantName} ${city} ${countryName}`,
+    `${normalizedRestaurantName} ${normalizedCity} ${countryName}`
+  ]);
   const queries = [
+    ...countryQueries,
     `${restaurantName} ${city}`,
     `Restaurant ${restaurantName} ${city}`,
     `${normalizedRestaurantName} ${city}`,
@@ -279,7 +297,8 @@ async function resolveLikelyOfficialCandidate(input: SearchRestaurantCandidatesI
   const baseCandidate: RestaurantDiscoveryCandidate = {
     id: stableSyntheticCandidateId(input),
     name: input.restaurantName.trim(),
-    city: input.city.trim()
+    city: input.city.trim(),
+    ...(input.country ? { country: getRestaurantDiscoveryCountryCode(input.country) || input.country } : {})
   };
   const websiteUrl = await resolveOfficialWebsiteUrl(baseCandidate, input);
 
@@ -290,7 +309,7 @@ function buildLikelyOfficialOrigins(
   candidate: RestaurantDiscoveryCandidate,
   input: SearchRestaurantCandidatesInput
 ) {
-  const tlds = getLikelyOfficialDomainTlds(input.city || candidate.city);
+  const tlds = getLikelyOfficialDomainTlds(input.country || candidate.country, input.city || candidate.city);
   const slugs = uniqueStrings(
     [candidate.name, input.restaurantName]
       .flatMap(buildLikelyDomainSlugs)
@@ -305,7 +324,12 @@ function buildLikelyOfficialOrigins(
   );
 }
 
-function getLikelyOfficialDomainTlds(city: string | undefined) {
+function getLikelyOfficialDomainTlds(country: string | undefined, city: string | undefined) {
+  const countryTlds = getRestaurantDiscoveryCountryTlds(country);
+  if (countryTlds.length > 0) {
+    return uniqueStrings(countryTlds);
+  }
+
   const normalizedCity = normalizeDomainText(city);
   const cityTokens = normalizedCity.split(" ").filter(Boolean);
   const cityPreferredTlds: Record<string, string[]> = {
@@ -575,7 +599,7 @@ function stableCandidateId(place: NominatimPlace, name: string) {
 }
 
 function stableSyntheticCandidateId(input: SearchRestaurantCandidatesInput) {
-  return `official-${normalizeDomainText(`${input.restaurantName} ${input.city}`)
+  return `official-${normalizeDomainText(`${input.restaurantName} ${input.city} ${input.country ?? ""}`)
     .replace(/\s+/g, "-")
     .slice(0, 100)}`;
 }

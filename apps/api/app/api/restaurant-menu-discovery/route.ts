@@ -6,6 +6,7 @@ import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { loadMenuTextFromUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import { parseMenu } from "../../../src/menu/parseMenu";
+import { getRestaurantDiscoveryCountryNames, getRestaurantDiscoveryCountryTlds } from "../../../src/restaurant/restaurantDiscoveryCountries";
 
 const MENU_DISCOVERY_TIMEOUT_MS = 20000;
 const PAGE_SOURCE_FETCH_TIMEOUT_MS = 4500;
@@ -52,6 +53,7 @@ const RestaurantMenuDiscoveryRequestSchema = z.object({
     id: z.string().optional().default(""),
     name: z.string().trim().min(1).max(160),
     city: z.string().trim().max(120).optional().default(""),
+    country: z.string().trim().max(80).optional().default(""),
     address: z.string().trim().max(240).optional().default(""),
     websiteUrl: z.string().trim().max(500).optional().default(""),
     menuUrl: z.string().trim().max(500).optional().default("")
@@ -196,7 +198,7 @@ async function findMenuInWebsiteSource(
     };
   }
 
-  for (const origin of buildLikelyOfficialOrigins(candidate.name).slice(0, MAX_LIKELY_ORIGINS_TO_CHECK)) {
+  for (const origin of buildLikelyOfficialOrigins(candidate.name, candidate.country).slice(0, MAX_LIKELY_ORIGINS_TO_CHECK)) {
     const menuUrl = await findMenuFromOfficialSource(candidate, origin, true);
     if (menuUrl) {
       return {
@@ -242,6 +244,10 @@ async function discoverOfficialRestaurantWebsite(candidate: RestaurantMenuDiscov
           },
           restaurantName: candidate.name,
           city: candidate.city || inferCityFromAddress(candidate.address),
+          country: getRestaurantDiscoveryCountryNames(candidate.country)[0] ?? candidate.country,
+          countryConstraint: candidate.country
+            ? "Search only within the selected country. Do not return same-name restaurants or sources from other countries."
+            : "",
           address: candidate.address
         })
       }]
@@ -307,6 +313,10 @@ async function discoverOfficialMenuSource(
           },
           restaurantName: candidate.name,
           city: candidate.city || inferCityFromAddress(candidate.address),
+          country: getRestaurantDiscoveryCountryNames(candidate.country)[0] ?? candidate.country,
+          countryConstraint: candidate.country
+            ? "Search only within the selected country. Do not return same-name restaurants or menu sources from other countries."
+            : "",
           address: candidate.address,
           verifiedWebsiteUrl: normalizedWebsiteUrl,
           verifiedDomain: getRegistrableDomain(normalizedWebsiteUrl)
@@ -835,10 +845,12 @@ function meaningfulAddressTokens(value: string | undefined) {
     .filter((token) => !/^\d+$/.test(token));
 }
 
-function buildLikelyOfficialOrigins(candidateName: string) {
+function buildLikelyOfficialOrigins(candidateName: string, country: string | undefined) {
   const slugs = buildLikelyDomainSlugs(candidateName);
+  const countryTlds = getRestaurantDiscoveryCountryTlds(country);
+  const tlds = countryTlds.length > 0 ? countryTlds : LIKELY_OFFICIAL_DOMAIN_TLDS;
 
-  return LIKELY_OFFICIAL_DOMAIN_TLDS.flatMap((tld) => slugs.flatMap((slug) => [
+  return tlds.flatMap((tld) => slugs.flatMap((slug) => [
     `https://www.${slug}.${tld}/`,
     `https://${slug}.${tld}/`
   ]));

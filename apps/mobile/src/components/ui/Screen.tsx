@@ -9,6 +9,7 @@ type ScreenProps = {
   contentContainerStyle?: StyleProp<ViewStyle>;
   scrollHintBottomOffset?: number;
   scrollHintHideThreshold?: number;
+  scrollToEndKey?: string | number;
   showScrollHint?: boolean;
   scrollToTopKey?: string;
 };
@@ -19,6 +20,7 @@ export function Screen({
   contentContainerStyle,
   scrollHintBottomOffset = 18,
   scrollHintHideThreshold = 36,
+  scrollToEndKey,
   showScrollHint = true,
   scrollToTopKey
 }: ScreenProps) {
@@ -41,6 +43,16 @@ export function Screen({
       return () => cancelAnimationFrame(frame);
     }
   }, [scrollToTopKey]);
+
+  useEffect(() => {
+    if (scrollToEndKey !== undefined) {
+      const frame = requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      });
+
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [scrollToEndKey]);
 
   const distanceFromBottom = contentHeight - (scrollY + viewportHeight);
   const canScrollFurther = contentHeight > viewportHeight + 18 && distanceFromBottom > scrollHintHideThreshold;
