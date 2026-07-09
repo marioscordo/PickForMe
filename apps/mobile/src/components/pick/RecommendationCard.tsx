@@ -380,15 +380,17 @@ export function RecommendationCard({
       createdAt: new Date().toISOString()
     };
 
-    const existing = ((profile as ProfileWithFeedback).recommendationFeedback ?? []) as RecommendationFeedback[];
-    const withoutSameDish = existing.filter(
-      (item) => item.dishNameOriginal.toLowerCase() !== originalName.toLowerCase()
-    );
+    setProfile((currentProfile) => {
+      const existing = ((currentProfile as ProfileWithFeedback).recommendationFeedback ?? []) as RecommendationFeedback[];
+      const withoutSameDish = existing.filter(
+        (item) => item.dishNameOriginal.toLowerCase() !== originalName.toLowerCase()
+      );
 
-    setProfile({
-      ...profile,
-      recommendationFeedback: [...withoutSameDish, nextItem].slice(-30)
-    } as typeof profile);
+      return {
+        ...currentProfile,
+        recommendationFeedback: [...withoutSameDish, nextItem].slice(-30)
+      } as typeof currentProfile;
+    });
   }
 
   return (

@@ -25,7 +25,7 @@ const defaultProfile: UserProfile = {
 
 type ProfileContextValue = {
   profile: UserProfile;
-  setProfile: (profile: UserProfile) => void;
+  setProfile: (profile: UserProfile | ((current: UserProfile) => UserProfile)) => void;
 };
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
@@ -71,8 +71,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     });
   }, [profile, profileLoaded]);
 
-  function setProfile(nextProfile: UserProfile) {
-    setProfileState(normalizeProfile(nextProfile));
+  function setProfile(nextProfile: UserProfile | ((current: UserProfile) => UserProfile)) {
+    setProfileState((currentProfile) =>
+      normalizeProfile(typeof nextProfile === "function" ? nextProfile(currentProfile) : nextProfile)
+    );
   }
 
   const value = useMemo(

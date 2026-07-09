@@ -183,11 +183,11 @@ export function ProfileScreen({
 
 
 
-    function updateProfile(patch: Partial<UserProfile>) {
-      setProfile({
-        ...profile,
-        ...patch
-      });
+    function updateProfile(patch: Partial<UserProfile> | ((current: UserProfile) => Partial<UserProfile>)) {
+      setProfile((currentProfile) => ({
+        ...currentProfile,
+        ...(typeof patch === "function" ? patch(currentProfile) : patch)
+      }));
     }
 
     function confirmDelete(title: string, message: string, onDelete: () => void) {
@@ -198,25 +198,30 @@ export function ProfileScreen({
     }
 
     function toggleLike(value: string) {
-      const primaryLikes = toggleValue(profile.primaryLikes, value);
       const switchesToNormalDiet = includesValue(normalDietPreferenceValues, value);
-      const dietStyle = switchesToNormalDiet ? "normal" : profile.dietStyle;
-      const cleanedPrimaryLikes = switchesToNormalDiet
-        ? primaryLikes.filter((item) => !includesValue(exclusiveDietPreferenceValues, item))
-        : primaryLikes;
 
-      updateProfile({
-        primaryLikes: cleanedPrimaryLikes,
-        dietStyle
+      updateProfile((currentProfile) => {
+        const primaryLikes = toggleValue(currentProfile.primaryLikes, value);
+        const dietStyle = switchesToNormalDiet ? "normal" : currentProfile.dietStyle;
+        const cleanedPrimaryLikes = switchesToNormalDiet
+          ? primaryLikes.filter((item) => !includesValue(exclusiveDietPreferenceValues, item))
+          : primaryLikes;
+
+        return {
+          primaryLikes: cleanedPrimaryLikes,
+          dietStyle
+        };
       });
     }
 
     function setDietStyle(dietStyle: UserProfile["dietStyle"]) {
-      const primaryLikes = includesValue(exclusiveDietPreferenceValues, dietStyle)
-        ? profile.primaryLikes.filter((item) => !includesValue(normalDietPreferenceValues, item))
-        : profile.primaryLikes;
+      updateProfile((currentProfile) => {
+        const primaryLikes = includesValue(exclusiveDietPreferenceValues, dietStyle)
+          ? currentProfile.primaryLikes.filter((item) => !includesValue(normalDietPreferenceValues, item))
+          : currentProfile.primaryLikes;
 
-      updateProfile({ dietStyle, primaryLikes });
+        return { dietStyle, primaryLikes };
+      });
     }
 
     function addCustomPreference() {
@@ -228,10 +233,15 @@ export function ProfileScreen({
 
       const isQuick = includesValue(quickPreferenceValues, value);
 
-      updateProfile({
-        primaryLikes: addUnique(profile.primaryLikes, value),
-        customPreferences: isQuick ? customPreferences : addUnique(customPreferences, value),
-        hiddenPreferences: removeValue(hiddenPreferences, value)
+      updateProfile((currentProfile) => {
+        const currentCustomPreferences = currentProfile.customPreferences ?? [];
+        const currentHiddenPreferences = currentProfile.hiddenPreferences ?? [];
+
+        return {
+          primaryLikes: addUnique(currentProfile.primaryLikes, value),
+          customPreferences: isQuick ? currentCustomPreferences : addUnique(currentCustomPreferences, value),
+          hiddenPreferences: removeValue(currentHiddenPreferences, value)
+        };
       });
 
       setCustomPreference("");
@@ -249,10 +259,10 @@ export function ProfileScreen({
         editor.deletePreferenceTitle,
         formatContent(editor.deletePreferenceMessage, { value: displayValue }),
         () =>
-          updateProfile({
+          updateProfile((currentProfile) => ({
             dietStyle: "normal",
-            hiddenPreferences: addUnique(hiddenPreferences, value)
-          })
+            hiddenPreferences: addUnique(currentProfile.hiddenPreferences ?? [], value)
+          }))
       );
     }
 
@@ -264,18 +274,23 @@ export function ProfileScreen({
         editor.deletePreferenceTitle,
         formatContent(editor.deletePreferenceMessage, { value: displayValue }),
         () =>
-          updateProfile({
-            primaryLikes: removeValue(profile.primaryLikes, value),
-            customPreferences: isQuick ? customPreferences : removeValue(customPreferences, value),
-            hiddenPreferences: isQuick ? addUnique(hiddenPreferences, value) : hiddenPreferences
+          updateProfile((currentProfile) => {
+            const currentCustomPreferences = currentProfile.customPreferences ?? [];
+            const currentHiddenPreferences = currentProfile.hiddenPreferences ?? [];
+
+            return {
+              primaryLikes: removeValue(currentProfile.primaryLikes, value),
+              customPreferences: isQuick ? currentCustomPreferences : removeValue(currentCustomPreferences, value),
+              hiddenPreferences: isQuick ? addUnique(currentHiddenPreferences, value) : currentHiddenPreferences
+            };
           })
       );
     }
 
     function toggleDislike(value: string) {
-      updateProfile({
-        dislikes: toggleValue(profile.dislikes, value)
-      });
+      updateProfile((currentProfile) => ({
+        dislikes: toggleValue(currentProfile.dislikes, value)
+      }));
     }
 
     function addCustomExclusion() {
@@ -287,10 +302,15 @@ export function ProfileScreen({
 
       const isQuick = includesValue(quickExclusionValues, value);
 
-      updateProfile({
-        dislikes: addUnique(profile.dislikes, value),
-        customExclusions: isQuick ? customExclusions : addUnique(customExclusions, value),
-        hiddenExclusions: removeValue(hiddenExclusions, value)
+      updateProfile((currentProfile) => {
+        const currentCustomExclusions = currentProfile.customExclusions ?? [];
+        const currentHiddenExclusions = currentProfile.hiddenExclusions ?? [];
+
+        return {
+          dislikes: addUnique(currentProfile.dislikes, value),
+          customExclusions: isQuick ? currentCustomExclusions : addUnique(currentCustomExclusions, value),
+          hiddenExclusions: removeValue(currentHiddenExclusions, value)
+        };
       });
 
       setCustomExclusion("");
@@ -304,10 +324,15 @@ export function ProfileScreen({
         editor.deleteExclusionTitle,
         formatContent(editor.deleteExclusionMessage, { value: displayValue }),
         () =>
-          updateProfile({
-            dislikes: removeValue(profile.dislikes, value),
-            customExclusions: isQuick ? customExclusions : removeValue(customExclusions, value),
-            hiddenExclusions: isQuick ? addUnique(hiddenExclusions, value) : hiddenExclusions
+          updateProfile((currentProfile) => {
+            const currentCustomExclusions = currentProfile.customExclusions ?? [];
+            const currentHiddenExclusions = currentProfile.hiddenExclusions ?? [];
+
+            return {
+              dislikes: removeValue(currentProfile.dislikes, value),
+              customExclusions: isQuick ? currentCustomExclusions : removeValue(currentCustomExclusions, value),
+              hiddenExclusions: isQuick ? addUnique(currentHiddenExclusions, value) : currentHiddenExclusions
+            };
           })
       );
     }
@@ -321,9 +346,9 @@ export function ProfileScreen({
     }
 
     function toggleIntolerance(value: string) {
-      updateProfile({
-        intolerances: toggleValue(profile.intolerances, value)
-      });
+      updateProfile((currentProfile) => ({
+        intolerances: toggleValue(currentProfile.intolerances, value)
+      }));
     }
 
     function addCustomIntolerance() {
@@ -335,10 +360,15 @@ export function ProfileScreen({
 
       const isQuick = includesValue(quickIntoleranceValues, value);
 
-      updateProfile({
-        intolerances: addUnique(profile.intolerances, value),
-        customIntolerances: isQuick ? customIntolerances : addUnique(customIntolerances, value),
-        hiddenIntolerances: removeValue(hiddenIntolerances, value)
+      updateProfile((currentProfile) => {
+        const currentCustomIntolerances = currentProfile.customIntolerances ?? [];
+        const currentHiddenIntolerances = currentProfile.hiddenIntolerances ?? [];
+
+        return {
+          intolerances: addUnique(currentProfile.intolerances, value),
+          customIntolerances: isQuick ? currentCustomIntolerances : addUnique(currentCustomIntolerances, value),
+          hiddenIntolerances: removeValue(currentHiddenIntolerances, value)
+        };
       });
 
       setCustomIntolerance("");
@@ -352,10 +382,15 @@ export function ProfileScreen({
         editor.deleteIntoleranceTitle,
         formatContent(editor.deleteIntoleranceMessage, { value: displayValue }),
         () =>
-          updateProfile({
-            intolerances: removeValue(profile.intolerances, value),
-            customIntolerances: isQuick ? customIntolerances : removeValue(customIntolerances, value),
-            hiddenIntolerances: isQuick ? addUnique(hiddenIntolerances, value) : hiddenIntolerances
+          updateProfile((currentProfile) => {
+            const currentCustomIntolerances = currentProfile.customIntolerances ?? [];
+            const currentHiddenIntolerances = currentProfile.hiddenIntolerances ?? [];
+
+            return {
+              intolerances: removeValue(currentProfile.intolerances, value),
+              customIntolerances: isQuick ? currentCustomIntolerances : removeValue(currentCustomIntolerances, value),
+              hiddenIntolerances: isQuick ? addUnique(currentHiddenIntolerances, value) : currentHiddenIntolerances
+            };
           })
       );
     }
@@ -366,10 +401,10 @@ export function ProfileScreen({
 
     if (activeSection === "general") {
       function selectOutputLocale(outputLocale: string) {
-        setProfile({
-          ...profile,
+        setProfile((currentProfile) => ({
+          ...currentProfile,
           outputLocale: resolveOutputLocale(outputLocale)
-        });
+        }));
         setLanguageMenuOpen(false);
       }
 
