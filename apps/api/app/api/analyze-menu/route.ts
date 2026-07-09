@@ -25,6 +25,7 @@ import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import { gatekeepMainDishRecommendations } from "../../../src/recommendation/gatekeeper";
 import { mapGatekeptMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
 import { blockReasonForRecommendation } from "../../../src/profile/profileRules";
+import { sanitizeProfileForRecommendation } from "../../../src/profile/profileInputPolicy";
 import type { AnalyzeMenuRequest } from "../../../src/types/api";
 import type { MenuExtractionResult } from "../../../src/menu/extraction/types";
 import type { RestaurantDescriptionResult } from "../../../src/restaurant/extractRestaurantDescription";
@@ -87,10 +88,10 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as AnalyzeMenuRequest;
     const outputLocale = normalizeTargetLocale(body.profile.outputLocale);
-    const profile = {
+    const profile = sanitizeProfileForRecommendation({
       ...body.profile,
       outputLocale
-    };
+    });
 
     if (body.sourceKind !== "text") {
       throw new AppError(400, "SOURCE_KIND_UNSUPPORTED", "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.");

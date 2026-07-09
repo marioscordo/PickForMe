@@ -150,6 +150,7 @@
     "preferencesButton": "Meine Vorlieben",
     "exclusionsButton": "Meine Ausschlüsse",
     "intolerancesButton": "Allergien und Unverträglichkeiten",
+    "intolerancesOnlyButton": "Unverträglichkeiten",
     "subtitle": "GustaroAI merkt sich, was Dir wichtig ist - ohne Fragebogen.",
     "signOut": "Abmelden",
     "deleteAccount": "Account und Daten löschen",
@@ -184,13 +185,20 @@
     "addExclusionLabel": "Ausschluss hinzufügen",
     "addExclusionPlaceholder": "z. B. Knoblauch, Kümmel, Lamm ...",
     "addExclusionButton": "Ausschluss hinzufügen",
+    "addExclusionDuplicateError": "Dieser Ausschluss ist bereits vorhanden.",
+    "addExclusionValidationError": "Bitte gib nur Lebensmittel, Zutaten oder Kategorien ein, die auf einer Speisekarte erkennbar sind. Allgemeine Gewürze, Eigenschaften oder Küchenbasics wie \"Salz\" können nicht zuverlässig geprüft werden.",
+    "addExclusionValidationUnavailable": "Ich konnte diesen Ausschluss gerade nicht sicher prüfen. Bitte versuche es noch einmal.",
     "deleteActiveExclusionsLabel": "Aktive Ausschlüsse löschen",
     "intolerancesTitle": "Allergien & Unverträglichkeiten",
+    "intolerancesOnlyTitle": "Unverträglichkeiten",
     "intolerancesHint": "Diese Zutaten werden besonders streng berücksichtigt.",
-    "safetyHint": "Wichtiger Hinweis: GustaroAI unterstützt dich bei der Auswahl von Speisen anhand deiner Angaben zu Allergien und Unverträglichkeiten. Die App ersetzt keine medizinische Beratung und keine Rückfrage beim Servicepersonal. Informationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App. Bei bekannten Allergien oder Unverträglichkeiten musst du jede Speise selbst kontrollieren.",
+    "safetyHint": "GustaroAI berücksichtigt Allergene, soweit sie aus der Speisekarte erkennbar sind. Bitte frage bei Allergien immer im Restaurant nach.",
     "addIntoleranceLabel": "Unverträglichkeit hinzufügen",
     "addIntolerancePlaceholder": "z. B. Histamin, Zwiebeln, Fructose ...",
     "addIntoleranceButton": "Unverträglichkeit hinzufügen",
+    "addIntoleranceDuplicateError": "Diese Unverträglichkeit ist bereits vorhanden.",
+    "addIntoleranceValidationError": "Bitte gib nur Lebensmittel, Zutaten oder Kategorien ein, die auf einer Speisekarte erkennbar sind. Allgemeine Gewürze, Eigenschaften oder Küchenbasics wie \"Salz\" können nicht zuverlässig geprüft werden.",
+    "addIntoleranceValidationUnavailable": "Ich konnte diese Unverträglichkeit gerade nicht sicher prüfen. Bitte versuche es noch einmal.",
     "deleteActiveIntolerancesLabel": "Aktive Unverträglichkeiten löschen",
     "deletePreferenceTitle": "Vorliebe löschen?",
     "deletePreferenceMessage": "„{value}“ wird dauerhaft aus deiner Vorlieben-Liste entfernt.",
@@ -275,32 +283,132 @@
     ],
     "allergyOptions": [
       {
+        "label": "glutenhaltiges Getreide",
+        "value": "glutenhaltiges Getreide"
+      },
+      {
+        "label": "Weizen",
+        "value": "Weizen"
+      },
+      {
+        "label": "Roggen",
+        "value": "Roggen"
+      },
+      {
+        "label": "Gerste",
+        "value": "Gerste"
+      },
+      {
+        "label": "Hafer",
+        "value": "Hafer"
+      },
+      {
+        "label": "Dinkel",
+        "value": "Dinkel"
+      },
+      {
+        "label": "Kamut / Khorasan-Weizen",
+        "value": "Kamut / Khorasan-Weizen"
+      },
+      {
+        "label": "Triticale",
+        "value": "Triticale"
+      },
+      {
+        "label": "Krebstiere",
+        "value": "Krebstiere"
+      },
+      {
+        "label": "Schalentiere",
+        "value": "Schalentiere"
+      },
+      {
+        "label": "Weichtiere / Mollusken",
+        "value": "Weichtiere / Mollusken"
+      },
+      {
+        "label": "Fisch",
+        "value": "Fisch"
+      },
+      {
+        "label": "Eier",
+        "value": "Eier"
+      },
+      {
+        "label": "Milch",
+        "value": "Milch"
+      },
+      {
         "label": "Laktose",
         "value": "Laktose"
       },
       {
-        "label": "Gluten",
-        "value": "Gluten"
+        "label": "Erdnüsse",
+        "value": "Erdnuesse"
       },
       {
-        "label": "Nüsse",
-        "value": "Nüsse"
+        "label": "Schalenfrüchte / Baumnüsse",
+        "value": "Schalenfruechte / Baumnuesse"
       },
       {
-        "label": "Ei",
-        "value": "Ei"
+        "label": "Mandeln",
+        "value": "Mandeln"
       },
       {
-        "label": "Soja",
-        "value": "Soja"
+        "label": "Haselnüsse",
+        "value": "Haselnuesse"
+      },
+      {
+        "label": "Walnüsse",
+        "value": "Walnuesse"
+      },
+      {
+        "label": "Cashews",
+        "value": "Cashews"
+      },
+      {
+        "label": "Pekannüsse",
+        "value": "Pekannuesse"
+      },
+      {
+        "label": "Paranüsse",
+        "value": "Paranuesse"
+      },
+      {
+        "label": "Pistazien",
+        "value": "Pistazien"
+      },
+      {
+        "label": "Macadamia / Queensland-Nüsse",
+        "value": "Macadamia / Queensland-Nuesse"
+      },
+      {
+        "label": "Pinienkerne",
+        "value": "Pinienkerne"
+      },
+      {
+        "label": "Soja / Sojabohnen",
+        "value": "Soja / Sojabohnen"
+      },
+      {
+        "label": "Sesam",
+        "value": "Sesam"
       },
       {
         "label": "Sellerie",
         "value": "Sellerie"
       },
       {
-        "label": "Fructose",
-        "value": "Fructose"
+        "label": "Senf",
+        "value": "Senf"
+      },
+      {
+        "label": "Sulfite / Schwefeldioxid",
+        "value": "Sulfite / Schwefeldioxid"
+      },
+      {
+        "label": "Lupinen",
+        "value": "Lupinen"
       }
     ]
   },
@@ -502,6 +610,15 @@
         "Aktive Einträge löschst Du unten im Bereich der aktiven Unverträglichkeiten."
       ],
       "tip": "GustaroAI unterstützt Dich bei der Auswahl, ersetzt aber keine medizinische Beratung. Prüfe Gerichte bei bekannten Allergien immer zusätzlich selbst oder frage das Servicepersonal."
+    },
+    "profileIntolerancesOnly": {
+      "title": "Unverträglichkeiten",
+      "points": [
+        "Eigene Begriffe kannst Du im Eingabefeld hinzufügen. Ein einzelnes Wort als Begriff reicht, zum Beispiel „Laktose“ oder „Histamin“.",
+        "Diese Angaben werden besonders streng berücksichtigt.",
+        "Aktive Einträge löschst Du unten im Bereich der aktiven Unverträglichkeiten."
+      ],
+      "tip": "GustaroAI berücksichtigt Deine Unverträglichkeiten streng, soweit sie aus der Speisekarte erkennbar sind."
     }
   }
 }

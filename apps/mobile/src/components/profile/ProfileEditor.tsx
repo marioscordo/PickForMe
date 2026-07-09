@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Alert, Text, TextInput, View } from "react-native";
-import { classifyProfilePreference } from "../../api/pickformeApi";
+import { classifyProfileInput, classifyProfilePreference } from "../../api/pickformeApi";
+import { profileFeatures } from "../../config/profileFeatures";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
 import { styles } from "../../theme/styles";
@@ -40,20 +41,27 @@ export function ProfileEditor({
   const allergyOptions = editor.allergyOptions as ValueOption[];
   const normalDietPreferenceValues = editor.normalDietPreferenceValues;
   const exclusiveDietPreferenceValues = editor.exclusiveDietPreferenceValues;
+  const allergenModuleEnabled = profileFeatures.allergenModuleEnabled;
 
   const [customPreference, setCustomPreference] = useState("");
   const [customPreferenceValidationError, setCustomPreferenceValidationError] = useState("");
   const [customPreferenceValidationLoading, setCustomPreferenceValidationLoading] = useState(false);
   const [customExclusion, setCustomExclusion] = useState("");
+  const [customExclusionValidationError, setCustomExclusionValidationError] = useState("");
+  const [customExclusionValidationLoading, setCustomExclusionValidationLoading] = useState(false);
   const [customIntolerance, setCustomIntolerance] = useState("");
+  const [customIntoleranceValidationError, setCustomIntoleranceValidationError] = useState("");
+  const [customIntoleranceValidationLoading, setCustomIntoleranceValidationLoading] = useState(false);
 
   const customPreferences = profile.customPreferences ?? [];
   const customExclusions = profile.customExclusions ?? [];
   const customIntolerances = profile.customIntolerances ?? [];
+  const allergens = profile.allergens ?? [];
 
   const hiddenPreferences = profile.hiddenPreferences ?? [];
   const hiddenExclusions = profile.hiddenExclusions ?? [];
   const hiddenIntolerances = profile.hiddenIntolerances ?? [];
+  const hiddenAllergens = profile.hiddenAllergens ?? [];
 
   const quickPreferenceValues = preferenceOptions.map((option) => option.value);
   const quickExclusionValues = quickExclusions.map((option) => optionValue(option));
@@ -80,9 +88,9 @@ export function ProfileEditor({
     ...profile.dislikes.filter((value) => !includesValue(quickExclusionValues, value))
   ]).filter((value) => !includesValue(hiddenExclusions, value));
 
-  const visibleAllergyOptions = allergyOptions.filter(
-    (option) => !includesValue(hiddenIntolerances, optionValue(option))
-  );
+  const visibleAllergyOptions = allergenModuleEnabled
+    ? allergyOptions.filter((option) => !includesValue(hiddenAllergens, optionValue(option)))
+    : [];
 
   const visibleCustomIntoleranceValues = uniqueValues([
     ...customIntolerances,
@@ -230,27 +238,49 @@ export function ProfileEditor({
     }));
   }
 
-  function addCustomExclusion() {
+  async function addCustomExclusion() {
     const value = customExclusion.trim();
 
-    if (!value) {
+    if (!value || customExclusionValidationLoading) {
       return;
     }
 
-    const isQuick = includesValue(quickExclusionValues, value);
+    if (exclusionAlreadyExists(value)) {
+      setCustomExclusionValidationError(editor.addExclusionDuplicateError);
+      return;
+    }
 
-    updateProfile((currentProfile) => {
-      const currentCustomExclusions = currentProfile.customExclusions ?? [];
-      const currentHiddenExclusions = currentProfile.hiddenExclusions ?? [];
+    setCustomExclusionValidationError("");
+    setCustomExclusionValidationLoading(true);
 
-      return {
-        dislikes: addUnique(currentProfile.dislikes, value),
-        customExclusions: isQuick ? currentCustomExclusions : addUnique(currentCustomExclusions, value),
-        hiddenExclusions: removeValue(currentHiddenExclusions, value)
-      };
-    });
+    try {
+      const classification = await classifyProfileInput(value, "exclusion");
 
-    setCustomExclusion("");
+      if (!classification.allowed) {
+        setCustomExclusionValidationError(editor.addExclusionValidationError);
+        return;
+      }
+
+      const nextValue = classification.normalizedValue?.trim() || value;
+      const isQuick = includesValue(quickExclusionValues, nextValue);
+
+      updateProfile((currentProfile) => {
+        const currentCustomExclusions = currentProfile.customExclusions ?? [];
+        const currentHiddenExclusions = currentProfile.hiddenExclusions ?? [];
+
+        return {
+          dislikes: addUnique(currentProfile.dislikes, nextValue),
+          customExclusions: isQuick ? currentCustomExclusions : addUnique(currentCustomExclusions, nextValue),
+          hiddenExclusions: removeValue(currentHiddenExclusions, nextValue)
+        };
+      });
+
+      setCustomExclusion("");
+    } catch {
+      setCustomExclusionValidationError(editor.addExclusionValidationUnavailable);
+    } finally {
+      setCustomExclusionValidationLoading(false);
+    }
   }
 
   function deleteExclusion(value: string) {
@@ -280,27 +310,55 @@ export function ProfileEditor({
     }));
   }
 
-  function addCustomIntolerance() {
+  function toggleAllergen(value: string) {
+    updateProfile((currentProfile) => ({
+      allergens: toggleValue(currentProfile.allergens ?? [], value)
+    }));
+  }
+
+  async function addCustomIntolerance() {
     const value = customIntolerance.trim();
 
-    if (!value) {
+    if (!value || customIntoleranceValidationLoading) {
       return;
     }
 
-    const isQuick = includesValue(quickIntoleranceValues, value);
+    if (intoleranceAlreadyExists(value)) {
+      setCustomIntoleranceValidationError(editor.addIntoleranceDuplicateError);
+      return;
+    }
 
-    updateProfile((currentProfile) => {
-      const currentCustomIntolerances = currentProfile.customIntolerances ?? [];
-      const currentHiddenIntolerances = currentProfile.hiddenIntolerances ?? [];
+    setCustomIntoleranceValidationError("");
+    setCustomIntoleranceValidationLoading(true);
 
-      return {
-        intolerances: addUnique(currentProfile.intolerances, value),
-        customIntolerances: isQuick ? currentCustomIntolerances : addUnique(currentCustomIntolerances, value),
-        hiddenIntolerances: removeValue(currentHiddenIntolerances, value)
-      };
-    });
+    try {
+      const classification = await classifyProfileInput(value, "exclusion");
 
-    setCustomIntolerance("");
+      if (!classification.allowed) {
+        setCustomIntoleranceValidationError(editor.addIntoleranceValidationError);
+        return;
+      }
+
+      const nextValue = classification.normalizedValue?.trim() || value;
+      const isQuick = allergenModuleEnabled && includesValue(quickIntoleranceValues, nextValue);
+
+      updateProfile((currentProfile) => {
+        const currentCustomIntolerances = currentProfile.customIntolerances ?? [];
+        const currentHiddenIntolerances = currentProfile.hiddenIntolerances ?? [];
+
+        return {
+          intolerances: addUnique(currentProfile.intolerances, nextValue),
+          customIntolerances: isQuick ? currentCustomIntolerances : addUnique(currentCustomIntolerances, nextValue),
+          hiddenIntolerances: removeValue(currentHiddenIntolerances, nextValue)
+        };
+      });
+
+      setCustomIntolerance("");
+    } catch {
+      setCustomIntoleranceValidationError(editor.addIntoleranceValidationUnavailable);
+    } finally {
+      setCustomIntoleranceValidationLoading(false);
+    }
   }
 
   function deleteIntolerance(value: string) {
@@ -322,6 +380,42 @@ export function ProfileEditor({
           };
         })
     );
+  }
+
+  function deleteAllergen(value: string) {
+    const displayValue = displayIntoleranceValue(value);
+
+    confirmDelete(
+      editor.deleteIntoleranceTitle,
+      formatContent(editor.deleteIntoleranceMessage, { value: displayValue }),
+      () =>
+        updateProfile((currentProfile) => ({
+          allergens: removeValue(currentProfile.allergens ?? [], value),
+          hiddenAllergens: addUnique(currentProfile.hiddenAllergens ?? [], value)
+        }))
+    );
+  }
+
+  function exclusionAlreadyExists(value: string) {
+    return [
+      profile.dislikes,
+      customExclusions,
+      quickExclusionValues,
+      hiddenExclusions
+    ].some((values) => includesValue(values, value));
+  }
+
+  function intoleranceAlreadyExists(value: string) {
+    const allergenValues = allergenModuleEnabled ? quickIntoleranceValues : [];
+
+    return [
+      profile.intolerances,
+      customIntolerances,
+      allergens,
+      allergenValues,
+      hiddenIntolerances,
+      hiddenAllergens
+    ].some((values) => includesValue(values, value));
   }
 
   function displayPreferenceValue(value: string) {
@@ -466,15 +560,23 @@ export function ProfileEditor({
           <TextInput
             style={styles.input}
             value={customExclusion}
-            onChangeText={setCustomExclusion}
+            onChangeText={(value) => {
+              setCustomExclusion(value);
+              setCustomExclusionValidationError("");
+            }}
             placeholder={editor.addExclusionPlaceholder}
             returnKeyType="done"
             onSubmitEditing={addCustomExclusion}
           />
 
+          {customExclusionValidationError ? (
+            <Text style={styles.error}>{customExclusionValidationError}</Text>
+          ) : null}
+
           <ActionButton
             label={labelWithIcon(editor.addExclusionButton, editor.exclusionValueIcon)}
             variant="secondary"
+            disabled={customExclusion.trim().length === 0 || customExclusionValidationLoading}
             onPress={addCustomExclusion}
           />
         </View>
@@ -501,27 +603,38 @@ export function ProfileEditor({
 
       {section === "intolerances" ? (
         <View style={styles.profileDetailBlock}>
-        {hideHeader ? null : <SectionHeader title={editor.intolerancesTitle} subtitle={editor.intolerancesHint} />}
+        {hideHeader ? null : (
+          <SectionHeader
+            title={allergenModuleEnabled ? editor.intolerancesTitle : editor.intolerancesOnlyTitle}
+            subtitle={editor.intolerancesHint}
+          />
+        )}
 
-        <Text style={styles.profileSectionHint}>
-          {editor.safetyHint}
-        </Text>
+        {allergenModuleEnabled ? (
+          <Text style={styles.profileSectionHint}>
+            {editor.safetyHint}
+          </Text>
+        ) : null}
+
+        {allergenModuleEnabled ? (
+          <View style={styles.chipRow}>
+            {visibleAllergyOptions.map((option) => {
+              const value = optionValue(option);
+
+              return (
+                <Chip
+                  key={value}
+                  label={optionLabel(option)}
+                  icon={editor.intoleranceValueIcon}
+                  active={allergens.includes(value)}
+                  onPress={() => toggleAllergen(value)}
+                />
+              );
+            })}
+          </View>
+        ) : null}
 
         <View style={styles.chipRow}>
-          {visibleAllergyOptions.map((option) => {
-            const value = optionValue(option);
-
-            return (
-              <Chip
-                key={value}
-                label={optionLabel(option)}
-                icon={editor.intoleranceValueIcon}
-                active={profile.intolerances.includes(value)}
-                onPress={() => toggleIntolerance(value)}
-              />
-            );
-          })}
-
           {visibleCustomIntoleranceValues.map((value) => (
             <Chip
               key={value}
@@ -538,23 +651,41 @@ export function ProfileEditor({
           <TextInput
             style={styles.input}
             value={customIntolerance}
-            onChangeText={setCustomIntolerance}
+            onChangeText={(value) => {
+              setCustomIntolerance(value);
+              setCustomIntoleranceValidationError("");
+            }}
             placeholder={editor.addIntolerancePlaceholder}
             returnKeyType="done"
             onSubmitEditing={addCustomIntolerance}
           />
 
+          {customIntoleranceValidationError ? (
+            <Text style={styles.error}>{customIntoleranceValidationError}</Text>
+          ) : null}
+
           <ActionButton
             label={labelWithIcon(editor.addIntoleranceButton, editor.intoleranceValueIcon)}
             variant="secondary"
+            disabled={customIntolerance.trim().length === 0 || customIntoleranceValidationLoading}
             onPress={addCustomIntolerance}
           />
         </View>
 
-        {profile.intolerances.length > 0 ? (
+        {(allergenModuleEnabled && allergens.length > 0) || profile.intolerances.length > 0 ? (
           <View style={styles.profileSubBlock}>
             <Text style={styles.label}>{editor.deleteActiveIntolerancesLabel}</Text>
             <View style={styles.chipRow}>
+              {allergenModuleEnabled ? allergens.map((value) => (
+                <Chip
+                  key={value}
+                  label={displayIntoleranceValue(value)}
+                  icon={editor.intoleranceValueIcon}
+                  active
+                  onPress={() => deleteAllergen(value)}
+                />
+              )) : null}
+
               {profile.intolerances.map((value) => (
                 <Chip
                   key={value}

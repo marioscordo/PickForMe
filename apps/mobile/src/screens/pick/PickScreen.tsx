@@ -14,6 +14,7 @@ import { SituationSelector } from "../../components/pick/SituationSelector";
 import { ActionButton } from "../../components/ui/ActionButton";
 import { GustaroHelp } from "../../components/ui/GustaroHelp";
 import { Surface } from "../../components/ui/Surface";
+import { profileFeatures } from "../../config/profileFeatures";
 import { useMobileContent } from "../../content/useMobileContent";
 import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
 import { premiumColors, radius, spacing, typography } from "../../theme/tokens";
@@ -787,7 +788,9 @@ const local = StyleSheet.create({
 });
 
 function hasAllergiesOrIntolerances(profile: UserProfile) {
-  return [profile.intolerances, profile.customIntolerances].some((items) =>
+  const allergenValues = profileFeatures.allergenModuleEnabled ? profile.allergens : [];
+
+  return [allergenValues, profile.intolerances, profile.customIntolerances].some((items) =>
     (items ?? []).some((item) => item.trim().length > 0)
   );
 }

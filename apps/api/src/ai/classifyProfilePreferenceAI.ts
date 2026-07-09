@@ -9,6 +9,7 @@ const PROFILE_PREFERENCE_CLASSIFICATIONS = [
   "ingredient",
   "dish",
   "food_category",
+  "allergen",
   "property",
   "preparation",
   "nutrition_goal",
@@ -18,13 +19,6 @@ const PROFILE_PREFERENCE_CLASSIFICATIONS = [
   "unsafe"
 ] as const;
 
-const ALLOWED_CLASSIFICATIONS = new Set<ProfilePreferenceClassification>([
-  "food_item",
-  "ingredient",
-  "dish",
-  "food_category"
-]);
-
 const ProfilePreferenceClassificationResponseSchema = z.object({
   allowed: z.boolean(),
   classification: z.enum(PROFILE_PREFERENCE_CLASSIFICATIONS),
@@ -33,12 +27,29 @@ const ProfilePreferenceClassificationResponseSchema = z.object({
 });
 
 export type ProfilePreferenceClassification = (typeof PROFILE_PREFERENCE_CLASSIFICATIONS)[number];
+export type ProfileInputKind = "preference" | "exclusion";
 
 export type ProfilePreferenceClassificationResult = {
   allowed: boolean;
   classification: ProfilePreferenceClassification;
   normalizedValue?: string;
   reasonCode?: string;
+};
+
+const ALLOWED_CLASSIFICATIONS_BY_INPUT_KIND: Record<ProfileInputKind, Set<ProfilePreferenceClassification>> = {
+  preference: new Set([
+    "food_item",
+    "ingredient",
+    "dish",
+    "food_category"
+  ]),
+  exclusion: new Set([
+    "food_item",
+    "ingredient",
+    "dish",
+    "food_category",
+    "allergen"
+  ])
 };
 
 const MAX_PROFILE_PREFERENCE_LENGTH = 60;
@@ -108,7 +119,12 @@ const DETERMINISTIC_BLOCKS: Record<string, ProfilePreferenceClassification> = {
   wurzung: "ubiquitous_basic",
   seasoning: "ubiquitous_basic",
   sosse: "ubiquitous_basic",
-  sauce: "ubiquitous_basic"
+  "sosse allgemein": "ubiquitous_basic",
+  sauce: "ubiquitous_basic",
+  marinade: "ubiquitous_basic",
+  "marinade allgemein": "ubiquitous_basic",
+  zucker: "ubiquitous_basic",
+  sugar: "ubiquitous_basic"
 };
 
 export async function classifyProfilePreferenceAI({
@@ -118,7 +134,23 @@ export async function classifyProfilePreferenceAI({
   value: string;
   signal?: AbortSignal;
 }): Promise<ProfilePreferenceClassificationResult> {
-  const deterministic = classifyProfilePreferenceDeterministically(value);
+  return classifyProfileInputAI({
+    inputKind: "preference",
+    value,
+    signal
+  });
+}
+
+export async function classifyProfileInputAI({
+  inputKind,
+  value,
+  signal
+}: {
+  inputKind: ProfileInputKind;
+  value: string;
+  signal?: AbortSignal;
+}): Promise<ProfilePreferenceClassificationResult> {
+  const deterministic = classifyProfileInputDeterministically(value);
 
   if (deterministic) {
     return deterministic;
@@ -134,11 +166,11 @@ export async function classifyProfilePreferenceAI({
       messages: [
         {
           role: "system",
-          content: buildSystemPrompt()
+          content: buildSystemPrompt(inputKind)
         },
         {
           role: "user",
-          content: JSON.stringify({ value: inputValue })
+          content: JSON.stringify({ inputKind, value: inputValue })
         }
       ]
     },
@@ -149,10 +181,14 @@ export async function classifyProfilePreferenceAI({
     JSON.parse(stripJsonFence(response.choices[0]?.message?.content ?? "{}"))
   );
 
-  return normalizeClassificationResult(inputValue, parsed);
+  return normalizeClassificationResult(inputValue, inputKind, parsed);
 }
 
 export function classifyProfilePreferenceDeterministically(value: string): ProfilePreferenceClassificationResult | null {
+  return classifyProfileInputDeterministically(value);
+}
+
+export function classifyProfileInputDeterministically(value: string): ProfilePreferenceClassificationResult | null {
   const trimmed = value.trim();
 
   if (!trimmed) {
@@ -186,12 +222,14 @@ export function classifyProfilePreferenceDeterministically(value: string): Profi
 
 function normalizeClassificationResult(
   inputValue: string,
+  inputKind: ProfileInputKind,
   result: z.infer<typeof ProfilePreferenceClassificationResponseSchema>
 ): ProfilePreferenceClassificationResult {
   const classification = result.classification;
   const normalizedValue = result.normalizedValue?.trim();
+  const allowedClassifications = ALLOWED_CLASSIFICATIONS_BY_INPUT_KIND[inputKind];
 
-  if (!result.allowed || !ALLOWED_CLASSIFICATIONS.has(classification)) {
+  if (!result.allowed || !allowedClassifications.has(classification)) {
     return {
       allowed: false,
       classification,
@@ -215,15 +253,22 @@ function normalizeClassificationResult(
   };
 }
 
-function buildSystemPrompt() {
+function buildSystemPrompt(inputKind: ProfileInputKind) {
+  const allowedLine = inputKind === "preference"
+    ? "allowed=true nur fuer classification food_item, ingredient, dish oder food_category."
+    : "allowed=true nur fuer classification food_item, ingredient, dish, food_category oder allergen.";
+  const domainLine = inputKind === "preference"
+    ? "Erlaubt als Vorliebe sind konkrete Lebensmittel, speisekartenrelevante Zutaten, Gerichte und Essenskategorien."
+    : "Erlaubt als Ausschluss oder Unvertraeglichkeit sind erkennbare Lebensmittel, speisekartenrelevante Zutaten, Gerichte, Essenskategorien, Allergene und persoenliche harte No-Gos.";
+
   return [
-    "Du bist ein gekapselter GustaroAI-Klassifikator fuer eigene Profil-Vorlieben.",
+    "Du bist ein gekapselter GustaroAI-Klassifikator fuer eigene Profil-Eingaben.",
     "Deine einzige Aufgabe: einen einzelnen Eingabewert klassifizieren.",
     "Du empfiehlst nichts, analysierst keine Speisekarte und erzeugst keine Profilwerte.",
-    "Erlaubt als Vorliebe sind konkrete Lebensmittel, speisekartenrelevante Zutaten, Gerichte und Essenskategorien.",
-    "allowed=true nur fuer classification food_item, ingredient, dish oder food_category.",
+    domainLine,
+    allowedLine,
     "Blockiere Eigenschaften, Geschmacksprofile, Zubereitungsarten, Preis-/Portionswuensche, Naehrwertziele, Stimmungen, universelle Kuechenbasics und allgemeine Gewuerz-/Wuerzungsbegriffe.",
-    "Universelle Kuechenbasics wie Salz, Pfeffer, Oel, Wasser, Gewuerze, Kraeuter, Wuerzung oder Sauce sind nicht als Vorliebe erlaubt.",
+    "Universelle Kuechenbasics wie Salz, Pfeffer, Oel, Wasser, Zucker, Gewuerze, Kraeuter, Wuerzung, Marinade oder Sauce sind nicht als Profil-Eingabe erlaubt.",
     "Bei Unsicherheit: allowed=false und classification=ambiguous.",
     "Du darfst einfache Schreibweisen normalisieren, wenn eindeutig: pizzza -> Pizza, tomate -> Tomaten, rindfleisch -> Rindfleisch.",
     "Du darfst nicht kreativ umdeuten: leicht ist nicht Salat, proteinreich ist nicht Fleisch, scharf ist nicht Chili, gesund ist nicht Vegetarisch.",

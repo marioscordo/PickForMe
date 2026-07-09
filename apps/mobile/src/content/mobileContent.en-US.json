@@ -150,6 +150,7 @@
     "preferencesButton": "My preferences",
     "exclusionsButton": "My exclusions",
     "intolerancesButton": "Allergies and intolerances",
+    "intolerancesOnlyButton": "Intolerances",
     "subtitle": "GustaroAI remembers what matters to you - without a questionnaire.",
     "signOut": "Sign out",
     "deleteAccount": "Delete account and data",
@@ -184,13 +185,20 @@
     "addExclusionLabel": "Add exclusion",
     "addExclusionPlaceholder": "e.g. garlic, caraway, lamb ...",
     "addExclusionButton": "Add exclusion",
+    "addExclusionDuplicateError": "This exclusion already exists.",
+    "addExclusionValidationError": "Please enter only foods, ingredients, or categories that can be identified on a menu. General seasonings, properties, or kitchen basics such as \"salt\" cannot be checked reliably.",
+    "addExclusionValidationUnavailable": "I could not safely check this exclusion just now. Please try again.",
     "deleteActiveExclusionsLabel": "Delete active exclusions",
     "intolerancesTitle": "Allergies & intolerances",
+    "intolerancesOnlyTitle": "Intolerances",
     "intolerancesHint": "These ingredients are considered especially strictly.",
-    "safetyHint": "Important note: GustaroAI helps you choose dishes based on your allergy and intolerance information. The app does not replace medical advice or asking the restaurant staff. Information may be incomplete or incorrect. Please check every dish yourself and do not rely only on the app. If you have known allergies or intolerances, you must check every dish yourself.",
+    "safetyHint": "GustaroAI considers allergens where they can be identified from the menu. Always ask the restaurant directly if you have allergies.",
     "addIntoleranceLabel": "Add intolerance",
     "addIntolerancePlaceholder": "e.g. histamine, onions, fructose ...",
     "addIntoleranceButton": "Add intolerance",
+    "addIntoleranceDuplicateError": "This intolerance already exists.",
+    "addIntoleranceValidationError": "Please enter only foods, ingredients, or categories that can be identified on a menu. General seasonings, properties, or kitchen basics such as \"salt\" cannot be checked reliably.",
+    "addIntoleranceValidationUnavailable": "I could not safely check this intolerance just now. Please try again.",
     "deleteActiveIntolerancesLabel": "Delete active intolerances",
     "deletePreferenceTitle": "Delete preference?",
     "deletePreferenceMessage": "\"{value}\" will be permanently removed from your preferences.",
@@ -275,32 +283,132 @@
     ],
     "allergyOptions": [
       {
+        "label": "Cereals containing gluten",
+        "value": "glutenhaltiges Getreide"
+      },
+      {
+        "label": "Wheat",
+        "value": "Weizen"
+      },
+      {
+        "label": "Rye",
+        "value": "Roggen"
+      },
+      {
+        "label": "Barley",
+        "value": "Gerste"
+      },
+      {
+        "label": "Oats",
+        "value": "Hafer"
+      },
+      {
+        "label": "Spelt",
+        "value": "Dinkel"
+      },
+      {
+        "label": "Kamut / Khorasan wheat",
+        "value": "Kamut / Khorasan-Weizen"
+      },
+      {
+        "label": "Triticale",
+        "value": "Triticale"
+      },
+      {
+        "label": "Crustaceans",
+        "value": "Krebstiere"
+      },
+      {
+        "label": "Shellfish",
+        "value": "Schalentiere"
+      },
+      {
+        "label": "Mollusks",
+        "value": "Weichtiere / Mollusken"
+      },
+      {
+        "label": "Fish",
+        "value": "Fisch"
+      },
+      {
+        "label": "Eggs",
+        "value": "Eier"
+      },
+      {
+        "label": "Milk",
+        "value": "Milch"
+      },
+      {
         "label": "Lactose",
         "value": "Laktose"
       },
       {
-        "label": "Gluten",
-        "value": "Gluten"
+        "label": "Peanuts",
+        "value": "Erdnuesse"
       },
       {
-        "label": "Nuts",
-        "value": "Nüsse"
+        "label": "Tree nuts",
+        "value": "Schalenfruechte / Baumnuesse"
       },
       {
-        "label": "Egg",
-        "value": "Ei"
+        "label": "Almonds",
+        "value": "Mandeln"
       },
       {
-        "label": "Soy",
-        "value": "Soja"
+        "label": "Hazelnuts",
+        "value": "Haselnuesse"
+      },
+      {
+        "label": "Walnuts",
+        "value": "Walnuesse"
+      },
+      {
+        "label": "Cashews",
+        "value": "Cashews"
+      },
+      {
+        "label": "Pecans",
+        "value": "Pekannuesse"
+      },
+      {
+        "label": "Brazil nuts",
+        "value": "Paranuesse"
+      },
+      {
+        "label": "Pistachios",
+        "value": "Pistazien"
+      },
+      {
+        "label": "Macadamia / Queensland nuts",
+        "value": "Macadamia / Queensland-Nuesse"
+      },
+      {
+        "label": "Pine nuts",
+        "value": "Pinienkerne"
+      },
+      {
+        "label": "Soy / soybeans",
+        "value": "Soja / Sojabohnen"
+      },
+      {
+        "label": "Sesame",
+        "value": "Sesam"
       },
       {
         "label": "Celery",
         "value": "Sellerie"
       },
       {
-        "label": "Fructose",
-        "value": "Fructose"
+        "label": "Mustard",
+        "value": "Senf"
+      },
+      {
+        "label": "Sulfites / sulfur dioxide",
+        "value": "Sulfite / Schwefeldioxid"
+      },
+      {
+        "label": "Lupin",
+        "value": "Lupinen"
       }
     ]
   },
@@ -502,6 +610,15 @@
         "You can remove active entries in the active intolerances section."
       ],
       "tip": "GustaroAI supports your choice, but does not replace medical advice. If you have known allergies, always check dishes yourself or ask the service staff."
+    },
+    "profileIntolerancesOnly": {
+      "title": "Intolerances",
+      "points": [
+        "You can add your own terms in the input field. A single word is enough, for example 'lactose' or 'histamine'.",
+        "These entries are considered especially strictly.",
+        "You can remove active entries in the active intolerances section."
+      ],
+      "tip": "GustaroAI considers your intolerances strictly where they can be identified from the menu."
     }
   }
 }

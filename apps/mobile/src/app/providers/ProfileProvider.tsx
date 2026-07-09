@@ -1,6 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { DEFAULT_OUTPUT_LOCALE } from "../../config/outputLocales";
+import {
+  filterControlledProfileValues,
+  splitGlobalAllergens
+} from "../../profile/profileInputPolicy";
 import type { UserProfile } from "../../types/profile";
 
 const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";
@@ -17,10 +21,12 @@ const defaultProfile: UserProfile = {
   customPreferences: [],
   customExclusions: [],
   customIntolerances: [],
+  allergens: [],
 
   hiddenPreferences: [],
   hiddenExclusions: [],
-  hiddenIntolerances: []
+  hiddenIntolerances: [],
+  hiddenAllergens: []
 };
 
 type ProfileContextValue = {
@@ -116,27 +122,41 @@ function mergeStoredProfile(storedProfile: string | null): UserProfile {
 }
 
 function normalizeProfile(profile: Partial<UserProfile>): UserProfile {
+  const splitIntolerances = splitGlobalAllergens(stringArray(profile.intolerances));
+  const splitCustomIntolerances = splitGlobalAllergens(stringArray(profile.customIntolerances));
+  const splitHiddenIntolerances = splitGlobalAllergens(stringArray(profile.hiddenIntolerances));
+  const allergens = [
+    ...stringArray(profile.allergens),
+    ...splitIntolerances.allergens,
+    ...splitCustomIntolerances.allergens
+  ];
+
   return {
     ...defaultProfile,
     ...profile,
     displayName: typeof profile.displayName === "string" && profile.displayName.trim()
       ? profile.displayName
       : defaultProfile.displayName,
-    primaryLikes: stringArray(profile.primaryLikes),
+    primaryLikes: filterControlledProfileValues(stringArray(profile.primaryLikes)),
     secondaryLikes: stringArray(profile.secondaryLikes),
-    dislikes: stringArray(profile.dislikes),
-    intolerances: stringArray(profile.intolerances),
+    dislikes: filterControlledProfileValues(stringArray(profile.dislikes)),
+    intolerances: filterControlledProfileValues(splitIntolerances.rest),
     dietStyle: isDietStyle(profile.dietStyle) ? profile.dietStyle : defaultProfile.dietStyle,
     outputLocale: typeof profile.outputLocale === "string" && profile.outputLocale.trim()
       ? profile.outputLocale
       : defaultProfile.outputLocale,
     appetiteMood: isAppetiteMood(profile.appetiteMood) ? profile.appetiteMood : defaultProfile.appetiteMood,
-    customPreferences: stringArray(profile.customPreferences),
-    customExclusions: stringArray(profile.customExclusions),
-    customIntolerances: stringArray(profile.customIntolerances),
+    customPreferences: filterControlledProfileValues(stringArray(profile.customPreferences)),
+    customExclusions: filterControlledProfileValues(stringArray(profile.customExclusions)),
+    customIntolerances: filterControlledProfileValues(splitCustomIntolerances.rest),
+    allergens: uniqueValues(filterControlledProfileValues(allergens)),
     hiddenPreferences: stringArray(profile.hiddenPreferences),
     hiddenExclusions: stringArray(profile.hiddenExclusions),
-    hiddenIntolerances: stringArray(profile.hiddenIntolerances)
+    hiddenIntolerances: splitHiddenIntolerances.rest,
+    hiddenAllergens: uniqueValues([
+      ...stringArray(profile.hiddenAllergens),
+      ...splitHiddenIntolerances.allergens
+    ])
   };
 }
 
@@ -152,4 +172,12 @@ function isDietStyle(value: unknown): value is UserProfile["dietStyle"] {
 
 function isAppetiteMood(value: unknown): value is UserProfile["appetiteMood"] {
   return value === "richtig_hunger" || value === "leicht" || value === "neues_probieren" || value === "sicher";
+}
+
+function uniqueValues(values: string[]) {
+  return values.reduce<string[]>((result, value) => {
+    return result.some((item) => item.trim().toLowerCase() === value.trim().toLowerCase())
+      ? result
+      : [...result, value];
+  }, []);
 }

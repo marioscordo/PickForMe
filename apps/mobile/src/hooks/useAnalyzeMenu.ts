@@ -86,9 +86,11 @@ export function useAnalyzeMenu() {
         customPreferences: profile.customPreferences,
         customExclusions: profile.customExclusions,
         customIntolerances: profile.customIntolerances,
+        allergens: profile.allergens,
         hiddenPreferences: profile.hiddenPreferences,
         hiddenExclusions: profile.hiddenExclusions,
-        hiddenIntolerances: profile.hiddenIntolerances
+        hiddenIntolerances: profile.hiddenIntolerances,
+        hiddenAllergens: profile.hiddenAllergens
       }),
     [profile]
   );

@@ -1,5 +1,10 @@
 import { apiPost } from "./apiClient";
 import { DEFAULT_OUTPUT_LOCALE } from "../config/outputLocales";
+import { profileFeatures } from "../config/profileFeatures";
+import {
+  filterControlledProfileValues,
+  splitGlobalAllergens
+} from "../profile/profileInputPolicy";
 import type { UserProfile } from "../types/profile";
 import type { AnalyzeData, RestaurantIntroData, StarterPairingsData } from "../types/recommendations";
 
@@ -53,6 +58,7 @@ export type ProfilePreferenceClassificationResult = {
     | "ingredient"
     | "dish"
     | "food_category"
+    | "allergen"
     | "property"
     | "preparation"
     | "nutrition_goal"
@@ -64,7 +70,10 @@ export type ProfilePreferenceClassificationResult = {
   reasonCode?: string;
 };
 
+type ProfileInputKind = "preference" | "exclusion";
+
 type ClassifyProfilePreferenceBody = {
+  inputKind?: ProfileInputKind;
   value: string;
 };
 
@@ -98,10 +107,7 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
     sourceKind: "text",
     menuText: args.menuText,
     situation: args.situation,
-    profile: {
-      ...args.profile,
-      outputLocale: args.profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE
-    }
+    profile: sanitizeProfileForApi(args.profile)
   };
 
   return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body, {
@@ -125,10 +131,7 @@ export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
     sourceKind: "text" as const,
     menuText: args.menuText,
     situation: args.situation,
-    profile: {
-      ...args.profile,
-      outputLocale: args.profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE
-    },
+    profile: sanitizeProfileForApi(args.profile),
     dishes: args.result.dishes,
     starterCandidateDishes: args.result.starterCandidateDishes,
     recommendations: args.result.recommendations,
@@ -160,9 +163,13 @@ export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {
 }
 
 export function classifyProfilePreference(value: string, signal?: AbortSignal) {
+  return classifyProfileInput(value, "preference", signal);
+}
+
+export function classifyProfileInput(value: string, inputKind: ProfileInputKind, signal?: AbortSignal) {
   return apiPost<ProfilePreferenceClassificationResult, ClassifyProfilePreferenceBody>(
     "/api/profile-preference-classification",
-    { value },
+    { inputKind, value },
     {
       signal
     }
@@ -192,5 +199,42 @@ export function logAllergyWarningConfirmation(body: LogAllergyWarningConfirmatio
     "/api/safety/allergy-warning-confirmation",
     body
   );
+}
+
+function sanitizeProfileForApi(profile: UserProfile): UserProfile {
+  const splitIntolerances = splitGlobalAllergens(profile.intolerances);
+  const splitCustomIntolerances = splitGlobalAllergens(profile.customIntolerances ?? []);
+  const allergens = [
+    ...(profile.allergens ?? []),
+    ...splitIntolerances.allergens,
+    ...splitCustomIntolerances.allergens
+  ];
+  const controlledAllergens = profileFeatures.allergenModuleEnabled
+    ? uniqueValues(filterControlledProfileValues(allergens))
+    : [];
+  const controlledIntolerances = filterControlledProfileValues([
+    ...splitIntolerances.rest,
+    ...splitCustomIntolerances.rest
+  ]);
+
+  return {
+    ...profile,
+    outputLocale: profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE,
+    primaryLikes: filterControlledProfileValues(profile.primaryLikes),
+    customPreferences: filterControlledProfileValues(profile.customPreferences ?? []),
+    dislikes: filterControlledProfileValues(profile.dislikes),
+    customExclusions: filterControlledProfileValues(profile.customExclusions ?? []),
+    allergens: controlledAllergens,
+    intolerances: uniqueValues([...controlledAllergens, ...controlledIntolerances]),
+    customIntolerances: controlledIntolerances
+  };
+}
+
+function uniqueValues(values: string[]) {
+  return values.reduce<string[]>((result, value) => {
+    return result.some((item) => item.trim().toLowerCase() === value.trim().toLowerCase())
+      ? result
+      : [...result, value];
+  }, []);
 }
 

@@ -23,10 +23,12 @@ export type UserProfile = {
   customPreferences?: string[];
   customExclusions?: string[];
   customIntolerances?: string[];
+  allergens?: string[];
 
   hiddenPreferences?: string[];
   hiddenExclusions?: string[];
   hiddenIntolerances?: string[];
+  hiddenAllergens?: string[];
 };
 
 

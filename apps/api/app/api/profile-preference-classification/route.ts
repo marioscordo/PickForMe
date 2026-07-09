@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  classifyProfileInputAI,
   classifyProfilePreferenceAI,
-  classifyProfilePreferenceDeterministically
+  classifyProfileInputDeterministically
 } from "../../../src/ai/classifyProfilePreferenceAI";
 import { requireUser } from "../../../src/auth/requireUser";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 
 const ProfilePreferenceClassificationRequestSchema = z.object({
+  inputKind: z.enum(["preference", "exclusion"]).optional(),
   value: z.string().max(240)
 });
 
@@ -27,7 +29,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const deterministicResult = classifyProfilePreferenceDeterministically(parsedBody.data.value);
+    const inputKind = parsedBody.data.inputKind ?? "preference";
+    const deterministicResult = classifyProfileInputDeterministically(parsedBody.data.value);
 
     if (deterministicResult) {
       return NextResponse.json({
@@ -40,13 +43,18 @@ export async function POST(request: Request) {
       throw new AppError(
         400,
         "PROFILE_PREFERENCE_CLASSIFICATION_AI_DISABLED",
-        "Eigene Vorlieben benoetigen den KI-Modus."
+        "Eigene Profileingaben benoetigen den KI-Modus."
       );
     }
 
-    const data = await classifyProfilePreferenceAI({
-      value: parsedBody.data.value
-    });
+    const data = inputKind === "preference"
+      ? await classifyProfilePreferenceAI({
+        value: parsedBody.data.value
+      })
+      : await classifyProfileInputAI({
+        inputKind,
+        value: parsedBody.data.value
+      });
 
     return NextResponse.json({
       ok: true,

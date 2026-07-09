@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Dimensions, Linking, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { classifyProfilePreference } from "../../api/pickformeApi";
+import { classifyProfileInput, classifyProfilePreference } from "../../api/pickformeApi";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { ProfileEditor, type ProfileEditorSection } from "../../components/profile/ProfileEditor";
@@ -9,6 +9,7 @@ import { GustaroHelp } from "../../components/ui/GustaroHelp";
 import { Screen } from "../../components/ui/Screen";
 import { env } from "../../config/env";
 import { OUTPUT_LOCALES, resolveOutputLocale } from "../../config/outputLocales";
+import { profileFeatures } from "../../config/profileFeatures";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
 import { premiumColors, semanticColors, spacing, typography } from "../../theme/tokens";
@@ -65,7 +66,11 @@ export function ProfileScreen({
   const [customPreferenceValidationError, setCustomPreferenceValidationError] = useState("");
   const [customPreferenceValidationLoading, setCustomPreferenceValidationLoading] = useState(false);
   const [customExclusion, setCustomExclusion] = useState("");
+  const [customExclusionValidationError, setCustomExclusionValidationError] = useState("");
+  const [customExclusionValidationLoading, setCustomExclusionValidationLoading] = useState(false);
   const [customIntolerance, setCustomIntolerance] = useState("");
+  const [customIntoleranceValidationError, setCustomIntoleranceValidationError] = useState("");
+  const [customIntoleranceValidationLoading, setCustomIntoleranceValidationLoading] = useState(false);
   const [overviewContentHeight, setOverviewContentHeight] = useState(0);
   const [overviewViewportHeight, setOverviewViewportHeight] = useState(0);
   const [overviewScrollY, setOverviewScrollY] = useState(0);
@@ -76,18 +81,26 @@ export function ProfileScreen({
   const allergyOptions = editor.allergyOptions as ValueOption[];
   const normalDietPreferenceValues = editor.normalDietPreferenceValues;
   const exclusiveDietPreferenceValues = editor.exclusiveDietPreferenceValues;
+  const allergenModuleEnabled = profileFeatures.allergenModuleEnabled;
 
   const profileSections: { id: ProfileEditorSection; label: string }[] = [
     { id: "preferences", label: content.profileScreen.preferencesButton },
     { id: "exclusions", label: content.profileScreen.exclusionsButton },
-    { id: "intolerances", label: content.profileScreen.intolerancesButton }
+    {
+      id: "intolerances",
+      label: allergenModuleEnabled
+        ? content.profileScreen.intolerancesButton
+        : content.profileScreen.intolerancesOnlyButton
+    }
   ];
   const customPreferences = profile.customPreferences ?? [];
   const customExclusions = profile.customExclusions ?? [];
   const customIntolerances = profile.customIntolerances ?? [];
+  const allergens = profile.allergens ?? [];
   const hiddenPreferences = profile.hiddenPreferences ?? [];
   const hiddenExclusions = profile.hiddenExclusions ?? [];
   const hiddenIntolerances = profile.hiddenIntolerances ?? [];
+  const hiddenAllergens = profile.hiddenAllergens ?? [];
   const quickPreferenceValues = preferenceOptions.map((option) => option.value);
   const quickExclusionValues = quickExclusions.map((option) => optionValue(option));
   const quickIntoleranceValues = allergyOptions.map((option) => optionValue(option));
@@ -104,11 +117,14 @@ export function ProfileScreen({
     ...customExclusions,
     ...profile.dislikes.filter((value) => !includesValue(quickExclusionValues, value))
   ]).filter((value) => !includesValue(hiddenExclusions, value));
-  const visibleAllergyOptions = allergyOptions.filter((option) => !includesValue(hiddenIntolerances, optionValue(option)));
+  const visibleAllergyOptions = allergenModuleEnabled
+    ? allergyOptions.filter((option) => !includesValue(hiddenAllergens, optionValue(option)))
+    : [];
   const visibleCustomIntoleranceValues = uniqueValues([
     ...customIntolerances,
     ...profile.intolerances.filter((value) => !includesValue(quickIntoleranceValues, value))
   ]).filter((value) => !includesValue(hiddenIntolerances, value));
+  const activeIntoleranceCount = profile.intolerances.length + (allergenModuleEnabled ? allergens.length : 0);
   const overviewCanScrollFurther = overviewContentHeight > overviewViewportHeight + 18 && overviewScrollY + overviewViewportHeight < overviewContentHeight - 36;
   const selectedOutputLocale = resolveOutputLocale(profile.outputLocale);
   const outputLocaleOptions = useMemo(
@@ -142,7 +158,9 @@ export function ProfileScreen({
           ? content.help.profilePreferences
           : activeSection === "exclusions"
             ? content.help.profileExclusions
-            : content.help.profileIntolerances;
+            : allergenModuleEnabled
+              ? content.help.profileIntolerances
+              : content.help.profileIntolerancesOnly;
 
     function confirmDeleteAccount() {
       setDeleteAccountError(null);
@@ -327,27 +345,49 @@ export function ProfileScreen({
       }));
     }
 
-    function addCustomExclusion() {
+    async function addCustomExclusion() {
       const value = customExclusion.trim();
 
-      if (!value) {
+      if (!value || customExclusionValidationLoading) {
         return;
       }
 
-      const isQuick = includesValue(quickExclusionValues, value);
+      if (exclusionAlreadyExists(value)) {
+        setCustomExclusionValidationError(editor.addExclusionDuplicateError);
+        return;
+      }
 
-      updateProfile((currentProfile) => {
-        const currentCustomExclusions = currentProfile.customExclusions ?? [];
-        const currentHiddenExclusions = currentProfile.hiddenExclusions ?? [];
+      setCustomExclusionValidationError("");
+      setCustomExclusionValidationLoading(true);
 
-        return {
-          dislikes: addUnique(currentProfile.dislikes, value),
-          customExclusions: isQuick ? currentCustomExclusions : addUnique(currentCustomExclusions, value),
-          hiddenExclusions: removeValue(currentHiddenExclusions, value)
-        };
-      });
+      try {
+        const classification = await classifyProfileInput(value, "exclusion");
 
-      setCustomExclusion("");
+        if (!classification.allowed) {
+          setCustomExclusionValidationError(editor.addExclusionValidationError);
+          return;
+        }
+
+        const nextValue = classification.normalizedValue?.trim() || value;
+        const isQuick = includesValue(quickExclusionValues, nextValue);
+
+        updateProfile((currentProfile) => {
+          const currentCustomExclusions = currentProfile.customExclusions ?? [];
+          const currentHiddenExclusions = currentProfile.hiddenExclusions ?? [];
+
+          return {
+            dislikes: addUnique(currentProfile.dislikes, nextValue),
+            customExclusions: isQuick ? currentCustomExclusions : addUnique(currentCustomExclusions, nextValue),
+            hiddenExclusions: removeValue(currentHiddenExclusions, nextValue)
+          };
+        });
+
+        setCustomExclusion("");
+      } catch {
+        setCustomExclusionValidationError(editor.addExclusionValidationUnavailable);
+      } finally {
+        setCustomExclusionValidationLoading(false);
+      }
     }
 
     function deleteExclusion(value: string) {
@@ -385,27 +425,55 @@ export function ProfileScreen({
       }));
     }
 
-    function addCustomIntolerance() {
+    function toggleAllergen(value: string) {
+      updateProfile((currentProfile) => ({
+        allergens: toggleValue(currentProfile.allergens ?? [], value)
+      }));
+    }
+
+    async function addCustomIntolerance() {
       const value = customIntolerance.trim();
 
-      if (!value) {
+      if (!value || customIntoleranceValidationLoading) {
         return;
       }
 
-      const isQuick = includesValue(quickIntoleranceValues, value);
+      if (intoleranceAlreadyExists(value)) {
+        setCustomIntoleranceValidationError(editor.addIntoleranceDuplicateError);
+        return;
+      }
 
-      updateProfile((currentProfile) => {
-        const currentCustomIntolerances = currentProfile.customIntolerances ?? [];
-        const currentHiddenIntolerances = currentProfile.hiddenIntolerances ?? [];
+      setCustomIntoleranceValidationError("");
+      setCustomIntoleranceValidationLoading(true);
 
-        return {
-          intolerances: addUnique(currentProfile.intolerances, value),
-          customIntolerances: isQuick ? currentCustomIntolerances : addUnique(currentCustomIntolerances, value),
-          hiddenIntolerances: removeValue(currentHiddenIntolerances, value)
-        };
-      });
+      try {
+        const classification = await classifyProfileInput(value, "exclusion");
 
-      setCustomIntolerance("");
+        if (!classification.allowed) {
+          setCustomIntoleranceValidationError(editor.addIntoleranceValidationError);
+          return;
+        }
+
+        const nextValue = classification.normalizedValue?.trim() || value;
+        const isQuick = allergenModuleEnabled && includesValue(quickIntoleranceValues, nextValue);
+
+        updateProfile((currentProfile) => {
+          const currentCustomIntolerances = currentProfile.customIntolerances ?? [];
+          const currentHiddenIntolerances = currentProfile.hiddenIntolerances ?? [];
+
+          return {
+            intolerances: addUnique(currentProfile.intolerances, nextValue),
+            customIntolerances: isQuick ? currentCustomIntolerances : addUnique(currentCustomIntolerances, nextValue),
+            hiddenIntolerances: removeValue(currentHiddenIntolerances, nextValue)
+          };
+        });
+
+        setCustomIntolerance("");
+      } catch {
+        setCustomIntoleranceValidationError(editor.addIntoleranceValidationUnavailable);
+      } finally {
+        setCustomIntoleranceValidationLoading(false);
+      }
     }
 
     function deleteIntolerance(value: string) {
@@ -427,6 +495,42 @@ export function ProfileScreen({
             };
           })
       );
+    }
+
+    function deleteAllergen(value: string) {
+      const displayValue = displayIntoleranceValue(value);
+
+      confirmDelete(
+        editor.deleteIntoleranceTitle,
+        formatContent(editor.deleteIntoleranceMessage, { value: displayValue }),
+        () =>
+          updateProfile((currentProfile) => ({
+            allergens: removeValue(currentProfile.allergens ?? [], value),
+            hiddenAllergens: addUnique(currentProfile.hiddenAllergens ?? [], value)
+          }))
+      );
+    }
+
+    function exclusionAlreadyExists(value: string) {
+      return [
+        profile.dislikes,
+        customExclusions,
+        quickExclusionValues,
+        hiddenExclusions
+      ].some((values) => includesValue(values, value));
+    }
+
+    function intoleranceAlreadyExists(value: string) {
+      const allergenValues = allergenModuleEnabled ? quickIntoleranceValues : [];
+
+      return [
+        profile.intolerances,
+        customIntolerances,
+        allergens,
+        allergenValues,
+        hiddenIntolerances,
+        hiddenAllergens
+      ].some((values) => includesValue(values, value));
     }
 
     function displayIntoleranceValue(value: string) {
@@ -656,14 +760,21 @@ export function ProfileScreen({
             <PremiumProfileSubBlock title={editor.addExclusionLabel}>
               <PremiumProfileInput
                 value={customExclusion}
-                onChangeText={setCustomExclusion}
+                onChangeText={(value) => {
+                  setCustomExclusion(value);
+                  setCustomExclusionValidationError("");
+                }}
                 placeholder={editor.addExclusionPlaceholder}
                 onSubmitEditing={addCustomExclusion}
               />
+              {customExclusionValidationError ? (
+                <Text style={local.preferenceValidationError}>{customExclusionValidationError}</Text>
+              ) : null}
               <PremiumEditorButton
+                disabled={customExclusion.trim().length === 0 || customExclusionValidationLoading}
                 icon="thumbs-down"
                 label={editor.addExclusionButton}
-                ready={customExclusion.trim().length > 0}
+                ready={customExclusion.trim().length > 0 && !customExclusionValidationLoading}
                 onPress={addCustomExclusion}
               />
             </PremiumProfileSubBlock>
@@ -703,23 +814,27 @@ export function ProfileScreen({
           <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
 
           <View style={local.premiumEditorStack}>
-            <PremiumSafetyCard text={editor.safetyHint} />
+            {allergenModuleEnabled ? <PremiumSafetyCard text={editor.safetyHint} /> : null}
+
+            {allergenModuleEnabled ? (
+              <View style={local.premiumChipRow}>
+                {visibleAllergyOptions.map((option) => {
+                  const value = optionValue(option);
+
+                  return (
+                    <PremiumFeatherChip
+                      key={value}
+                      active={allergens.includes(value)}
+                      icon="alert-circle"
+                      label={optionLabel(option)}
+                      onPress={() => toggleAllergen(value)}
+                    />
+                  );
+                })}
+              </View>
+            ) : null}
 
             <View style={local.premiumChipRow}>
-              {visibleAllergyOptions.map((option) => {
-                const value = optionValue(option);
-
-                return (
-                  <PremiumFeatherChip
-                    key={value}
-                    active={profile.intolerances.includes(value)}
-                    icon="alert-circle"
-                    label={optionLabel(option)}
-                    onPress={() => toggleIntolerance(value)}
-                  />
-                );
-              })}
-
               {visibleCustomIntoleranceValues.map((value) => (
                 <PremiumFeatherChip
                   key={value}
@@ -734,21 +849,39 @@ export function ProfileScreen({
             <PremiumProfileSubBlock title={editor.addIntoleranceLabel}>
               <PremiumProfileInput
                 value={customIntolerance}
-                onChangeText={setCustomIntolerance}
+                onChangeText={(value) => {
+                  setCustomIntolerance(value);
+                  setCustomIntoleranceValidationError("");
+                }}
                 placeholder={editor.addIntolerancePlaceholder}
                 onSubmitEditing={addCustomIntolerance}
               />
+              {customIntoleranceValidationError ? (
+                <Text style={local.preferenceValidationError}>{customIntoleranceValidationError}</Text>
+              ) : null}
               <PremiumEditorButton
+                disabled={customIntolerance.trim().length === 0 || customIntoleranceValidationLoading}
                 icon="plus-circle"
                 label={editor.addIntoleranceButton}
-                ready={customIntolerance.trim().length > 0}
+                ready={customIntolerance.trim().length > 0 && !customIntoleranceValidationLoading}
                 onPress={addCustomIntolerance}
               />
             </PremiumProfileSubBlock>
 
-            {profile.intolerances.length > 0 ? (
+            {(allergenModuleEnabled && allergens.length > 0) || profile.intolerances.length > 0 ? (
               <PremiumProfileSubBlock title={editor.deleteActiveIntolerancesLabel} compact>
                 <View style={local.premiumChipRowCompact}>
+                  {allergenModuleEnabled ? allergens.map((value) => (
+                    <PremiumFeatherChip
+                      key={value}
+                      active
+                      compact
+                      icon="slash"
+                      label={displayIntoleranceValue(value)}
+                      onPress={() => deleteAllergen(value)}
+                    />
+                  )) : null}
+
                   {profile.intolerances.map((value) => (
                     <PremiumFeatherChip
                       key={value}
@@ -835,8 +968,8 @@ export function ProfileScreen({
           <ProfileMenuRow
             icon={content.profileEditor.intoleranceValueIcon}
             iconVariant="intolerances"
-            title={content.profileScreen.intolerancesButton}
-            detail={activeStatus(profile.intolerances.length, content)}
+            title={allergenModuleEnabled ? content.profileScreen.intolerancesButton : content.profileScreen.intolerancesOnlyButton}
+            detail={activeStatus(activeIntoleranceCount, content)}
             onPress={() => setActiveSection("intolerances")}
             isLast
           />
