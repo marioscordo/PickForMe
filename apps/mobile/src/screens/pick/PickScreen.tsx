@@ -423,7 +423,11 @@ export function PickScreen({
       {analyze.error ? (
         <>
           <View style={local.feedbackErrorCard}>
-            <Text style={local.errorTitle}>{content.pick.errorTitle}</Text>
+            <Text style={local.errorTitle}>
+              {analyze.error === content.analysisErrors.emptyMenuInput
+                ? content.pick.inputMissingTitle
+                : content.pick.errorTitle}
+            </Text>
             <Text style={local.errorText}>{analyze.error}</Text>
           </View>
 

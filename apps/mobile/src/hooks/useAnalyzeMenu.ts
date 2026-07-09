@@ -114,7 +114,14 @@ export function useAnalyzeMenu() {
     setError("");
     setResult(null);
 
-    if (menuText.trim().length < 20) {
+    const trimmedMenuText = menuText.trim();
+
+    if (trimmedMenuText.length === 0) {
+      setError(content.analysisErrors.emptyMenuInput);
+      return;
+    }
+
+    if (trimmedMenuText.length < 20) {
       setError(content.analysisErrors.menuTooShort);
       return;
     }

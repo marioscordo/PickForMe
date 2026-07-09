@@ -30,6 +30,7 @@
       "I am choosing suitable recommendations ..."
     ],
     "errorTitle": "Menu could not be evaluated safely",
+    "inputMissingTitle": "Menu missing",
     "mainButtonIdle": "Find something for me",
     "mainButtonLoading": "I am looking at the menu ...",
     "openMenu": "Open menu",
@@ -421,6 +422,7 @@
     "dynamicMenuUnsupported": "This digital menu platform is not supported in V1 yet. Please use a PDF menu or paste the menu text.",
     "menuUrlLoadFailed": "This menu could not be loaded. Please check the link or use a PDF menu.",
     "aiRateLimit": "I cannot evaluate the menu right now. Please try again in a moment.",
+    "emptyMenuInput": "Please add a menu link or menu text first.",
     "menuTooShort": "Please paste a menu or scan a QR code.",
     "sourceKindUnsupported": "This kind of menu is not supported in V1 yet.",
     "pdfAiDisabled": "PDF menus require AI mode.",

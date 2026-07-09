@@ -30,6 +30,7 @@
       "Ich wähle passende Empfehlungen ..."
     ],
     "errorTitle": "Speisekarte nicht sicher ausgewertet",
+    "inputMissingTitle": "Speisekarte fehlt",
     "mainButtonIdle": "Such mir etwas Passendes",
     "mainButtonLoading": "Ich schaue auf die Karte ...",
     "openMenu": "Speisekarte öffnen",
@@ -421,6 +422,7 @@
     "dynamicMenuUnsupported": "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein.",
     "menuUrlLoadFailed": "Diese Speisekarte konnte nicht geladen werden. Bitte prüfe den Link oder nutze eine PDF-Speisekarte.",
     "aiRateLimit": "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal.",
+    "emptyMenuInput": "Bitte füge zuerst einen Speisekartenlink oder Speisekartentext ein.",
     "menuTooShort": "Bitte füge eine Speisekarte ein oder scanne einen QR-Code.",
     "sourceKindUnsupported": "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.",
     "pdfAiDisabled": "PDF-Speisekarten benötigen den KI-Modus.",
