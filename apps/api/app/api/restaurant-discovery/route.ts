@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "../../../src/auth/requireUser";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
+import { discoverRestaurantSources } from "../../../src/restaurant/discoverRestaurantSource";
 import { searchRestaurantCandidates } from "../../../src/restaurant/searchRestaurantCandidates";
 
 const RestaurantDiscoveryRequestSchema = z.object({
@@ -16,10 +17,13 @@ export async function POST(request: Request) {
 
     const body = RestaurantDiscoveryRequestSchema.parse(await request.json());
     const data = await searchRestaurantCandidates(body);
+    const discoveryData = data.candidates.length > 0
+      ? data
+      : await discoverRestaurantSources(body).catch(() => data);
 
     return NextResponse.json({
       ok: true,
-      data
+      data: discoveryData
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

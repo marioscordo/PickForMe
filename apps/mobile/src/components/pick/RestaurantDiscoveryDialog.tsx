@@ -344,8 +344,11 @@ export function RestaurantDiscoveryDialog({
                 testID="restaurant-discovery-link"
                 value={menuUrl}
                 editable={false}
-                style={[local.input, local.inputReadonly]}
+                multiline
+                scrollEnabled={false}
+                style={[local.input, local.inputReadonly, local.linkInput]}
                 placeholderTextColor={premiumPalette.disabledText}
+                textAlignVertical="top"
               />
             </View>
 
@@ -469,6 +472,9 @@ const local = StyleSheet.create({
   },
   inputReadonly: {
     color: premiumPalette.textSoft
+  },
+  linkInput: {
+    minHeight: s(84)
   },
   premiumButton: {
     alignItems: "center",

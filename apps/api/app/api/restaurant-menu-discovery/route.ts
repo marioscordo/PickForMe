@@ -394,7 +394,7 @@ async function verifyAnalyzableMenuUrl(candidateUrl: string, expectedDomain: str
   }
 
   if (looksLikePdfUrl(normalizedUrl)) {
-    return "";
+    return normalizedUrl;
   }
 
   const linkedMenuUrl = await findLinkedAnalyzableMenuUrl(normalizedUrl, expectedDomain);
@@ -441,6 +441,9 @@ async function findLinkedAnalyzableMenuUrl(pageUrl: string, expectedDomain: stri
 
     if (!reachableUrl) continue;
     if (getRegistrableDomain(reachableUrl) !== expectedDomain) continue;
+    if (looksLikePdfUrl(reachableUrl)) {
+      return reachableUrl;
+    }
     if (await isDirectlyAnalyzableMenuUrl(reachableUrl)) {
       return reachableUrl;
     }
