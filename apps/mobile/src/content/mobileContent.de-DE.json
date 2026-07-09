@@ -12,7 +12,7 @@
     "title": "Willkommen bei GustaroAI",
     "subtitle": "Ich helfe Dir, aus der Speisekarte die passende Wahl zu treffen.",
     "primaryAction": "Empfehlung aus Speisekarte",
-    "secondaryAction": "Mein Profil anpassen",
+    "secondaryAction": "Mein Profil",
     "note": "Dein Geschmack bleibt gespeichert."
   },
   "pick": {
@@ -526,7 +526,7 @@
       "title": "Startseite",
       "points": [
         "Starte mit „Empfehlung aus Speisekarte“, wenn GustaroAI Dir aus einer Karte etwas Passendes suchen soll.",
-        "Über „Mein Profil anpassen“ sagst Du GustaroAI, was Du magst, meidest oder nicht verträgst.",
+        "Über „Mein Profil“ sagst Du GustaroAI, was Du magst, meidest oder nicht verträgst.",
         "Dein Profil bleibt gespeichert, damit die nächste Empfehlung persönlicher wird.",
         "Wenn bereits eine Empfehlung vorhanden ist, führt Dich GustaroAI direkt zurück dorthin."
       ],

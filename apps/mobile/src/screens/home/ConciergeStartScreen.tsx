@@ -343,7 +343,8 @@ const local = StyleSheet.create({
     fontSize: fs(18),
     fontWeight: "700",
     lineHeight: fs(21),
-    marginLeft: s(9)
+    marginLeft: s(9),
+    textAlign: "center"
   },
   secondaryChevron: {
     width: s(30)
