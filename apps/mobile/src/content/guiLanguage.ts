@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from "react-native";
+import { NativeModules, Platform, Settings } from "react-native";
 import type { GuiLanguage } from "./mobileContent";
 
 export function resolveGuiLanguageFromDevice(): GuiLanguage {
@@ -29,8 +29,15 @@ function getDeviceLocaleCandidates() {
     typeof NativeModules.I18nManager?.localeIdentifier === "string"
       ? NativeModules.I18nManager.localeIdentifier
       : undefined;
+  const settingsAppleLanguages = Settings.get("AppleLanguages");
+  const settingsPrimaryLanguage =
+    Array.isArray(settingsAppleLanguages) && typeof settingsAppleLanguages[0] === "string"
+      ? settingsAppleLanguages[0]
+      : undefined;
+  const settingsAppleLocale = Settings.get("AppleLocale");
+  const settingsLocale = typeof settingsAppleLocale === "string" ? settingsAppleLocale : undefined;
 
   return Platform.OS === "ios"
-    ? [settings?.AppleLanguages?.[0], settings?.AppleLocale, androidLocale]
-    : [androidLocale, settings?.AppleLanguages?.[0], settings?.AppleLocale];
+    ? [settingsPrimaryLanguage, settingsLocale, settings?.AppleLanguages?.[0], settings?.AppleLocale, androidLocale]
+    : [androidLocale, settingsPrimaryLanguage, settingsLocale, settings?.AppleLanguages?.[0], settings?.AppleLocale];
 }
