@@ -14,6 +14,7 @@ const RestaurantIntroRequestSchema = z.object({
   restaurantName: z.string().trim().min(1).max(160).optional(),
   sourceUrl: z.string().trim().min(1).max(2000).optional(),
   menuText: z.string().trim().min(1).max(50000).optional(),
+  outputLocale: z.string().trim().min(2).max(40).optional(),
   userLocale: z.string().trim().min(2).max(40).optional()
 });
 
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
     await requireUser(request);
 
     const body = RestaurantIntroRequestSchema.parse(await request.json());
+    const outputLocale = getRestaurantIntroOutputLocale(body);
     const source = await loadRestaurantIntroSource(body);
 
     if (!source.text.trim()) {
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
         ok: true,
         data: {
           title: getRestaurantIntroTitle(body.userLocale),
-          introText: buildLimitedSourceIntro(body.userLocale),
+          introText: buildLimitedSourceIntro(outputLocale),
           sourceKind: source.kind,
           sourceUrl: source.sourceUrl,
           limitedSource: true,
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
       restaurantName: body.restaurantName,
       sourceText: source.text,
       sourceUrl: source.sourceUrl,
-      userLocale: body.userLocale
+      outputLocale
     });
 
     logRestaurantIntro({
@@ -191,8 +193,12 @@ function getRestaurantIntroTitle(userLocale: string | undefined) {
   return getLanguageCode(userLocale) === "en" ? "About the restaurant" : "\u00dcber das Restaurant";
 }
 
-function buildLimitedSourceIntro(userLocale: string | undefined) {
-  if (getLanguageCode(userLocale) === "en") {
+function getRestaurantIntroOutputLocale(body: z.infer<typeof RestaurantIntroRequestSchema>) {
+  return body.outputLocale?.trim() || body.userLocale?.trim() || "de-DE";
+}
+
+function buildLimitedSourceIntro(outputLocale: string | undefined) {
+  if (getLanguageCode(outputLocale) === "en") {
     return "I could not read enough reliable restaurant context from the source just now. Open the menu if you want to check the restaurant details directly, or try loading this section again in a moment.";
   }
 

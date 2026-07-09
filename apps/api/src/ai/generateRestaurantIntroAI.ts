@@ -14,15 +14,15 @@ export async function generateRestaurantIntroAI({
   restaurantName,
   sourceText,
   sourceUrl,
-  userLocale
+  outputLocale
 }: {
   restaurantName?: string;
   sourceText: string;
   sourceUrl?: string;
-  userLocale?: string;
+  outputLocale?: string;
 }) {
   const client = createTwoStepOpenAIClient();
-  const targetLocale = normalizeTargetLocale(userLocale);
+  const targetLocale = normalizeTargetLocale(outputLocale);
   const targetLanguage = getLanguageNameForLocale(targetLocale);
 
   const completion = await client.chat.completions.create({

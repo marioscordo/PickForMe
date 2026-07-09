@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { PickForMeApiError } from "../../api/apiClient";
 import { requestRestaurantIntro, requestStarterPairings } from "../../api/pickformeApi";
-import { DEFAULT_OUTPUT_LOCALE } from "../../config/outputLocales";
+import { DEFAULT_OUTPUT_LOCALE, resolveOutputLocale } from "../../config/outputLocales";
 import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
 import { premiumColors, radius, semanticColors, spacing, typography } from "../../theme/tokens";
@@ -159,7 +159,7 @@ export function RecommendationCard({
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
   const isStarterSearchRunning = Object.values(starterRequestStatusByDishId).some((status) => status === "loading");
-  const restaurantIntroLocale = profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE;
+  const restaurantIntroLocale = resolveOutputLocale(profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE);
   const cachedRestaurantIntro = restaurantIntroText.trim();
   const hasRestaurantIntro = restaurantIntroVisible && cachedRestaurantIntro.length > 0;
   const isRestaurantIntroLoading = restaurantIntroStatus === "loading";

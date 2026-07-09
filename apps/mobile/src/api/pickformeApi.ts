@@ -1,6 +1,8 @@
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { apiPost } from "./apiClient";
-import { DEFAULT_OUTPUT_LOCALE } from "../config/outputLocales";
+import { DEFAULT_OUTPUT_LOCALE, resolveOutputLocale } from "../config/outputLocales";
+import { resolveGuiLanguageFromDevice } from "../content/guiLanguage";
 import { profileFeatures } from "../config/profileFeatures";
 import {
   filterControlledProfileValues,
@@ -87,7 +89,6 @@ type SubmitTestFeedbackBody = SubmitTestFeedbackArgs & {
 };
 
 const MOBILE_APP_VERSION = "1.0.0";
-const IOS_BUILD_NUMBER = "1.0.12";
 const ANDROID_BUILD_NUMBER = "1";
 
 export type ProfilePreferenceClassificationResult = {
@@ -187,9 +188,11 @@ export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
 }
 
 export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {
+  const outputLocale = resolveOutputLocale(args.profile.outputLocale);
   const body = {
     menuText: args.menuText,
-    userLocale: args.profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE
+    outputLocale,
+    userLocale: resolveGuiLanguageFromDevice()
   };
 
   return apiPost<RestaurantIntroData, typeof body>(
@@ -243,8 +246,8 @@ export function logAllergyWarningConfirmation(body: LogAllergyWarningConfirmatio
 export function submitTestFeedback(args: SubmitTestFeedbackArgs) {
   const body: SubmitTestFeedbackBody = {
     ...args,
-    appVersion: MOBILE_APP_VERSION,
-    buildNumber: Platform.OS === "ios" ? IOS_BUILD_NUMBER : ANDROID_BUILD_NUMBER,
+    appVersion: getNativeAppVersion(),
+    buildNumber: getNativeBuildNumber(),
     deviceModel: getDeviceModel(),
     osVersion: String(Platform.Version ?? ""),
     platform: Platform.OS,
@@ -262,6 +265,18 @@ function getDeviceModel() {
   const model = constants?.Model ?? constants?.model;
 
   return typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined;
+}
+
+function getNativeAppVersion() {
+  return Constants.nativeAppVersion?.trim() ||
+    Constants.expoConfig?.version?.trim() ||
+    MOBILE_APP_VERSION;
+}
+
+function getNativeBuildNumber() {
+  return Constants.nativeBuildVersion?.trim() ||
+    Constants.expoConfig?.ios?.buildNumber?.trim() ||
+    (Platform.OS === "ios" ? "" : ANDROID_BUILD_NUMBER);
 }
 
 function sanitizeProfileForApi(profile: UserProfile): UserProfile {
