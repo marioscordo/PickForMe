@@ -34,6 +34,7 @@ export function ConciergeStartScreen({
   onStartRecommendation
 }: ConciergeStartScreenProps) {
   const content = useMobileContent();
+  const welcomeTitlePrefix = getWelcomeTitlePrefix(content.conciergeStart.title);
   const [conciergeImageReady, setConciergeImageReady] = useState(false);
 
   return (
@@ -64,7 +65,7 @@ export function ConciergeStartScreen({
 
             <View style={local.textBlock}>
               <View style={local.titleWrap}>
-                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={local.titleLineTop}>Willkommen bei</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={local.titleLineTop}>{welcomeTitlePrefix}</Text>
                 <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9} style={local.titleLineBrand}>GustaroAI</Text>
               </View>
               <View style={local.titleAccent}>
@@ -95,6 +96,12 @@ export function ConciergeStartScreen({
       </View>
     </SafeAreaView>
   );
+}
+
+function getWelcomeTitlePrefix(title: string) {
+  const withoutBrand = title.replace(/\s*GustaroAI\s*$/i, "").trim();
+
+  return withoutBrand || title;
 }
 
 const premiumPalette = {
