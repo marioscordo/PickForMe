@@ -1,5 +1,5 @@
 const contactEmail = "kontakt@gustaroai.com";
-const updatedAt = "3. Juli 2026";
+const updatedAt = "9. Juli 2026";
 
 const sectionStyle = {
   marginTop: 28
@@ -26,7 +26,7 @@ export default function PrivacyPage() {
         <h2>1. Verantwortlicher</h2>
         <p>Verantwortlich für GustaroAI ist:</p>
         <p>
-          Mario Scordo – GustaroAI
+          Mario Scordo - GustaroAI
           <br />
           Einzelunternehmen
           <br />
@@ -41,119 +41,155 @@ export default function PrivacyPage() {
 
       <section style={sectionStyle}>
         <h2>2. Zweck der App</h2>
-        <p>GustaroAI ist ein persönlicher KI-gestützter Restaurant-Concierge.</p>
         <p>
-          Die App unterstützt Nutzerinnen und Nutzer dabei, auf Basis verfügbarer Restaurant- und
-          Speisekarteninformationen, persönlicher Profilangaben und der aktuellen Essenssituation schneller eine
-          passende Speisenempfehlung zu erhalten.
+          GustaroAI ist ein persönlicher KI-gestützter Restaurant-Concierge. Die App analysiert
+          Speisekarteninformationen und erstellt daraus persönliche Speisenempfehlungen auf Grundlage der aktuell
+          verfügbaren Speisekarte und freiwilliger Profilangaben.
         </p>
         <p>
-          GustaroAI ist kein Speisekarten-Parser und keine Ernährungsberatung. Die Speisekarte bleibt Informationsquelle
-          des Restaurants. Empfehlungen werden von GustaroAI auf Grundlage der verfügbaren Informationen und der
-          Nutzerangaben erzeugt.
+          GustaroAI ist keine medizinische Beratung, keine allergologische Sicherheitsprüfung und keine Garantie für
+          vollständige oder fehlerfreie Restaurantangaben.
         </p>
       </section>
 
       <section style={sectionStyle}>
-        <h2>3. Verarbeitete Daten</h2>
+        <h2>3. Account, Login und Account-Löschung</h2>
         <p>
-          GustaroAI kann folgende Daten verarbeiten, soweit dies für Betrieb, Sicherheit und Funktion der App
-          erforderlich ist:
-        </p>
-        <ul>
-          <li>Account- und Login-Daten, soweit für Anmeldung, Authentifizierung und Sicherheit erforderlich</li>
-          <li>Profilangaben wie Vorlieben, Abneigungen, Unverträglichkeiten und gewünschte Ausgabesprache</li>
-          <li>vom Nutzer eingegebene Speisekartentexte, Restaurantlinks oder aus QR-Codes gelesene URLs</li>
-          <li>Situationsangaben, soweit der Nutzer diese für eine Empfehlung bereitstellt</li>
-          <li>Analyseergebnisse und Empfehlungen, die im Rahmen der Nutzung erzeugt werden</li>
-          <li>technisches Feedback und Fehlerdaten zur Verbesserung von Stabilität, Sicherheit und Funktion</li>
-          <li>Bestätigungen von Sicherheitshinweisen, einschließlich Zeitpunkt, Version und pseudonymisiertem Nutzerbezug</li>
-          <li>technische Daten, die für Betrieb, Sicherheit, Missbrauchsschutz und Fehleranalyse erforderlich sind</li>
-        </ul>
-      </section>
-
-      <section style={sectionStyle}>
-        <h2>4. Kamera und QR-Codes</h2>
-        <p>
-          Die Kamera wird ausschließlich verwendet, um QR-Codes von Speisekarten oder Restaurantinformationen zu
-          scannen.
-        </p>
-        <p>GustaroAI speichert keine Kamerabilder und benötigt keinen Mikrofonzugriff.</p>
-      </section>
-
-      <section style={sectionStyle}>
-        <h2>5. KI-Verarbeitung</h2>
-        <p>
-          Für die Analyse und Empfehlung können Speisekartentexte, Restaurantlinks, Profilregeln und Situationsangaben
-          an serverseitige KI-Dienste übermittelt werden.
+          Für Login, Authentifizierung und Accountverwaltung nutzt GustaroAI Supabase Auth. Dabei können insbesondere
+          E-Mail-Adresse, Authentifizierungsdaten und technische Sitzungsdaten verarbeitet werden.
         </p>
         <p>
-          API-Schlüssel und sicherheitsrelevante Zugangsdaten werden nicht in der mobilen App gespeichert. Die mobile
-          App kommuniziert mit dem GustaroAI-Backend.
-        </p>
-        <p>
-          KI-Ergebnisse können fehlerhaft oder unvollständig sein. GustaroAI zeigt Empfehlungen auf Grundlage der
-          verfügbaren Informationen an. Bei Allergien, Unverträglichkeiten oder gesundheitlich relevanten Fragen müssen
-          Nutzerinnen und Nutzer die Angaben direkt beim Restaurant prüfen.
+          Nutzerinnen und Nutzer können ihren Account in der App unter „Profil“ dauerhaft löschen. Dabei werden der
+          Supabase-Auth-User sowie gespeicherte GustaroAI-Profildaten, Profilregeln und Empfehlungsfeedback gelöscht,
+          soweit keine gesetzlichen Aufbewahrungspflichten oder berechtigten Nachweispflichten entgegenstehen.
         </p>
       </section>
 
       <section style={sectionStyle}>
-        <h2>6. Speicherung und Löschung</h2>
+        <h2>4. Profilangaben</h2>
         <p>
-          Nutzerinnen und Nutzer können ihren Account und gespeicherte GustaroAI-Daten in der App unter „Profil“
-          dauerhaft löschen, sofern diese Funktion in der App bereitgestellt ist.
+          GustaroAI verarbeitet freiwillige Profilangaben, um Empfehlungen zu personalisieren. Dazu gehören
+          insbesondere Vorlieben, Ausschlüsse, Unverträglichkeiten, kontrollierte Profileingaben, die gewünschte
+          KI-Ausgabesprache sowie Allergene, soweit das Allergenmodul sichtbar oder aktiviert ist.
         </p>
         <p>
-          Alternativ kann eine Löschanfrage per E-Mail an{" "}
-          <a href={`mailto:${contactEmail}`}>{contactEmail}</a> gestellt werden.
-        </p>
-        <p>
-          Nach einer Löschung werden personenbezogene Daten gelöscht, soweit keine gesetzlichen Aufbewahrungspflichten
-          oder berechtigten Sicherheits- und Nachweispflichten entgegenstehen.
+          Profilangaben können lokal in der App und, soweit der Account dies nutzt, serverseitig in Supabase gespeichert
+          werden.
         </p>
       </section>
 
       <section style={sectionStyle}>
-        <h2>7. Weitergabe an Dritte</h2>
+        <h2>5. Speisekartenanalyse</h2>
+        <p>
+          GustaroAI kann Speisekarteninformationen verarbeiten, die Nutzerinnen und Nutzer eingeben, übernehmen oder
+          finden lassen. Dazu gehören Speisekartentexte, Restaurant- und Speisekarten-URLs, PDF- und Website-Inhalte,
+          gefundene Restaurantquellen sowie aus QR-Codes oder Weblinks abgeleitete Speisekartenquellen.
+        </p>
+        <p>
+          Bei der Funktion „Speisekarte fotografieren“ wird ein Foto an das GustaroAI-Backend übermittelt und dort zur
+          Texterkennung und Speisekartenanalyse genutzt. Der erkannte Text kann anschließend für die Empfehlung
+          verwendet werden. GustaroAI speichert diese Fotos nicht dauerhaft als Testfeedback und legt im Fehlerformular
+          keine Fotos oder Base64-Bilddaten ab.
+        </p>
+      </section>
+
+      <section style={sectionStyle}>
+        <h2>6. KI-Verarbeitung</h2>
+        <p>
+          Zur Erstellung von Empfehlungen, Speisekartenanalysen, Foto-zu-Text-Erkennung und unterstützenden
+          Klassifikationen können Speisekarteninformationen, Restaurantinformationen, Profilangaben und technische
+          Kontextdaten an das GustaroAI-Backend und dort eingesetzte KI-Dienste übermittelt werden.
+        </p>
+        <p>
+          Im aktuellen Produktstand nutzt GustaroAI serverseitig OpenAI. API-Schlüssel und sicherheitsrelevante
+          Zugangsdaten werden nicht in der mobilen App gespeichert.
+        </p>
+      </section>
+
+      <section style={sectionStyle}>
+        <h2>7. Allergene und Gesundheitshinweis</h2>
+        <p>
+          GustaroAI berücksichtigt Allergene und Unverträglichkeiten nur, soweit sie aus Speisekarteninformationen
+          erkennbar sind oder vom Nutzer angegeben wurden. Speisekarten können unvollständig, veraltet oder missverständlich
+          sein.
+        </p>
+        <p>
+          Bei Allergien, Unverträglichkeiten oder gesundheitlich relevanten Fragen müssen Nutzerinnen und Nutzer die
+          Angaben immer direkt beim Restaurant prüfen.
+        </p>
+      </section>
+
+      <section style={sectionStyle}>
+        <h2>8. Fehlerformular und Testfeedback</h2>
+        <p>
+          Nutzerinnen und Nutzer können in der App Fehler oder Feedback melden. Dabei können Kategorie, Beschreibung,
+          Schweregrad, Restaurantname, Stadt, erwartetes Verhalten, Reproduktionsschritte, Kontext der App und eine
+          freiwillige Kontaktfreigabe verarbeitet werden.
+        </p>
+        <p>
+          Zusätzlich speichert GustaroAI technische Angaben wie App-Version, Buildnummer, Plattform, OS-Version,
+          Gerätemodell, Sprache/Locale, Zeitpunkt der Meldung und, bei eingeloggten Nutzern, die User-ID. Die Meldungen
+          werden zentral in Supabase gespeichert und dienen Fehleranalyse, Qualitätssicherung, Testauswertung und
+          Produktverbesserung. Feedbackeinträge können intern mit Status und Admin-Notizen bearbeitet werden.
+        </p>
+        <p>
+          Bitte keine Passwörter, Zahlungsdaten, Gesundheitsdetails oder sonstige sehr persönliche Informationen in das
+          Fehlerformular eintragen.
+        </p>
+      </section>
+
+      <section style={sectionStyle}>
+        <h2>9. Empfänger und Dienstleister</h2>
         <p>
           Personenbezogene Daten werden nur verarbeitet oder weitergegeben, soweit dies für Betrieb, Authentifizierung,
-          Speicherung, Analyse, Sicherheit oder Fehlerbehebung der App erforderlich ist.
+          Speicherung, Analyse, Sicherheit, KI-Verarbeitung oder Fehlerbehebung erforderlich ist.
         </p>
-        <p>Dazu können technische Dienstleister gehören, insbesondere Anbieter für:</p>
+        <p>Aktuell können insbesondere folgende Dienstleister eingesetzt werden:</p>
         <ul>
-          <li>Hosting</li>
-          <li>Datenbankbetrieb</li>
-          <li>Authentifizierung</li>
-          <li>KI-Verarbeitung</li>
-          <li>Fehleranalyse</li>
-          <li>Sicherheit und Missbrauchsschutz</li>
+          <li>Supabase für Authentifizierung, Datenbank und serverseitige Speicherung</li>
+          <li>Vercel für Hosting und Betrieb der Web-/API-Komponenten</li>
+          <li>OpenAI für KI-gestützte Analyse, Klassifikation, Foto-zu-Text und Empfehlungserstellung</li>
         </ul>
         <p>Eine Weitergabe zu Werbezwecken erfolgt nicht.</p>
       </section>
 
       <section style={sectionStyle}>
-        <h2>8. Rechte der Nutzerinnen und Nutzer</h2>
+        <h2>10. Speicherdauer und Löschung</h2>
+        <p>
+          Profildaten, Profilregeln und Empfehlungsfeedback werden gespeichert, solange der Account besteht oder die
+          Daten für die jeweilige Funktion benötigt werden. Support- und Feedbackanfragen werden so lange gespeichert,
+          wie dies für Fehleranalyse, Qualitätssicherung, Support, Nachweiszwecke oder Produktverbesserung erforderlich
+          ist.
+        </p>
+        <p>
+          Konkrete Löschfristen können je nach Datenart und rechtlicher Pflicht abweichen. Eine Löschanfrage kann per
+          E-Mail an <a href={`mailto:${contactEmail}`}>{contactEmail}</a> gestellt werden.
+        </p>
+      </section>
+
+      <section style={sectionStyle}>
+        <h2>11. Rechte der Nutzerinnen und Nutzer</h2>
         <p>
           Nutzerinnen und Nutzer können im Rahmen der gesetzlichen Voraussetzungen Auskunft, Berichtigung, Löschung,
           Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch gegen die Verarbeitung ihrer
           personenbezogenen Daten verlangen.
         </p>
         <p>
-          Anfragen können an <a href={`mailto:${contactEmail}`}>{contactEmail}</a> gerichtet werden.
+          Außerdem besteht ein Beschwerderecht bei einer zuständigen Datenschutzaufsichtsbehörde. Anfragen können an{" "}
+          <a href={`mailto:${contactEmail}`}>{contactEmail}</a> gerichtet werden.
         </p>
       </section>
 
       <section style={sectionStyle}>
-        <h2>9. Sicherheit</h2>
+        <h2>12. Sicherheit und Datenminimierung</h2>
         <p>
           GustaroAI verarbeitet Daten nach dem Grundsatz der Datenminimierung. Es werden nur solche Daten verarbeitet,
-          die für die Bereitstellung, Sicherheit und Verbesserung der App erforderlich sind.
+          die für Bereitstellung, Sicherheit, Support, Qualitätssicherung und Verbesserung der App erforderlich sind.
         </p>
       </section>
 
       <section style={sectionStyle}>
-        <h2>10. Änderungen dieser Datenschutzerklärung</h2>
+        <h2>13. Änderungen dieser Datenschutzerklärung</h2>
         <p>
           Diese Datenschutzerklärung kann angepasst werden, wenn sich Funktionen, technische Dienstleister, rechtliche
           Anforderungen oder die Unternehmensstruktur ändern.
