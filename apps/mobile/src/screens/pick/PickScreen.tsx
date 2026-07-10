@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Dimensions, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Dimensions, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { extractMenuTextFromPhoto, logAllergyWarningConfirmation } from "../../api/pickformeApi";
@@ -65,7 +65,10 @@ export function PickScreen({
   const analyze = useAnalyzeMenu();
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
   const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
+  const [showAllergyWarning, setShowAllergyWarning] = useState(false);
+  const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
+  const allergyWarningParagraphs = content.allergyWarning.message.split("\n\n");
 
   useEffect(() => {
     if (!analyze.loading) {
@@ -184,33 +187,23 @@ export function PickScreen({
   }
 
   function showAllergyWarningBeforeAnalyze() {
-    Alert.alert(
-      content.allergyWarning.title,
-      content.allergyWarning.message,
-      [
-        {
-          text: content.allergyWarning.rejectButton,
-          style: "destructive",
-          onPress: () => {
-            pendingConfirmedMenuTextRef.current = null;
-            analyze.reset();
-          }
-        },
-        {
-          text: content.allergyWarning.confirmButton,
-          onPress: confirmAllergyWarningAndAnalyze
-        }
-      ],
-      { cancelable: false }
-    );
+    setShowAllergyWarning(true);
+  }
+
+  function rejectAllergyWarning() {
+    pendingConfirmedMenuTextRef.current = null;
+    analyze.reset();
+    setShowAllergyWarning(false);
   }
 
   async function confirmAllergyWarningAndAnalyze() {
+    setAllergyWarningSaving(true);
     try {
       await logAllergyWarningConfirmation({
         confirmationTimestamp: new Date().toISOString(),
         confirmationVersion: ALLERGY_WARNING_CONFIRMATION_VERSION
       });
+      setShowAllergyWarning(false);
       const pendingMenuText = pendingConfirmedMenuTextRef.current;
       pendingConfirmedMenuTextRef.current = null;
       if (pendingMenuText) {
@@ -221,10 +214,13 @@ export function PickScreen({
     } catch {
       pendingConfirmedMenuTextRef.current = null;
       analyze.reset();
+      setShowAllergyWarning(false);
       Alert.alert(
         content.allergyWarning.logFailedTitle,
         content.allergyWarning.logFailedMessage
       );
+    } finally {
+      setAllergyWarningSaving(false);
     }
   }
 
@@ -475,7 +471,82 @@ export function PickScreen({
         <MaterialCommunityIcons color={premiumPalette.surface} name="room-service-outline" size={s(25)} />
         <Text style={local.mainButtonText}>{analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}</Text>
       </Pressable>
+      <Modal
+        animationType="fade"
+        onRequestClose={() => undefined}
+        transparent
+        visible={showAllergyWarning}
+      >
+        <View style={local.allergyWarningOverlay}>
+          <View style={local.allergyWarningDialog}>
+            <Text style={local.allergyWarningTitle}>{content.allergyWarning.title}</Text>
+            {allergyWarningParagraphs[0] ? (
+              <Text style={local.allergyWarningText}>{allergyWarningParagraphs[0]}</Text>
+            ) : null}
+            {allergyWarningParagraphs[1] ? (
+              <Text style={local.allergyWarningText}>
+                {renderAllergyWarningParagraph(allergyWarningParagraphs[1])}
+              </Text>
+            ) : null}
+            {allergyWarningParagraphs[2] ? (
+              <Text style={local.allergyWarningText}>{allergyWarningParagraphs[2]}</Text>
+            ) : null}
+            <View style={local.allergyWarningActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={allergyWarningSaving}
+                onPress={rejectAllergyWarning}
+                style={({ pressed }) => [
+                  local.allergyWarningButton,
+                  local.allergyWarningButtonSecondary,
+                  (pressed || allergyWarningSaving) ? local.allergyWarningButtonPressed : null
+                ]}
+              >
+                <Text style={local.allergyWarningButtonSecondaryText}>
+                  {content.allergyWarning.rejectButton}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={allergyWarningSaving}
+                onPress={confirmAllergyWarningAndAnalyze}
+                style={({ pressed }) => [
+                  local.allergyWarningButton,
+                  local.allergyWarningButtonPrimary,
+                  (pressed || allergyWarningSaving) ? local.allergyWarningButtonPressed : null
+                ]}
+              >
+                <Text style={local.allergyWarningButtonPrimaryText}>
+                  {content.allergyWarning.confirmButton}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
+  );
+}
+
+function renderAllergyWarningParagraph(paragraph: string) {
+  const strongPhrases = [
+    "Please check every dish yourself",
+    "Bitte prüfe jedes Gericht eigenverantwortlich"
+  ];
+  const phrase = strongPhrases.find((value) => paragraph.includes(value));
+
+  if (!phrase) {
+    return paragraph;
+  }
+
+  const [before, after = ""] = paragraph.split(phrase);
+
+  return (
+    <>
+      {before}
+      <Text style={local.allergyWarningStrong}>{phrase}</Text>
+      {after}
+    </>
   );
 }
 
@@ -881,6 +952,90 @@ const local = StyleSheet.create({
   openMenuSection: {
     marginTop: 12,
     marginBottom: 16
+  },
+
+  allergyWarningOverlay: {
+    alignItems: "center",
+    backgroundColor: "rgba(24, 44, 27, 0.42)",
+    flex: 1,
+    justifyContent: "center",
+    padding: s(22)
+  },
+
+  allergyWarningDialog: {
+    backgroundColor: premiumPalette.surface,
+    borderColor: premiumPalette.border,
+    borderRadius: s(26),
+    borderWidth: 1,
+    maxWidth: s(360),
+    padding: s(22),
+    shadowColor: "#182C1B",
+    shadowOffset: { width: 0, height: s(14) },
+    shadowOpacity: 0.18,
+    shadowRadius: s(24),
+    width: "100%"
+  },
+
+  allergyWarningTitle: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(21),
+    fontWeight: "800",
+    lineHeight: fs(27),
+    marginBottom: s(14)
+  },
+
+  allergyWarningText: {
+    color: premiumPalette.textSoft,
+    fontSize: fs(15),
+    fontWeight: "600",
+    lineHeight: fs(22),
+    marginBottom: s(12)
+  },
+
+  allergyWarningStrong: {
+    color: premiumPalette.oliveDeep,
+    fontWeight: "900"
+  },
+
+  allergyWarningActions: {
+    gap: s(10),
+    marginTop: s(6)
+  },
+
+  allergyWarningButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    justifyContent: "center",
+    minHeight: s(48),
+    paddingHorizontal: s(16)
+  },
+
+  allergyWarningButtonPrimary: {
+    backgroundColor: premiumPalette.olive
+  },
+
+  allergyWarningButtonSecondary: {
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.border,
+    borderWidth: 1
+  },
+
+  allergyWarningButtonPressed: {
+    opacity: 0.72
+  },
+
+  allergyWarningButtonPrimaryText: {
+    color: premiumPalette.surface,
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20)
+  },
+
+  allergyWarningButtonSecondaryText: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20)
   }
 });
 

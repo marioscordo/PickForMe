@@ -73,7 +73,7 @@
   },
   "allergyWarning": {
     "title": "Wichtiger Hinweis zu Allergien",
-    "message": "Du hast Allergien oder Unverträglichkeiten angegeben. GustaroAI unterstützt dich bei der Auswahl von Speisen, ersetzt aber keine medizinische Beratung und keine Rückfrage beim Servicepersonal.\n\nInformationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich und verlasse dich nicht ausschließlich auf die App.\n\nNur wenn du diesen Hinweis bestätigst, können Empfehlungen angezeigt werden.",
+    "message": "Du hast Allergien oder Unverträglichkeiten angegeben. GustaroAI unterstützt dich bei der Auswahl von Speisen, ersetzt aber keine medizinische Beratung und keine Rückfrage beim Servicepersonal.\n\nInformationen können unvollständig oder fehlerhaft sein. Bitte prüfe jedes Gericht eigenverantwortlich.\n\nNur wenn du diesen Hinweis bestätigst, können Empfehlungen angezeigt werden.",
     "confirmButton": "Bestätigen",
     "rejectButton": "Nicht bestätigen",
     "logFailedTitle": "Hinweis konnte nicht bestätigt werden",

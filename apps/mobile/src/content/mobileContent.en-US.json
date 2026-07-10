@@ -73,7 +73,7 @@
   },
   "allergyWarning": {
     "title": "Important note about allergies",
-    "message": "You have entered allergies or intolerances. GustaroAI helps you choose dishes, but it does not replace medical advice or asking the restaurant staff.\n\nInformation may be incomplete or incorrect. Please check every dish yourself and do not rely only on the app.\n\nRecommendations can only be shown after you confirm this note.",
+    "message": "You have entered allergies or intolerances. GustaroAI helps you choose dishes, but it does not replace medical advice or asking the restaurant staff.\n\nInformation may be incomplete or incorrect. Please check every dish yourself.\n\nRecommendations can only be shown after you confirm this note.",
     "confirmButton": "Confirm",
     "rejectButton": "Do not confirm",
     "logFailedTitle": "Note could not be confirmed",
