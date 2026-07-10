@@ -240,7 +240,7 @@
     "intolerancesTitle": "Allergien",
     "intolerancesOnlyTitle": "Unverträglichkeiten",
     "intolerancesHint": "Diese Zutaten werden besonders streng berücksichtigt.",
-    "safetyHint": "Allergene sind eine feste GustaroAI-Liste. Aktiviere die Allergene, die für Dich relevant sind. Falls ein anerkanntes Allergen fehlt, melde es bitte über das Fehlerprotokoll.\n\nGrundlage: EU – 14 kennzeichnungspflichtige Allergene nach Lebensmittelinformationsverordnung; USA – FDA „major food allergens“ inklusive Sesam; international – Codex-/FAO-WHO-orientierte Allergenstandards und Leitlinien.",
+    "safetyHint": "Allergene sind eine feste GustaroAI-Liste. Aktiviere die Allergene, die für Dich relevant sind. Spezifische persönliche Ausschlüsse oder Unverträglichkeiten, die nicht in dieser Liste stehen, erfasse bitte im Bereich „Ausschlüsse & Unverträglichkeiten“. Falls ein anerkanntes Allergen fehlt, melde es bitte über das Fehlerprotokoll.\n\nGrundlage: EU – 14 kennzeichnungspflichtige Allergene nach Lebensmittelinformationsverordnung; USA – FDA „major food allergens“ inklusive Sesam; international – Codex-/FAO-WHO-orientierte Allergenstandards und Leitlinien.",
     "addIntoleranceLabel": "Unverträglichkeit hinzufügen",
     "addIntolerancePlaceholder": "z. B. Histamin, Zwiebeln, Fructose ...",
     "addIntoleranceButton": "Unverträglichkeit hinzufügen",
@@ -653,12 +653,12 @@
     "profileIntolerances": {
       "title": "Allergien",
       "points": [
-        "Antippen wählt eine Allergie aus. Erneutes Antippen wählt sie wieder ab.",
-        "Diese Angaben werden besonders streng berücksichtigt.",
-        "Eigene Begriffe kannst Du im Eingabefeld hinzufügen. Ein einzelnes Wort als Begriff reicht, zum Beispiel „Laktose“ oder „Histamin“.",
-        "Aktive Einträge löschst Du unten im Bereich der aktiven Unverträglichkeiten."
+        "Allergene sind eine feste GustaroAI-Liste.",
+        "Aktiviere die Allergene, die für Dich relevant sind.",
+        "Spezifische persönliche Ausschlüsse oder Unverträglichkeiten, die nicht in dieser Liste stehen, erfasse bitte im Bereich „Ausschlüsse & Unverträglichkeiten“.",
+        "Falls ein anerkanntes Allergen fehlt, melde es bitte über das Fehlerprotokoll."
       ],
-      "tip": "GustaroAI unterstützt Dich bei der Auswahl, ersetzt aber keine medizinische Beratung. Prüfe Gerichte bei bekannten Allergien immer zusätzlich selbst oder frage das Servicepersonal."
+      "tip": "Grundlage: EU – 14 kennzeichnungspflichtige Allergene nach Lebensmittelinformationsverordnung; USA – FDA „major food allergens“ inklusive Sesam; international – Codex-/FAO-WHO-orientierte Allergenstandards und Leitlinien."
     },
     "profileIntolerancesOnly": {
       "title": "Unverträglichkeiten",

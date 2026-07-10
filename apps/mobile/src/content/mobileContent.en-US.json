@@ -240,7 +240,7 @@
     "intolerancesTitle": "Allergies",
     "intolerancesOnlyTitle": "Intolerances",
     "intolerancesHint": "These ingredients are considered especially strictly.",
-    "safetyHint": "Allergens are a fixed GustaroAI list. Activate the allergens that are relevant for you. If a recognized allergen is missing, please report it via the feedback form.\n\nBasis: EU – 14 mandatory allergens under food information rules; U.S. – FDA “major food allergens,” including sesame; international – Codex-/FAO-WHO-oriented allergen standards and guidance.",
+    "safetyHint": "Allergens are a fixed GustaroAI list. Activate the allergens that are relevant for you. Specific personal exclusions or intolerances that are not included in this list should be entered under “Exclusions & intolerances.” If a recognized allergen is missing, please report it via the feedback form.\n\nBasis: EU – 14 mandatory allergens under food information rules; U.S. – FDA “major food allergens,” including sesame; international – Codex-/FAO-WHO-oriented allergen standards and guidance.",
     "addIntoleranceLabel": "Add intolerance",
     "addIntolerancePlaceholder": "e.g. histamine, onions, fructose ...",
     "addIntoleranceButton": "Add intolerance",
@@ -653,12 +653,12 @@
     "profileIntolerances": {
       "title": "Allergies",
       "points": [
-        "Tap to select an allergy. Tap again to deselect it.",
-        "These entries are considered especially strictly.",
-        "You can add your own terms in the input field. A single word is enough, for example 'lactose' or 'histamine'.",
-        "You can remove active entries in the active intolerances section."
+        "Allergens are a fixed GustaroAI list.",
+        "Activate the allergens that are relevant for you.",
+        "Specific personal exclusions or intolerances that are not included in this list should be entered under “Exclusions & intolerances.”",
+        "If a recognized allergen is missing, please report it via the feedback form."
       ],
-      "tip": "GustaroAI supports your choice, but does not replace medical advice. If you have known allergies, always check dishes yourself or ask the service staff."
+      "tip": "Basis: EU – 14 mandatory allergens under food information rules; U.S. – FDA “major food allergens,” including sesame; international – Codex-/FAO-WHO-oriented allergen standards and guidance."
     },
     "profileIntolerancesOnly": {
       "title": "Intolerances",
