@@ -112,9 +112,9 @@ export function PickScreen({
   function handleAnalyze() {
     pendingConfirmedMenuTextRef.current = null;
     pendingConfirmedMenuUrlsRef.current = [];
+    analyze.reset();
 
     if (hasAllergiesOrIntolerances(profile)) {
-      analyze.reset();
       showAllergyWarningBeforeAnalyze();
       return;
     }
@@ -128,6 +128,7 @@ export function PickScreen({
   }
 
   function startAnalyzeWithExtractedMenuText(value: string) {
+    analyze.reset();
     setMenuText(value);
     setMenuUrls([]);
     setSelectedRestaurantName("");
@@ -137,7 +138,6 @@ export function PickScreen({
     if (hasAllergiesOrIntolerances(profile)) {
       pendingConfirmedMenuTextRef.current = value;
       pendingConfirmedMenuUrlsRef.current = [];
-      analyze.reset();
       showAllergyWarningBeforeAnalyze();
       return;
     }
