@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Dimensions, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Dimensions, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { extractMenuTextFromPhoto, logAllergyWarningConfirmation } from "../../api/pickformeApi";
@@ -107,9 +107,14 @@ export function PickScreen({
     setMenuUrls([]);
     setSelectedRestaurantName("");
     setSelectedMenuSourceDomain("");
+
+    if (normalizeMenuUrl(value)) {
+      Keyboard.dismiss();
+    }
   }
 
   function handleAnalyze() {
+    Keyboard.dismiss();
     pendingConfirmedMenuTextRef.current = null;
     pendingConfirmedMenuUrlsRef.current = [];
     analyze.reset();
@@ -161,6 +166,7 @@ export function PickScreen({
   }
 
   function applyDiscoveredMenuUrl(value: string, restaurantName?: string, menuSourceDomain?: string, discoveredMenuUrls?: string[]) {
+    Keyboard.dismiss();
     setMenuText(value);
     setMenuUrls(discoveredMenuUrls?.length ? discoveredMenuUrls : [value]);
     setSelectedRestaurantName(restaurantName?.trim() ?? "");
