@@ -604,9 +604,10 @@
     "menuDiscovery": {
       "title": "Find menu",
       "points": [
-        "You can search for a restaurant by name and city.",
-        "When a result list appears, tap the matching restaurant. GustaroAI searches for the menu link automatically.",
-        "The found menu link is copied into the link field. You can then apply it and start the analysis."
+        "GustaroAI first searches for the restaurant. When the matching restaurant is found, you can select it.",
+        "GustaroAI then searches for an analyzable menu. Menus found on the restaurant's own website are used directly.",
+        "If GustaroAI finds a plausible menu on an external menu provider, you will be asked whether to use that link.",
+        "The external menu is analyzed only after your confirmation. The source used is shown transparently in the restaurant section."
       ],
       "tip": "If the search does not find the right result, check the restaurant name and city and try again."
     },

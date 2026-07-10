@@ -604,9 +604,10 @@
     "menuDiscovery": {
       "title": "Speisekarte finden",
       "points": [
-        "Du kannst ein Restaurant über Name und Stadt suchen.",
-        "Wenn eine Ergebnisliste erscheint, tippst Du auf das passende Restaurant. GustaroAI sucht den Speisekarten-Link automatisch.",
-        "Der gefundene Speisekarten-Link wird in das Link-Feld übernommen. Danach kannst Du ihn übernehmen und die Analyse starten."
+        "GustaroAI sucht zuerst nach dem Restaurant. Wenn das passende Restaurant gefunden wurde, kannst Du es übernehmen.",
+        "Danach sucht GustaroAI nach einer auswertbaren Speisekarte. Speisekarten auf der Restaurant-Webseite werden direkt verwendet.",
+        "Findet GustaroAI eine plausible Speisekarte bei einem externen Menüanbieter, wirst Du gefragt, ob der Link übernommen werden soll.",
+        "Erst nach Deiner Bestätigung wird diese externe Speisekarte ausgewertet. Die verwendete Quelle wird im Restaurantbereich transparent angezeigt."
       ],
       "tip": "Wenn die Suche kein passendes Ergebnis liefert, prüfe Restaurantname und Stadt und versuche es erneut."
     },
