@@ -148,7 +148,7 @@ export async function POST(request: Request) {
       : undefined;
     const restaurantDescription: RestaurantDescriptionResult | null = null;
     const localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null = null;
-    const sourceInputAllergenWarningPayload = buildAllergenInfoWarningPayload(profile, rawMenuText);
+    const sourceInputAllergenWarningPayload = buildAllergenInfoWarningPayload(profile, rawMenuText, body.userLocale);
 
     if (pdfMenuUrl) {
       if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
@@ -341,7 +341,8 @@ export async function POST(request: Request) {
     try {
       const textAllergenWarningPayload = buildAllergenInfoWarningPayload(
         profile,
-        `${rawMenuText}\n${effectiveMenuText}`
+        `${rawMenuText}\n${effectiveMenuText}`,
+        body.userLocale
       );
 
       return await analyzeMenuWithTwoStepMainFlow({
@@ -606,7 +607,7 @@ export async function POST(request: Request) {
               restaurantContextText: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`
             })
         }),
-        ...buildAllergenInfoWarningPayload(profile, `${rawMenuText}\n${effectiveMenuText}`),
+        ...buildAllergenInfoWarningPayload(profile, `${rawMenuText}\n${effectiveMenuText}`, body.userLocale),
         ...buildRestaurantDescriptionPayload(localizedRestaurantDescription),
         ...buildMenuExtractionPayload(htmlMenuExtraction)
       }
@@ -1117,15 +1118,28 @@ function normalizeStarterCandidateName(value: string) {
     .trim();
 }
 
-function buildAllergenInfoWarningPayload(profile: AnalyzeMenuRequest["profile"], sourceText: string) {
+function buildAllergenInfoWarningPayload(
+  profile: AnalyzeMenuRequest["profile"],
+  sourceText: string,
+  userLocale: string | undefined
+) {
   if (!hasAllergiesOrIntolerances(profile) || hasRecognizableAllergenInfo(sourceText)) {
     return {};
   }
 
   return {
-    analysisWarning:
-      "In dieser Speisekarte wurden keine vollständigen Allergenangaben erkannt. Bitte prüfe jedes Gericht eigenverantwortlich und frage bei Allergien oder Unverträglichkeiten zusätzlich beim Servicepersonal nach."
+    analysisWarning: getAllergenInfoWarningText(userLocale)
   };
+}
+
+function getAllergenInfoWarningText(userLocale: string | undefined) {
+  const targetLocale = normalizeTargetLocale(userLocale);
+
+  if (targetLocale.startsWith("en")) {
+    return "No complete allergen information was detected in this menu. Please check each dish yourself and, if you have allergies or intolerances, also ask the service staff.";
+  }
+
+  return "In dieser Speisekarte wurden keine vollständigen Allergenangaben erkannt. Bitte prüfe jedes Gericht eigenverantwortlich und frage bei Allergien oder Unverträglichkeiten zusätzlich beim Servicepersonal nach.";
 }
 
 function hasAllergiesOrIntolerances(profile: AnalyzeMenuRequest["profile"]) {

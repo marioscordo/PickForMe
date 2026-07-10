@@ -42,6 +42,7 @@ type AnalyzeMenuApiBody = {
   menuText: string;
   situation: Situation;
   profile: UserProfile;
+  userLocale: string;
 };
 
 type ExtractMenuTextFromPhotoBody = {
@@ -147,7 +148,8 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
     sourceKind: "text",
     menuText: args.menuText,
     situation: args.situation,
-    profile: sanitizeProfileForApi(args.profile)
+    profile: sanitizeProfileForApi(args.profile),
+    userLocale: resolveGuiLanguageFromDevice()
   };
 
   return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body, {

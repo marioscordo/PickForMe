@@ -5,4 +5,5 @@ export type AnalyzeMenuRequest = {
   menuText: string;
   situation: Situation;
   profile: UserProfile;
+  userLocale?: string;
 };
