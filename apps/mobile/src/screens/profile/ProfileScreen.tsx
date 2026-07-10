@@ -182,9 +182,7 @@ export function ProfileScreen({
     ...customExclusions,
     ...profile.dislikes.filter((value) => !includesValue(quickExclusionValues, value))
   ]).filter((value) => !includesValue(hiddenExclusions, value));
-  const visibleAllergyOptions = allergenModuleEnabled
-    ? allergyOptions.filter((option) => !includesValue(hiddenAllergens, optionValue(option)))
-    : [];
+  const visibleAllergyOptions = allergenModuleEnabled ? allergyOptions : [];
   const visibleCustomIntoleranceValues = uniqueValues([
     ...customIntolerances,
     ...profile.intolerances.filter((value) => !includesValue(quickIntoleranceValues, value))
@@ -1135,67 +1133,60 @@ export function ProfileScreen({
               </View>
             ) : null}
 
-            <View style={local.premiumChipRow}>
-              {visibleCustomIntoleranceValues.map((value) => (
-                <PremiumFeatherChip
-                  key={value}
-                  active={profile.intolerances.includes(value)}
-                  icon="alert-circle"
-                  label={displayIntoleranceValue(value)}
-                  onPress={() => toggleIntolerance(value)}
-                />
-              ))}
-            </View>
-
-            <PremiumProfileSubBlock title={editor.addIntoleranceLabel}>
-              <PremiumProfileInput
-                value={customIntolerance}
-                onChangeText={(value) => {
-                  setCustomIntolerance(value);
-                  setCustomIntoleranceValidationError("");
-                }}
-                placeholder={editor.addIntolerancePlaceholder}
-                onSubmitEditing={addCustomIntolerance}
-              />
-              {customIntoleranceValidationError ? (
-                <Text style={local.preferenceValidationError}>{customIntoleranceValidationError}</Text>
-              ) : null}
-              <PremiumEditorButton
-                disabled={customIntolerance.trim().length === 0 || customIntoleranceValidationLoading}
-                icon="plus-circle"
-                label={editor.addIntoleranceButton}
-                ready={customIntolerance.trim().length > 0 && !customIntoleranceValidationLoading}
-                onPress={addCustomIntolerance}
-              />
-            </PremiumProfileSubBlock>
-
-            {(allergenModuleEnabled && allergens.length > 0) || profile.intolerances.length > 0 ? (
-              <PremiumProfileSubBlock title={editor.deleteActiveIntolerancesLabel} compact>
-                <View style={local.premiumChipRowCompact}>
-                  {allergenModuleEnabled ? allergens.map((value) => (
+            {allergenModuleEnabled ? null : (
+              <>
+                <View style={local.premiumChipRow}>
+                  {visibleCustomIntoleranceValues.map((value) => (
                     <PremiumFeatherChip
                       key={value}
-                      active
-                      compact
-                      icon="slash"
+                      active={profile.intolerances.includes(value)}
+                      icon="alert-circle"
                       label={displayIntoleranceValue(value)}
-                      onPress={() => deleteAllergen(value)}
-                    />
-                  )) : null}
-
-                  {profile.intolerances.map((value) => (
-                    <PremiumFeatherChip
-                      key={value}
-                      active
-                      compact
-                      icon="slash"
-                      label={displayIntoleranceValue(value)}
-                      onPress={() => deleteIntolerance(value)}
+                      onPress={() => toggleIntolerance(value)}
                     />
                   ))}
                 </View>
-              </PremiumProfileSubBlock>
-            ) : null}
+
+                <PremiumProfileSubBlock title={editor.addIntoleranceLabel}>
+                  <PremiumProfileInput
+                    value={customIntolerance}
+                    onChangeText={(value) => {
+                      setCustomIntolerance(value);
+                      setCustomIntoleranceValidationError("");
+                    }}
+                    placeholder={editor.addIntolerancePlaceholder}
+                    onSubmitEditing={addCustomIntolerance}
+                  />
+                  {customIntoleranceValidationError ? (
+                    <Text style={local.preferenceValidationError}>{customIntoleranceValidationError}</Text>
+                  ) : null}
+                  <PremiumEditorButton
+                    disabled={customIntolerance.trim().length === 0 || customIntoleranceValidationLoading}
+                    icon="plus-circle"
+                    label={editor.addIntoleranceButton}
+                    ready={customIntolerance.trim().length > 0 && !customIntoleranceValidationLoading}
+                    onPress={addCustomIntolerance}
+                  />
+                </PremiumProfileSubBlock>
+
+                {profile.intolerances.length > 0 ? (
+                  <PremiumProfileSubBlock title={editor.deleteActiveIntolerancesLabel} compact>
+                    <View style={local.premiumChipRowCompact}>
+                      {profile.intolerances.map((value) => (
+                        <PremiumFeatherChip
+                          key={value}
+                          active
+                          compact
+                          icon="slash"
+                          label={displayIntoleranceValue(value)}
+                          onPress={() => deleteIntolerance(value)}
+                        />
+                      ))}
+                    </View>
+                  </PremiumProfileSubBlock>
+                ) : null}
+              </>
+            )}
           </View>
         </Screen>
       );

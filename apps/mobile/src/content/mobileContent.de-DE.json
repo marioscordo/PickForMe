@@ -240,7 +240,7 @@
     "intolerancesTitle": "Allergien",
     "intolerancesOnlyTitle": "Unverträglichkeiten",
     "intolerancesHint": "Diese Zutaten werden besonders streng berücksichtigt.",
-    "safetyHint": "GustaroAI berücksichtigt Allergene, soweit sie aus der Speisekarte erkennbar sind. Bitte frage bei Allergien immer im Restaurant nach.",
+    "safetyHint": "Allergene sind eine feste GustaroAI-Liste. Aktiviere die Allergene, die für Dich relevant sind. Falls ein anerkanntes Allergen fehlt, melde es bitte über das Fehlerprotokoll.\n\nGrundlage: EU – 14 kennzeichnungspflichtige Allergene nach Lebensmittelinformationsverordnung; USA – FDA „major food allergens“ inklusive Sesam; international – Codex-/FAO-WHO-orientierte Allergenstandards und Leitlinien.",
     "addIntoleranceLabel": "Unverträglichkeit hinzufügen",
     "addIntolerancePlaceholder": "z. B. Histamin, Zwiebeln, Fructose ...",
     "addIntoleranceButton": "Unverträglichkeit hinzufügen",

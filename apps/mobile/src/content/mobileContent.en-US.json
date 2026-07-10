@@ -240,7 +240,7 @@
     "intolerancesTitle": "Allergies",
     "intolerancesOnlyTitle": "Intolerances",
     "intolerancesHint": "These ingredients are considered especially strictly.",
-    "safetyHint": "GustaroAI considers allergens where they can be identified from the menu. Always ask the restaurant directly if you have allergies.",
+    "safetyHint": "Allergens are a fixed GustaroAI list. Activate the allergens that are relevant for you. If a recognized allergen is missing, please report it via the feedback form.\n\nBasis: EU – 14 mandatory allergens under food information rules; U.S. – FDA “major food allergens,” including sesame; international – Codex-/FAO-WHO-oriented allergen standards and guidance.",
     "addIntoleranceLabel": "Add intolerance",
     "addIntolerancePlaceholder": "e.g. histamine, onions, fructose ...",
     "addIntoleranceButton": "Add intolerance",
