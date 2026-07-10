@@ -8,7 +8,8 @@ import { loadMenuTextFromUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import { parseMenu } from "../../../src/menu/parseMenu";
 import { getRestaurantDiscoveryCountryNames, getRestaurantDiscoveryCountryTlds } from "../../../src/restaurant/restaurantDiscoveryCountries";
 
-const MENU_DISCOVERY_TIMEOUT_MS = 20000;
+const MENU_DISCOVERY_TIMEOUT_MS = 22000;
+const OFFICIAL_SOURCE_DISCOVERY_TIMEOUT_MS = 5000;
 const PAGE_SOURCE_FETCH_TIMEOUT_MS = 4500;
 const PDF_LINK_FETCH_TIMEOUT_MS = 4500;
 const MAX_SOURCE_LINKS_TO_CHECK = 12;
@@ -47,6 +48,9 @@ const PARKED_WEBSITE_TERMS = [
   "this domain is for sale",
   "parking page"
 ];
+const TRUSTED_EXTERNAL_MENU_PROVIDER_DOMAINS = [
+  "menualacarte.cloud"
+];
 
 const RestaurantMenuDiscoveryRequestSchema = z.object({
   candidate: z.object({
@@ -65,12 +69,25 @@ type RestaurantMenuDiscoveryRequest = z.infer<typeof RestaurantMenuDiscoveryRequ
 type RestaurantMenuDiscoveryResult = {
   websiteUrl: string;
   menuUrl?: string;
+  externalMenuCandidate?: ExternalMenuCandidate;
 };
 
 type SourceLink = {
   url: string;
   label: string;
 };
+
+type ExternalMenuCandidate = {
+  url: string;
+  providerDomain: string;
+};
+
+type MenuDiscoveryCandidateResult = {
+  menuUrl?: string;
+  externalMenuCandidate?: ExternalMenuCandidate;
+};
+
+type OfficialMenuCandidate = z.infer<typeof OfficialMenuSourceResponseSchema>["menuCandidates"][number];
 
 type MenuSourceKind = "pdf" | "html" | "image";
 
@@ -110,12 +127,14 @@ const OfficialMenuSourceResponseSchema = z.object({
     sourceUrl: z.string().optional().default(""),
     evidence: z.object({
       sameDomain: z.boolean().optional().default(false),
+      trustedExternalProvider: z.boolean().optional().default(false),
       officialSource: z.boolean().optional().default(false),
       publiclyReachable: z.boolean().optional().default(false),
       belongsToRestaurant: z.boolean().optional().default(false),
       reason: z.string().optional().default("")
     }).optional().default({
       sameDomain: false,
+      trustedExternalProvider: false,
       officialSource: false,
       publiclyReachable: false,
       belongsToRestaurant: false,
@@ -154,34 +173,31 @@ async function resolveMenuForCandidate(
   candidate: RestaurantMenuDiscoveryRequest["candidate"]
 ): Promise<RestaurantMenuDiscoveryResult> {
   const websiteUrl = normalizeOfficialUrl(candidate.websiteUrl);
-  const directMenuUrl = normalizeOfficialUrl(candidate.menuUrl, websiteUrl);
-
-  if (directMenuUrl) {
-    const verifiedMenuUrl = await verifyOfficialMenuUrl(directMenuUrl, websiteUrl);
-    if (!verifiedMenuUrl) {
-      return { websiteUrl };
-    }
-
-    return {
-      websiteUrl,
-      menuUrl: verifiedMenuUrl
-    };
-  }
-
-  const sourceMenu = await findMenuInWebsiteSource(candidate, websiteUrl);
-  if (sourceMenu.menuUrl) {
-    return sourceMenu;
-  }
-
   const discoveredWebsiteUrl = websiteUrl || await discoverOfficialRestaurantWebsite(candidate);
+
   if (!discoveredWebsiteUrl) {
     return { websiteUrl };
   }
 
-  const discoveredMenuUrl = await discoverOfficialMenuSource(candidate, discoveredWebsiteUrl);
+  const sourceMenu = await withTimeout(
+    findMenuInWebsiteSource(candidate, discoveredWebsiteUrl),
+    OFFICIAL_SOURCE_DISCOVERY_TIMEOUT_MS,
+    { websiteUrl: discoveredWebsiteUrl }
+  );
+  if (sourceMenu.menuUrl || sourceMenu.externalMenuCandidate) return sourceMenu;
+
+  const directMenu = await verifyProvidedMenuUrl(candidate.menuUrl, candidate, discoveredWebsiteUrl);
+  if (directMenu.menuUrl || directMenu.externalMenuCandidate) {
+    return {
+      websiteUrl: discoveredWebsiteUrl,
+      ...directMenu
+    };
+  }
+
+  const discoveredMenu = await discoverOfficialMenuSource(candidate, discoveredWebsiteUrl);
   return {
     websiteUrl: discoveredWebsiteUrl,
-    ...(discoveredMenuUrl ? { menuUrl: discoveredMenuUrl } : {})
+    ...discoveredMenu
   };
 }
 
@@ -191,10 +207,16 @@ async function findMenuInWebsiteSource(
 ): Promise<RestaurantMenuDiscoveryResult> {
   if (websiteUrl) {
     const menuUrl = await findMenuFromOfficialSource(candidate, websiteUrl, false);
-    const discoveredMenuUrl = menuUrl ? "" : await discoverOfficialMenuSource(candidate, websiteUrl);
+    const externalMenuCandidate = menuUrl
+      ? undefined
+      : await findTrustedExternalMenuFromWebsite(candidate, websiteUrl, false);
+    const discoveredMenu: MenuDiscoveryCandidateResult = menuUrl || externalMenuCandidate
+      ? {}
+      : await discoverOfficialMenuSource(candidate, websiteUrl);
     return {
       websiteUrl,
-      ...(menuUrl || discoveredMenuUrl ? { menuUrl: menuUrl || discoveredMenuUrl } : {})
+      ...(menuUrl ? { menuUrl } : discoveredMenu),
+      ...(externalMenuCandidate ? { externalMenuCandidate } : {})
     };
   }
 
@@ -279,64 +301,169 @@ async function discoverOfficialRestaurantWebsite(candidate: RestaurantMenuDiscov
 async function discoverOfficialMenuSource(
   candidate: RestaurantMenuDiscoveryRequest["candidate"],
   websiteUrl: string
-) {
+): Promise<MenuDiscoveryCandidateResult> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return "";
+  if (!apiKey) return {};
 
   const normalizedWebsiteUrl = normalizeOfficialUrl(websiteUrl);
-  if (!normalizedWebsiteUrl) return "";
+  if (!normalizedWebsiteUrl) return {};
 
   const client = new OpenAI({ apiKey });
   const model = process.env.OPENAI_DISCOVERY_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini";
-  const response = await client.responses.create({
-    model,
-    tools: [{ type: "web_search_preview", search_context_size: "medium" }],
-    input: [{
-      role: "user",
-      content: [{
-        type: "input_text",
-        text: JSON.stringify({
-          intent: "official_menu_source",
-          task: "Resolve the source described by the structured intent for the exact restaurant. Use the structured intent, not fixed language terms. Return only JSON matching the schema.",
-          schema: {
-            menuCandidates: [{
-              menuUrl: "",
-              sourceUrl: "",
-              evidence: {
-                sameDomain: false,
-                officialSource: false,
-                publiclyReachable: false,
-                belongsToRestaurant: false,
-                reason: ""
-              }
-            }]
-          },
-          restaurantName: candidate.name,
-          city: candidate.city || inferCityFromAddress(candidate.address),
-          country: getRestaurantDiscoveryCountryNames(candidate.country)[0] ?? candidate.country,
-          countryConstraint: candidate.country
-            ? "Search only within the selected country. Do not return same-name restaurants or menu sources from other countries."
-            : "",
-          address: candidate.address,
-          verifiedWebsiteUrl: normalizedWebsiteUrl,
-          verifiedDomain: getRegistrableDomain(normalizedWebsiteUrl)
-        })
-      }]
-    }]
-  });
-
-  const menuCandidates = OfficialMenuSourceResponseSchema
-    .parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")))
-    .menuCandidates;
+  const menuCandidates = await requestOfficialMenuCandidates(client, model, candidate, normalizedWebsiteUrl);
 
   for (const menuCandidate of menuCandidates) {
-    const verifiedUrl = await verifyOfficialMenuUrl(menuCandidate.menuUrl, normalizedWebsiteUrl);
-    if (verifiedUrl) return verifiedUrl;
+    const candidateUrls = uniqueStrings([menuCandidate.menuUrl, menuCandidate.sourceUrl]).filter(Boolean);
+
+    for (const candidateUrl of candidateUrls) {
+      const verifiedUrl = await verifyOfficialMenuUrl(candidateUrl, normalizedWebsiteUrl);
+      if (verifiedUrl) return { menuUrl: verifiedUrl };
+
+      const verifiedExternalUrl = await verifyTrustedExternalMenuUrl(candidateUrl, candidate, normalizedWebsiteUrl);
+      if (verifiedExternalUrl) return { externalMenuCandidate: verifiedExternalUrl };
+    }
   }
 
-  return "";
+  return {};
 }
 
+async function requestOfficialMenuCandidates(
+  client: OpenAI,
+  model: string,
+  candidate: RestaurantMenuDiscoveryRequest["candidate"],
+  normalizedWebsiteUrl: string
+): Promise<OfficialMenuCandidate[]> {
+  const prompts = buildOfficialMenuSourcePrompts(candidate, normalizedWebsiteUrl);
+
+  for (const prompt of prompts) {
+    try {
+      const response = await client.responses.create({
+        model,
+        tools: [{ type: "web_search_preview", search_context_size: "high" }],
+        input: [{
+          role: "user",
+          content: [{
+            type: "input_text",
+            text: prompt
+          }]
+        }]
+      });
+
+      const menuCandidates = parseOfficialMenuCandidatesOutput(response.output_text ?? "{}");
+
+      if (menuCandidates.length > 0) return menuCandidates;
+    } catch {
+      continue;
+    }
+  }
+
+  return [];
+}
+
+function parseOfficialMenuCandidatesOutput(outputText: string): OfficialMenuCandidate[] {
+  const stripped = stripJsonFence(outputText || "{}");
+  const parsed = tryParseJsonObject(stripped);
+  if (!parsed) return [];
+
+  return OfficialMenuSourceResponseSchema.parse(parsed).menuCandidates;
+}
+
+function tryParseJsonObject(value: string): unknown | undefined {
+  try {
+    return JSON.parse(value);
+  } catch {
+    const start = value.indexOf("{");
+    const end = value.lastIndexOf("}");
+    if (start < 0 || end <= start) return undefined;
+
+    try {
+      return JSON.parse(value.slice(start, end + 1));
+    } catch {
+      return undefined;
+    }
+  }
+}
+function buildMenuSourceSearchQueries(candidate: RestaurantMenuDiscoveryRequest["candidate"], websiteUrl: string) {
+  const restaurantName = candidate.name.trim();
+  const city = (candidate.city || inferCityFromAddress(candidate.address)).trim();
+  const country = (getRestaurantDiscoveryCountryNames(candidate.country)[0] ?? candidate.country).trim();
+  const domain = getRegistrableDomain(websiteUrl);
+  const base = [restaurantName, city, country].filter(Boolean).join(" ");
+  const domainQuery = domain ? `site:${domain}` : "";
+  const trustedProviderQueries = TRUSTED_EXTERNAL_MENU_PROVIDER_DOMAINS.flatMap((providerDomain) => [
+    [base, `site:${providerDomain}`].filter(Boolean).join(" "),
+    [restaurantName, providerDomain].filter(Boolean).join(" ")
+  ]);
+
+  return uniqueStrings([
+    [base, "official menu"].filter(Boolean).join(" "),
+    [base, "menu pdf"].filter(Boolean).join(" "),
+    ...trustedProviderQueries,
+    [base, "restaurant menu"].filter(Boolean).join(" "),
+    [domainQuery, restaurantName, "menu"].filter(Boolean).join(" "),
+    [domainQuery, restaurantName, "pdf"].filter(Boolean).join(" ")
+  ]).slice(0, 8);
+}
+function buildOfficialMenuSourcePrompts(candidate: RestaurantMenuDiscoveryRequest["candidate"], normalizedWebsiteUrl: string) {
+  const restaurantName = candidate.name;
+  const city = candidate.city || inferCityFromAddress(candidate.address);
+  const country = getRestaurantDiscoveryCountryNames(candidate.country)[0] ?? candidate.country;
+  const verifiedDomain = getRegistrableDomain(normalizedWebsiteUrl);
+  const searchQueries = buildMenuSourceSearchQueries(candidate, normalizedWebsiteUrl);
+  const schema = {
+    menuCandidates: [{
+      menuUrl: "",
+      sourceUrl: "",
+      evidence: {
+        sameDomain: false,
+        trustedExternalProvider: false,
+        officialSource: false,
+        publiclyReachable: false,
+        belongsToRestaurant: false,
+        reason: ""
+      }
+    }]
+  };
+  const sharedData = {
+    schema,
+    restaurantName,
+    city,
+    country,
+    countryConstraint: candidate.country
+      ? "Search only within the selected country. Do not return same-name restaurants or menu sources from other countries."
+      : "",
+    address: candidate.address,
+    verifiedWebsiteUrl: normalizedWebsiteUrl,
+    verifiedDomain,
+    trustedExternalMenuProviders: TRUSTED_EXTERNAL_MENU_PROVIDER_DOMAINS,
+    searchQueries
+  };
+
+  return [
+    JSON.stringify({
+      intent: "official_menu_source",
+      task: "Use web search to find the official or clearly restaurant-owned menu source for the exact restaurant. Return concrete menu page, PDF, or trusted external digital-menu URLs only. Return only JSON matching the schema.",
+      externalMenuProviderPolicy: "Prefer same-domain menu sources. If no same-domain menu is analyzable, you may return a trusted external digital menu provider only when the provider page clearly belongs to this exact restaurant and contains actual menu items. Put every found menu page, PDF, or trusted external digital-menu URL directly into menuUrl. Use sourceUrl only as supporting evidence.",
+      searchInstruction: "Use the searchQueries to search the web. Do not invent URLs. Return up to 5 concrete menu page, PDF, or trusted external digital-menu URLs in menuUrl. The code will verify every URL.",
+      ...sharedData
+    }),
+    [
+      "Find the official menu source for this exact restaurant.",
+      "Return only valid JSON, no Markdown, exactly in this shape:",
+      JSON.stringify(schema),
+      `Restaurant: ${restaurantName}`,
+      `City: ${city}`,
+      `Country: ${country}`,
+      `Address: ${candidate.address}`,
+      `Official website: ${normalizedWebsiteUrl}`,
+      `Official domain: ${verifiedDomain}`,
+      `Search queries: ${searchQueries.join(" | ")}`,
+      "Accept only official same-domain menu pages/PDFs or clearly matching trusted external digital menu providers.",
+      "Put each concrete menu page, PDF, or trusted external digital-menu URL in menuUrl. Use sourceUrl only for the page where the URL was found.",
+      "Do not return review sites, delivery services, map listings, reservation pages, social media, or same-name restaurants."
+    ].join("\n")
+  ];
+}
 async function findMenuFromOfficialSource(
   candidate: RestaurantMenuDiscoveryRequest["candidate"],
   websiteUrl: string,
@@ -356,15 +483,51 @@ async function findMenuFromOfficialSource(
     const sourceLinks = extractSourceLinks(source.html, source.finalUrl)
       .filter((link) => getRegistrableDomain(link.url) === websiteDomain);
 
-    if (hasNormalMenuSourceFamily(sourceLinks)) {
-      return source.finalUrl;
-    }
-
     const menuUrl = await findVerifiedMenuUrl(sourceLinks.map((link) => link.url), source.finalUrl);
     if (menuUrl) return menuUrl;
   }
 
   return "";
+}
+
+async function verifyProvidedMenuUrl(
+  candidateUrl: string | undefined,
+  candidate: RestaurantMenuDiscoveryRequest["candidate"],
+  websiteUrl: string
+): Promise<MenuDiscoveryCandidateResult> {
+  if (!candidateUrl) return {};
+
+  const verifiedUrl = await verifyOfficialMenuUrl(candidateUrl, websiteUrl);
+  if (verifiedUrl) return { menuUrl: verifiedUrl };
+
+  const verifiedExternalUrl = await verifyTrustedExternalMenuUrl(candidateUrl, candidate, websiteUrl);
+  return verifiedExternalUrl ? { externalMenuCandidate: verifiedExternalUrl } : {};
+}
+async function findTrustedExternalMenuFromWebsite(
+  candidate: RestaurantMenuDiscoveryRequest["candidate"],
+  websiteUrl: string,
+  requireSourceMatch: boolean
+): Promise<ExternalMenuCandidate | undefined> {
+  const sourceUrls = uniqueStrings([websiteUrl, getOriginUrl(websiteUrl)]).filter(Boolean);
+
+  for (const sourceUrl of sourceUrls) {
+    const source = await loadPageSource(sourceUrl);
+    if (!source) continue;
+    if (requireSourceMatch && !sourceMatchesRestaurant(source.html, source.finalUrl, candidate)) continue;
+
+    const candidateLinks = orderMenuCandidateLinks(
+      extractSourceLinks(source.html, source.finalUrl)
+        .filter((link) => isTrustedExternalMenuProviderUrl(link.url))
+        .filter(looksLikeMenuSourceLink)
+    );
+
+    for (const candidateUrl of candidateLinks.map((link) => link.url).slice(0, MAX_LINKED_MENU_ANALYSIS_CANDIDATES)) {
+      const verifiedExternalMenu = await verifyTrustedExternalMenuUrl(candidateUrl, candidate, source.finalUrl);
+      if (verifiedExternalMenu) return verifiedExternalMenu;
+    }
+  }
+
+  return undefined;
 }
 
 async function findVerifiedMenuUrl(candidateUrls: string[], websiteUrl: string) {
@@ -394,7 +557,134 @@ async function verifyOfficialMenuUrl(candidateUrl: string, websiteUrl: string) {
   if (getRegistrableDomain(reachableUrl) !== websiteDomain) return "";
 
   const analyzableUrl = await verifyAnalyzableMenuUrl(reachableUrl, websiteDomain);
-  return analyzableUrl;
+  if (analyzableUrl) return analyzableUrl;
+
+  return findLinkedAnalyzableMenuUrl(reachableUrl, websiteDomain);
+}
+
+async function verifyTrustedExternalMenuUrl(
+  candidateUrl: string,
+  candidate: RestaurantMenuDiscoveryRequest["candidate"],
+  websiteUrl: string
+): Promise<ExternalMenuCandidate | undefined> {
+  const normalizedUrl = normalizeOfficialUrl(candidateUrl, websiteUrl);
+  const normalizedWebsiteUrl = normalizeOfficialUrl(websiteUrl);
+  if (!normalizedUrl || !normalizedWebsiteUrl) return undefined;
+  if (sameUrlWithoutTrailingSlash(normalizedUrl, normalizedWebsiteUrl)) return undefined;
+
+  const websiteDomain = getRegistrableDomain(normalizedWebsiteUrl);
+  const providerDomain = getTrustedExternalMenuProviderDomain(normalizedUrl);
+  if (!providerDomain || providerDomain === websiteDomain) return undefined;
+
+  const reachableUrl = await verifyReachablePageUrl(normalizedUrl);
+  if (!reachableUrl) return undefined;
+
+  const reachableProviderDomain = getTrustedExternalMenuProviderDomain(reachableUrl);
+  if (reachableProviderDomain !== providerDomain) return undefined;
+
+  const linkedMenuUrl = await findLinkedTrustedExternalMenuUrl(reachableUrl, candidate, providerDomain);
+  if (linkedMenuUrl) {
+    return {
+      url: linkedMenuUrl,
+      providerDomain
+    };
+  }
+
+  const directMenuUrl = await verifyDirectTrustedExternalMenuPage(reachableUrl, candidate);
+  return directMenuUrl
+    ? {
+        url: directMenuUrl,
+        providerDomain
+      }
+    : undefined;
+}
+
+async function verifyDirectTrustedExternalMenuPage(
+  candidateUrl: string,
+  candidate: RestaurantMenuDiscoveryRequest["candidate"]
+) {
+  try {
+    const menuText = await loadMenuTextFromUrl(candidateUrl);
+    if (!externalMenuPageMatchesRestaurant(menuText, candidateUrl, candidate)) return "";
+    if (!isAnalyzableMenuText(menuText) && !hasTrustedExternalMenuTextSignals(menuText)) return "";
+
+    return candidateUrl;
+  } catch {
+    return "";
+  }
+}
+
+async function findLinkedTrustedExternalMenuUrl(
+  pageUrl: string,
+  candidate: RestaurantMenuDiscoveryRequest["candidate"],
+  providerDomain: string
+) {
+  const source = await loadPageSource(pageUrl);
+  if (!source) return "";
+  if (getTrustedExternalMenuProviderDomain(source.finalUrl) !== providerDomain) return "";
+
+  const candidateLinks = orderMenuCandidateLinks(
+    extractSourceLinks(source.html, source.finalUrl)
+      .filter((link) => getTrustedExternalMenuProviderDomain(link.url) === providerDomain)
+      .filter((link) => !sameUrlWithoutTrailingSlash(link.url, pageUrl))
+      .filter(looksLikeMenuSourceLink)
+  );
+
+  for (const candidateUrl of candidateLinks.map((link) => link.url).slice(0, MAX_LINKED_MENU_ANALYSIS_CANDIDATES)) {
+    const reachableUrl = await verifyReachablePageUrl(candidateUrl);
+    if (!reachableUrl) continue;
+    if (getTrustedExternalMenuProviderDomain(reachableUrl) !== providerDomain) continue;
+
+    const directMenuUrl = await verifyDirectTrustedExternalMenuPage(reachableUrl, candidate);
+    if (directMenuUrl) return directMenuUrl;
+  }
+
+  return "";
+}
+
+function hasTrustedExternalMenuTextSignals(menuText: string) {
+  const normalized = normalizeMenuProbeText(menuText);
+  const priceMatches = menuText.match(/(?:€|eur|euro)\s*\d+|\d+\s*(?:€|eur|euro)|\d+[,.]\d{2}/gi) ?? [];
+  const categoryHits = [
+    "appetizers",
+    "first courses",
+    "second courses",
+    "dessert",
+    "tasting menu",
+    "menu a la carte",
+    "antipasti",
+    "primi",
+    "secondi",
+    "dolci",
+    "full list"
+  ].filter((term) => normalized.includes(term)).length;
+
+  return menuText.trim().length >= MIN_ANALYZABLE_MENU_TEXT_LENGTH &&
+    priceMatches.length >= 2 &&
+    categoryHits >= 1;
+}
+function externalMenuPageMatchesRestaurant(
+  menuText: string,
+  menuUrl: string,
+  candidate: RestaurantMenuDiscoveryRequest["candidate"]
+) {
+  const sourceText = normalizeDomainText(`${menuText} ${menuUrl}`);
+  const urlText = normalizeDomainText(menuUrl);
+  const nameTokens = meaningfulRestaurantTokens(candidate.name);
+  const addressTokens = meaningfulAddressTokens(candidate.address);
+  const localityTokens = meaningfulLocalityTokens([
+    candidate.city,
+    candidate.address
+  ]);
+
+  const nameMatches = nameTokens.length === 0 ||
+    nameTokens.some((token) => sourceText.includes(token)) ||
+    nameTokens.some((token) => urlText.includes(token));
+  const locationMatches = addressTokens.length > 0
+    ? addressTokens.some((token) => sourceText.includes(token))
+    : localityTokens.length === 0 || localityTokens.some((token) => sourceText.includes(token));
+
+  return nameMatches && locationMatches;
 }
 
 async function verifyAnalyzableMenuUrl(candidateUrl: string, expectedDomain: string): Promise<string> {
@@ -471,11 +761,21 @@ function looksLikeMenuSourceUrl(value: string) {
   try {
     const url = new URL(value);
     const normalized = normalizeMenuProbeText(`${url.pathname} ${url.search}`);
-    return ["menu", "menue", "speisekarte", "karte", "carta", "carte", "food", "dining", "gourmetkarte"]
-      .some((term) => normalized.includes(term));
+    return hasMenuSourceTerm(normalized);
   } catch {
     return false;
   }
+}
+
+function looksLikeMenuSourceLink(link: SourceLink) {
+  if (looksLikeMenuSourceUrl(link.url)) return true;
+
+  return hasMenuSourceTerm(normalizeMenuProbeText(`${link.label} ${link.url}`));
+}
+
+function hasMenuSourceTerm(value: string) {
+  return ["menu", "menue", "speisekarte", "karte", "carta", "carte", "food", "dining", "gourmetkarte"]
+    .some((term) => value.includes(term));
 }
 
 function hasNormalMenuSourceFamily(links: SourceLink[]) {
@@ -654,10 +954,57 @@ function orderMenuCandidateUrls(values: string[]) {
   return uniqueStrings(values).sort((left, right) => scoreMenuCandidateUrl(right) - scoreMenuCandidateUrl(left));
 }
 
+function orderMenuCandidateLinks(links: SourceLink[]) {
+  const uniqueLinks = new Map<string, SourceLink>();
+
+  for (const link of links) {
+    const key = normalizeMenuCandidateUrlKey(link.url);
+    if (!key || uniqueLinks.has(key)) continue;
+    uniqueLinks.set(key, link);
+  }
+
+  return [...uniqueLinks.values()].sort((left, right) => scoreMenuCandidateLink(right) - scoreMenuCandidateLink(left));
+}
+
+function normalizeMenuCandidateUrlKey(value: string) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return value.trim().replace(/\/+$/, "");
+  }
+}
+
+function scoreMenuCandidateLink(link: SourceLink) {
+  const normalized = normalizeMenuProbeText(`${link.url} ${link.label}`);
+  let score = scoreMenuCandidateUrl(link.url);
+
+  if (normalized.includes("listfull")) score += 100;
+  if (normalized.includes("full list")) score += 80;
+  if (normalized.includes("lista completa")) score += 80;
+  if (normalized.includes("complete menu")) score += 70;
+  if (normalized.includes("menu completo")) score += 70;
+  if (normalized.includes("menu a la carte")) score += 60;
+  if (normalized.includes("a la carte")) score += 50;
+  if (normalized.includes("menuai")) score -= 35;
+  if (normalized.includes("tasting")) score -= 80;
+  if (normalized.includes("degustazione")) score -= 80;
+  if (normalized.includes("degustation")) score -= 80;
+  if (normalized.includes("cocktail")) score -= 45;
+  if (normalized.includes("wine")) score -= 45;
+  if (normalized.includes("vini")) score -= 45;
+  if (normalized.includes("bar")) score -= 25;
+
+  return score;
+}
+
 function scoreMenuCandidateUrl(value: string) {
   const normalized = normalizeMenuProbeText(decodeURIComponent(value));
   let score = looksLikePdfUrl(value) ? 2 : 0;
 
+  if (normalized.includes("listfull")) score += 14;
+  if (normalized.includes("complete") || normalized.includes("completa")) score += 12;
   if (normalized.includes("speisekarte")) score += 12;
   if (normalized.includes("restaurantkarte")) score += 10;
   if (normalized.includes("a-la-carte") || normalized.includes("alacarte") || normalized.includes("la-carte")) score += 10;
@@ -968,6 +1315,15 @@ function getRegistrableDomain(value: string | undefined) {
   } catch {
     return "";
   }
+}
+
+function isTrustedExternalMenuProviderUrl(value: string) {
+  return Boolean(getTrustedExternalMenuProviderDomain(value));
+}
+
+function getTrustedExternalMenuProviderDomain(value: string | undefined) {
+  const domain = getRegistrableDomain(value);
+  return TRUSTED_EXTERNAL_MENU_PROVIDER_DOMAINS.includes(domain) ? domain : "";
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {

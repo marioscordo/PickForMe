@@ -3,8 +3,7 @@ import { z } from "zod";
 import { requireUser } from "../../../src/auth/requireUser";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
-import { discoverRestaurantSources } from "../../../src/restaurant/discoverRestaurantSource";
-import { searchRestaurantCandidates } from "../../../src/restaurant/searchRestaurantCandidates";
+import { discoverRestaurantCandidatesOnly } from "../../../src/restaurant/discoverRestaurantSource";
 
 const RestaurantDiscoveryRequestSchema = z.object({
   restaurantName: z.string().trim().min(1).max(160),
@@ -17,14 +16,11 @@ export async function POST(request: Request) {
     await requireUser(request);
 
     const body = RestaurantDiscoveryRequestSchema.parse(await request.json());
-    const data = await searchRestaurantCandidates(body);
-    const discoveryData = data.candidates.length > 0
-      ? data
-      : await discoverRestaurantSources(body).catch(() => data);
+    const data = await discoverRestaurantCandidatesOnly(body);
 
     return NextResponse.json({
       ok: true,
-      data: discoveryData
+      data
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

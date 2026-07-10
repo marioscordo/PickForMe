@@ -19,8 +19,10 @@ import {
   generateRestaurantCandidates,
   gustaroaiRestaurantDiscoveryProvider,
   resolveSelectedRestaurantSource,
+  type ExternalMenuCandidate,
   type RestaurantCandidate
 } from "../../gustaroai/restaurantDiscoveryRoutine";
+import { ExternalMenuSourceConfirmation } from "./ExternalMenuSourceConfirmation";
 import { BottomTabs } from "../../app/navigation/PickTabs";
 import { useMobileContent } from "../../content/useMobileContent";
 import { radius } from "../../theme/tokens";
@@ -31,10 +33,11 @@ type RestaurantDiscoveryDialogProps = {
   onGoHome?: () => void;
   visible: boolean;
   onClose: () => void;
-  onApply: (menuUrl: string, restaurantName?: string) => void;
+  onApply: (menuUrl: string, restaurantName?: string, menuSourceDomain?: string) => void;
 };
 
 const BASE_WIDTH = 393;
+const DOUBLE_TAP_DELAY_MS = 450;
 const screenWidth = Dimensions.get("window").width;
 const scale = clamp(screenWidth / BASE_WIDTH, 0.92, 1.08);
 
@@ -193,7 +196,10 @@ export function RestaurantDiscoveryDialog({
   const [countrySearch, setCountrySearch] = useState("");
   const [candidates, setCandidates] = useState<RestaurantCandidate[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<RestaurantCandidate | null>(null);
+  const [highlightedCandidate, setHighlightedCandidate] = useState<RestaurantCandidate | null>(null);
   const [menuUrl, setMenuUrl] = useState("");
+  const [externalMenuCandidate, setExternalMenuCandidate] = useState<ExternalMenuCandidate | null>(null);
+  const [confirmedExternalMenuProviderDomain, setConfirmedExternalMenuProviderDomain] = useState("");
   const [message, setMessage] = useState("");
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [loadingMenu, setLoadingMenu] = useState(false);
@@ -205,6 +211,10 @@ export function RestaurantDiscoveryDialog({
   const [applyCardScrollRequestKey, setApplyCardScrollRequestKey] = useState(0);
   const sessionIdRef = useRef(0);
   const menuLookupIdRef = useRef(0);
+  const lastCandidateTapRef = useRef<{ id: string; timestamp: number } | null>(null);
+  const restaurantNameRef = useRef("");
+  const cityRef = useRef("");
+  const countryRef = useRef<RestaurantDiscoveryCountryCode>(DEFAULT_COUNTRY);
   const visibleCountryOptions = COUNTRY_OPTIONS.filter((option) =>
     matchesCountrySearch(option, copy.countries[option], countrySearch)
   );
@@ -227,6 +237,9 @@ export function RestaurantDiscoveryDialog({
   }, [applyCardScrollRequestKey, applyCardY]);
 
   function resetDialogState() {
+    restaurantNameRef.current = "";
+    cityRef.current = "";
+    countryRef.current = DEFAULT_COUNTRY;
     setRestaurantName("");
     setCity("");
     setCountry(DEFAULT_COUNTRY);
@@ -234,7 +247,10 @@ export function RestaurantDiscoveryDialog({
     setCountrySearch("");
     setCandidates([]);
     setSelectedCandidate(null);
+    setHighlightedCandidate(null);
     setMenuUrl("");
+    setExternalMenuCandidate(null);
+    setConfirmedExternalMenuProviderDomain("");
     setMessage("");
     setLoadingCandidates(false);
     setLoadingMenu(false);
@@ -261,19 +277,62 @@ export function RestaurantDiscoveryDialog({
     onClose();
   }
 
+  function clearSearchStateForInputChange() {
+    sessionIdRef.current += 1;
+    menuLookupIdRef.current += 1;
+    setCandidates([]);
+    setSelectedCandidate(null);
+    setHighlightedCandidate(null);
+    setMenuUrl("");
+    setExternalMenuCandidate(null);
+    setConfirmedExternalMenuProviderDomain("");
+    setMessage("");
+    setLoadingCandidates(false);
+    setLoadingMenu(false);
+    setSelectionHintY(0);
+    setSelectionHintScrollKey(0);
+    setSelectionHintScrollRequestKey(0);
+    setApplyCardY(0);
+    setApplyCardScrollKey(0);
+    setApplyCardScrollRequestKey(0);
+    lastCandidateTapRef.current = null;
+  }
+
+  function changeRestaurantName(nextRestaurantName: string) {
+    restaurantNameRef.current = nextRestaurantName;
+    setRestaurantName(nextRestaurantName);
+    clearSearchStateForInputChange();
+  }
+
+  function changeCity(nextCity: string) {
+    cityRef.current = nextCity;
+    setCity(nextCity);
+    clearSearchStateForInputChange();
+  }
+
   async function showCandidates() {
+    sessionIdRef.current += 1;
     const sessionId = sessionIdRef.current;
+    const queryRestaurantName = restaurantNameRef.current.trim();
+    const queryCity = cityRef.current.trim();
+    const queryCountry = countryRef.current;
+    if (!queryRestaurantName || !queryCity) return;
+
     menuLookupIdRef.current += 1;
     Keyboard.dismiss();
     setCountryMenuOpen(false);
     setLoadingCandidates(true);
     setSelectedCandidate(null);
+    setHighlightedCandidate(null);
     setMenuUrl("");
+    setExternalMenuCandidate(null);
+    setConfirmedExternalMenuProviderDomain("");
+    lastCandidateTapRef.current = null;
     setMessage("");
 
     try {
       const result = await generateRestaurantCandidates(
-        { restaurantName, city, country },
+        { restaurantName: queryRestaurantName, city: queryCity, country: queryCountry },
         gustaroaiRestaurantDiscoveryProvider
       );
       if (!isCurrentSession(sessionId)) return;
@@ -296,7 +355,26 @@ export function RestaurantDiscoveryDialog({
   function handleCandidatePress(candidate: RestaurantCandidate) {
     Keyboard.dismiss();
     setCountryMenuOpen(false);
+
+    const now = Date.now();
+    const lastTap = lastCandidateTapRef.current;
+    lastCandidateTapRef.current = { id: candidate.id, timestamp: now };
+
+    if (lastTap?.id === candidate.id && now - lastTap.timestamp <= DOUBLE_TAP_DELAY_MS) {
+      confirmRestaurantCandidate(candidate);
+      return;
+    }
+
+    setHighlightedCandidate(candidate);
+  }
+
+  function confirmRestaurantCandidate(candidate: RestaurantCandidate) {
     setSelectedCandidate(candidate);
+    setHighlightedCandidate(candidate);
+    setMenuUrl("");
+    setExternalMenuCandidate(null);
+    setConfirmedExternalMenuProviderDomain("");
+    setMessage(copy.menuSearchLoading);
     setApplyCardScrollRequestKey((current) => current + 1);
     void findMenuUrl(candidate);
   }
@@ -307,13 +385,23 @@ export function RestaurantDiscoveryDialog({
     menuLookupIdRef.current = lookupId;
     setLoadingMenu(true);
     setMenuUrl("");
-    setMessage("");
+    setExternalMenuCandidate(null);
+    setConfirmedExternalMenuProviderDomain("");
+    setMessage(copy.menuSearchLoading);
 
     try {
       const source = await resolveSelectedRestaurantSource(candidate, gustaroaiRestaurantDiscoveryProvider);
       if (!isCurrentMenuLookup(sessionId, lookupId)) return;
       if (source.menuUrl) {
         setMenuUrl(source.menuUrl);
+        setMessage("");
+        setApplyCardScrollRequestKey((current) => current + 1);
+        return;
+      }
+
+      if (source.externalMenuCandidate) {
+        setExternalMenuCandidate(source.externalMenuCandidate);
+        setMessage("");
         setApplyCardScrollRequestKey((current) => current + 1);
         return;
       }
@@ -333,9 +421,23 @@ export function RestaurantDiscoveryDialog({
     if (!menuUrl) return;
     const nextMenuUrl = menuUrl;
     const nextRestaurantName = selectedCandidate?.name.trim();
+    const nextMenuSourceDomain = confirmedExternalMenuProviderDomain.trim();
     sessionIdRef.current += 1;
     resetDialogState();
-    onApply(nextMenuUrl, nextRestaurantName || undefined);
+    onApply(nextMenuUrl, nextRestaurantName || undefined, nextMenuSourceDomain || undefined);
+  }
+
+  function confirmExternalMenuCandidate(candidate: ExternalMenuCandidate) {
+    setMenuUrl(candidate.url);
+    setConfirmedExternalMenuProviderDomain(candidate.providerDomain);
+    setExternalMenuCandidate(null);
+    setMessage("");
+    setApplyCardScrollRequestKey((current) => current + 1);
+  }
+
+  function rejectExternalMenuCandidate() {
+    setExternalMenuCandidate(null);
+    setMessage(copy.noMenuUrl);
   }
 
   function goHomeFromDialog() {
@@ -345,12 +447,18 @@ export function RestaurantDiscoveryDialog({
 
   function selectCountry(nextCountry: RestaurantDiscoveryCountryCode) {
     Keyboard.dismiss();
+    sessionIdRef.current += 1;
+    countryRef.current = nextCountry;
     setCountry(nextCountry);
     setCountryMenuOpen(false);
     setCountrySearch("");
     setCandidates([]);
     setSelectedCandidate(null);
+    setHighlightedCandidate(null);
     setMenuUrl("");
+    setExternalMenuCandidate(null);
+    setConfirmedExternalMenuProviderDomain("");
+    lastCandidateTapRef.current = null;
     setMessage("");
     setSelectionHintY(0);
     setSelectionHintScrollKey(0);
@@ -366,6 +474,7 @@ export function RestaurantDiscoveryDialog({
     menuLookupIdRef.current += 1;
     setLoadingCandidates(false);
     setLoadingMenu(false);
+    setExternalMenuCandidate(null);
     setMessage("");
   }
 
@@ -422,7 +531,7 @@ export function RestaurantDiscoveryDialog({
               <TextInput
                 testID="restaurant-discovery-name-input"
                 value={restaurantName}
-                onChangeText={setRestaurantName}
+                onChangeText={changeRestaurantName}
                 style={local.input}
                 autoCapitalize="words"
                 autoCorrect={false}
@@ -435,7 +544,7 @@ export function RestaurantDiscoveryDialog({
               <TextInput
                 testID="restaurant-discovery-city-input"
                 value={city}
-                onChangeText={setCity}
+                onChangeText={changeCity}
                 style={local.input}
                 autoCapitalize="words"
                 autoCorrect={false}
@@ -485,7 +594,10 @@ export function RestaurantDiscoveryDialog({
                       key={item.id}
                       testID="restaurant-discovery-candidate"
                       onPress={() => handleCandidatePress(item)}
-                      style={[local.candidate, selectedCandidate?.id === item.id && local.candidateSelected]}
+                      style={[
+                        local.candidate,
+                        (highlightedCandidate?.id === item.id || selectedCandidate?.id === item.id) && local.candidateSelected
+                      ]}
                     >
                       <Text style={local.candidateName}>{item.name}</Text>
                       <Text style={local.candidateMeta}>{[item.address, item.websiteUrl].filter(Boolean).join(" - ")}</Text>
@@ -505,6 +617,11 @@ export function RestaurantDiscoveryDialog({
             </View>
 
             {menuUrl ? <Text style={local.applyHint}>{copy.applyHint}</Text> : null}
+            {confirmedExternalMenuProviderDomain ? (
+              <Text style={local.externalSourceHint}>
+                {copy.externalMenuSourceLine.replace("{provider}", confirmedExternalMenuProviderDomain)}
+              </Text>
+            ) : null}
 
             <View style={local.fieldGroup}>
               <Text style={local.label}>{copy.restaurantOutputLabel}</Text>
@@ -602,6 +719,14 @@ export function RestaurantDiscoveryDialog({
             </View>
           </View>
         </Modal>
+
+        <ExternalMenuSourceConfirmation
+          candidate={externalMenuCandidate}
+          restaurantName={selectedCandidate?.name ?? ""}
+          visible={Boolean(externalMenuCandidate)}
+          onConfirm={confirmExternalMenuCandidate}
+          onReject={rejectExternalMenuCandidate}
+        />
 
         {onGoHome ? <BottomTabs onGoHome={goHomeFromDialog} /> : null}
       </View>
@@ -944,6 +1069,13 @@ const local = StyleSheet.create({
     lineHeight: fs(20),
     marginBottom: s(14)
   },
+  externalSourceHint: {
+    color: premiumPalette.textSoft,
+    fontSize: fs(13),
+    fontWeight: "700",
+    lineHeight: fs(18),
+    marginBottom: s(14)
+  },
   footerRow: {
     flexDirection: "row",
     gap: s(11)
@@ -967,7 +1099,7 @@ function normalizeCountrySearchText(value: string) {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/ß/g, "ss")
+    .replace(/\u00df/g, "ss")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();

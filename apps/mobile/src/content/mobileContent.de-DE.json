@@ -21,6 +21,7 @@
     "pasteTab": "Einfügen",
     "qrTab": "QR-Code",
     "restaurantContextLabel": "Im Restaurant",
+    "restaurantMenuSourceLabel": "Quelle der Speisekarte: {provider}",
     "moodTitle": "Wonach ist Dir heute?",
     "loadingTitle": "Ich suche Dir etwas Gutes raus",
     "loadingSteps": [
@@ -553,11 +554,20 @@
       "ZA": "Südafrika"
     },
     "showButton": "Zeigen",
-    "selectRestaurantHint": "Wähle das gefundene Restaurant aus der Liste aus. Danach sucht GustaroAI den passenden Speisekartenlink.",
+    "selectRestaurantHint": "Tippe einen Treffer einmal zum Markieren an. Tippe ihn doppelt, um das Restaurant zu übernehmen. Danach sucht GustaroAI den passenden Speisekartenlink.",
     "restaurantOutputLabel": "Restaurant",
     "linkOutputLabel": "Link",
+    "menuSearchLoading": "Speisekarte wird gesucht",
     "applyButton": "Übernehmen",
     "applyHint": "Übernimm den gefundenen Speisekartenlink. Danach ist der Button „Such mir etwas Passendes“ in der nächsten Maske sichtbar.",
+    "externalMenuSourceLine": "Quelle der Speisekarte: {provider}",
+    "externalMenuConfirmation": {
+      "title": "Externe Menüquelle",
+      "message": "Ich habe die Speisekarte bei einem externen Menüanbieter gefunden. Link übernehmen?",
+      "sourceLabel": "Anbieter",
+      "confirmButton": "Übernehmen",
+      "rejectButton": "Nicht verwenden"
+    },
     "cancelSearchButton": "Suche abbrechen",
     "backButton": "zurück",
     "loading": "Bitte warten...",

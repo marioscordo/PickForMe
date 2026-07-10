@@ -14,16 +14,24 @@ export type RestaurantCandidate = {
   address?: string;
   websiteUrl?: string;
   menuUrl?: string;
+  externalMenuCandidate?: ExternalMenuCandidate;
 };
 
 export type RestaurantSourceLink = {
   url: string;
-  kind: "menu" | "other";
+  kind: "menu" | "external-menu" | "other";
+  providerDomain?: string;
 };
 
 export type SelectedRestaurantSource = {
   websiteUrl: string;
   menuUrl?: string;
+  externalMenuCandidate?: ExternalMenuCandidate;
+};
+
+export type ExternalMenuCandidate = {
+  url: string;
+  providerDomain: string;
 };
 
 export type RestaurantDiscoveryProvider = {
@@ -71,10 +79,10 @@ const BLOCKED_HOST_PARTS = [
 ];
 
 const DISCOVERY_LIMIT = 8;
-const MAX_DISCOVERY_QUERIES = 6;
+const MAX_DISCOVERY_QUERIES = 2;
 const MAX_LINKS_PER_PAGE = 40;
 const MAX_CRAWL_PAGES = 12;
-const NOMINATIM_QUERY_DELAY_MS = 1100;
+const NOMINATIM_QUERY_DELAY_MS = 350;
 const DISCOVERY_USER_AGENT = "GustaroAI/1.0 restaurant-discovery (kontakt@gustaroai.com)";
 const DISCOVERY_FETCH_HEADERS = {
   Accept: "application/json",
@@ -97,7 +105,7 @@ export async function generateRestaurantCandidates(
     return [];
   }
 
-  const candidates = await provider.searchRestaurants({ restaurantName, city });
+  const candidates = await provider.searchRestaurants({ restaurantName, city, country: input.country });
   const seen = new Set<string>();
 
   return candidates.filter((candidate) => {
@@ -117,6 +125,16 @@ export async function resolveSelectedRestaurantSource(
   const links = await provider.loadCandidateLinks({ ...candidate, ...(websiteUrl ? { websiteUrl } : {}) });
 
   for (const link of links) {
+    if (link.kind === "external-menu") {
+      return {
+        websiteUrl,
+        externalMenuCandidate: {
+          url: link.url,
+          providerDomain: link.providerDomain ?? getRegistrableDomain(link.url)
+        }
+      };
+    }
+
     if (link.kind !== "menu") continue;
 
     const menuUrl = normalizeOfficialUrl(link.url, websiteUrl || undefined);
@@ -144,7 +162,8 @@ export const gustaroaiRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
       country: candidate.country,
       address: candidate.address,
       websiteUrl: candidate.websiteUrl,
-      menuUrl: candidate.menuUrl
+      menuUrl: candidate.menuUrl,
+      externalMenuCandidate: candidate.externalMenuCandidate
     }));
   },
 
@@ -153,8 +172,28 @@ export const gustaroaiRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
       return [{ url: candidate.menuUrl, kind: "menu" }];
     }
 
+    if (candidate.externalMenuCandidate) {
+      return [{
+        url: candidate.externalMenuCandidate.url,
+        kind: "external-menu",
+        providerDomain: candidate.externalMenuCandidate.providerDomain
+      }];
+    }
+
     const result = await discoverRestaurantMenu(candidate);
-    return result.menuUrl ? [{ url: result.menuUrl, kind: "menu" }] : [];
+    if (result.menuUrl) {
+      return [{ url: result.menuUrl, kind: "menu" }];
+    }
+
+    if (result.externalMenuCandidate) {
+      return [{
+        url: result.externalMenuCandidate.url,
+        kind: "external-menu",
+        providerDomain: result.externalMenuCandidate.providerDomain
+      }];
+    }
+
+    return [];
   },
 
   async validateUrl(url) {
@@ -261,7 +300,6 @@ function buildRestaurantSearchQueries(input: RestaurantDiscoveryInput) {
   const normalizedRestaurantName = normalizeSearchText(restaurantName);
   const normalizedCity = normalizeSearchText(city);
   const shortenedNames = getShortenedRestaurantNames(restaurantName);
-  const cityAliases = getCityAliases(city);
   const queries = [
     `${restaurantName} ${city}`,
     `Restaurant ${restaurantName} ${city}`,
@@ -269,7 +307,6 @@ function buildRestaurantSearchQueries(input: RestaurantDiscoveryInput) {
     ...shortenedNames.flatMap((name) => [`${name} ${city}`, `${normalizeSearchText(name)} ${city}`]),
     `${restaurantName} ${normalizedCity}`,
     `${normalizedRestaurantName} ${normalizedCity}`,
-    ...cityAliases.flatMap((cityAlias) => [`${restaurantName} ${cityAlias}`, `${normalizedRestaurantName} ${cityAlias}`])
   ];
 
   return uniqueStrings(queries).slice(0, MAX_DISCOVERY_QUERIES);
@@ -288,17 +325,6 @@ function normalizeSearchText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function getCityAliases(city: string) {
-  const normalizedCity = normalizeSearchText(city).toLowerCase();
-  const aliases: Record<string, string[]> = {
-    rom: ["Roma", "Rome"],
-    rome: ["Roma", "Rom"],
-    "sao paulo": ["S\u00e3o Paulo"]
-  };
-
-  return aliases[normalizedCity] ?? [];
 }
 
 function getNominatimCountryCode(country: string | undefined) {
@@ -406,7 +432,6 @@ function dedupeLinks(links: RestaurantSourceLink[]) {
     return true;
   });
 }
-
 function scoreCandidateMatch(candidate: RestaurantCandidate, input: RestaurantDiscoveryInput) {
   const candidateName = normalizeSearchText(candidate.name).toLowerCase();
   const queryName = normalizeSearchText(input.restaurantName).toLowerCase();

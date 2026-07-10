@@ -126,6 +126,12 @@ export type RestaurantDiscoveryApiCandidate = {
   address?: string;
   websiteUrl?: string;
   menuUrl?: string;
+  externalMenuCandidate?: ExternalMenuCandidateApiResult;
+};
+
+export type ExternalMenuCandidateApiResult = {
+  url: string;
+  providerDomain: string;
 };
 
 type DiscoverRestaurantsBody = {
@@ -141,6 +147,7 @@ type DiscoverRestaurantMenuBody = {
 export type RestaurantMenuDiscoveryApiResult = {
   websiteUrl: string;
   menuUrl?: string;
+  externalMenuCandidate?: ExternalMenuCandidateApiResult;
 };
 
 export function analyzeMenu(args: AnalyzeMenuMobileArgs) {

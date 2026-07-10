@@ -55,6 +55,7 @@ export function PickScreen({
   const loadingSteps = content.pick.loadingSteps;
   const [menuText, setMenuText] = useState("");
   const [selectedRestaurantName, setSelectedRestaurantName] = useState("");
+  const [selectedMenuSourceDomain, setSelectedMenuSourceDomain] = useState("");
   const [situation, setSituation] = useState<Situation>("leicht");
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showPhotoCamera, setShowPhotoCamera] = useState(false);
@@ -102,6 +103,7 @@ export function PickScreen({
   function updateMenuText(value: string) {
     setMenuText(value);
     setSelectedRestaurantName("");
+    setSelectedMenuSourceDomain("");
   }
 
   function handleAnalyze() {
@@ -124,6 +126,7 @@ export function PickScreen({
   function startAnalyzeWithExtractedMenuText(value: string) {
     setMenuText(value);
     setSelectedRestaurantName("");
+    setSelectedMenuSourceDomain("");
     setLastAnalyzedMenuUrl("");
 
     if (hasAllergiesOrIntolerances(profile)) {
@@ -140,6 +143,7 @@ export function PickScreen({
     analyze.reset();
     setMenuText("");
     setSelectedRestaurantName("");
+    setSelectedMenuSourceDomain("");
     setLastAnalyzedMenuUrl("");
     setLoadingStepIndex(0);
     setEntryScrollToActionKey(0);
@@ -149,9 +153,10 @@ export function PickScreen({
     setShowRestaurantDiscovery(false);
   }
 
-  function applyDiscoveredMenuUrl(value: string, restaurantName?: string) {
+  function applyDiscoveredMenuUrl(value: string, restaurantName?: string, menuSourceDomain?: string) {
     setMenuText(value);
     setSelectedRestaurantName(restaurantName?.trim() ?? "");
+    setSelectedMenuSourceDomain(menuSourceDomain?.trim() ?? "");
     setShowQrScanner(false);
     setShowPhotoCamera(false);
     setPhotoMenuError("");
@@ -335,6 +340,7 @@ export function PickScreen({
             onUrlScanned={(value: string) => {
               setMenuText(value);
               setSelectedRestaurantName("");
+              setSelectedMenuSourceDomain("");
               setShowQrScanner(false);
               setShowPhotoCamera(false);
               setPhotoMenuError("");
@@ -385,6 +391,11 @@ export function PickScreen({
         <View style={local.restaurantContextCard}>
           <Text style={local.restaurantContextLabel}>{content.pick.restaurantContextLabel}</Text>
           <Text style={local.restaurantContextName}>{restaurantContextName}</Text>
+          {selectedMenuSourceDomain ? (
+            <Text style={local.restaurantContextSource}>
+              {content.pick.restaurantMenuSourceLabel.replace("{provider}", selectedMenuSourceDomain)}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -673,6 +684,14 @@ const local = StyleSheet.create({
     fontSize: fs(22),
     fontWeight: "800",
     lineHeight: fs(28)
+  },
+
+  restaurantContextSource: {
+    color: premiumPalette.textSoft,
+    fontSize: fs(13),
+    fontWeight: "700",
+    lineHeight: fs(18),
+    marginTop: s(6)
   },
 
   profileHintCard: {

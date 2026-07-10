@@ -21,6 +21,7 @@
     "pasteTab": "Paste",
     "qrTab": "QR Code",
     "restaurantContextLabel": "At the restaurant",
+    "restaurantMenuSourceLabel": "Menu source: {provider}",
     "moodTitle": "What are you in the mood for?",
     "loadingTitle": "I am finding something good for you",
     "loadingSteps": [
@@ -553,11 +554,20 @@
       "ZA": "South Africa"
     },
     "showButton": "Show",
-    "selectRestaurantHint": "Select the found restaurant from the list. GustaroAI will then look for the matching menu link.",
+    "selectRestaurantHint": "Tap a result once to mark it. Double-tap it to apply the restaurant. GustaroAI will then look for the matching menu link.",
     "restaurantOutputLabel": "Restaurant",
     "linkOutputLabel": "Link",
+    "menuSearchLoading": "Searching for menu",
     "applyButton": "Apply",
     "applyHint": "Apply the found menu link. On the next screen, the \"Find something suitable\" button will be visible.",
+    "externalMenuSourceLine": "Menu source: {provider}",
+    "externalMenuConfirmation": {
+      "title": "External menu source",
+      "message": "I found the menu on an external menu provider. Use this link?",
+      "sourceLabel": "Provider",
+      "confirmButton": "Use link",
+      "rejectButton": "Do not use"
+    },
     "cancelSearchButton": "Cancel search",
     "backButton": "back",
     "loading": "Please wait...",
