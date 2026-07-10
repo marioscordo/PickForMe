@@ -134,12 +134,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const providedPdfMenuUrls = Array.isArray(body.menuUrls)
+      ? uniqueStrings(body.menuUrls
+        .map((url) => url.trim())
+        .filter((url) => looksLikeUrl(url) && looksLikePdfUrl(url))
+        .map(canonicalizePdfSourceUrl))
+      : [];
     const inputLooksLikeUrl = looksLikeUrl(rawMenuText);
     const directPdfUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikePdfUrl(rawMenuText)
       ? canonicalizePdfSourceUrl(rawMenuText)
       : null;
     const linkedPdfMenu = !dynamicMenuText && inputLooksLikeUrl && !directPdfUrl ? await findLinkedPdfMenu(rawMenuText) : null;
-    const pdfMenuUrls = directPdfUrl
+    const pdfMenuUrls = providedPdfMenuUrls.length > 0
+      ? providedPdfMenuUrls
+      : directPdfUrl
       ? [directPdfUrl]
       : linkedPdfMenu?.urls ?? (linkedPdfMenu?.url ? [linkedPdfMenu.url] : []);
     const pdfMenuUrl = pdfMenuUrls[0];

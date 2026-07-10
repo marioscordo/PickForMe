@@ -54,6 +54,7 @@ export function PickScreen({
   const { profile } = useProfile();
   const loadingSteps = content.pick.loadingSteps;
   const [menuText, setMenuText] = useState("");
+  const [menuUrls, setMenuUrls] = useState<string[]>([]);
   const [selectedRestaurantName, setSelectedRestaurantName] = useState("");
   const [selectedMenuSourceDomain, setSelectedMenuSourceDomain] = useState("");
   const [situation, setSituation] = useState<Situation>("leicht");
@@ -69,6 +70,7 @@ export function PickScreen({
   const [showAllergyWarning, setShowAllergyWarning] = useState(false);
   const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
+  const pendingConfirmedMenuUrlsRef = useRef<string[]>([]);
   const allergyWarningParagraphs = content.allergyWarning.message.split("\n\n");
 
   useEffect(() => {
@@ -102,12 +104,14 @@ export function PickScreen({
 
   function updateMenuText(value: string) {
     setMenuText(value);
+    setMenuUrls([]);
     setSelectedRestaurantName("");
     setSelectedMenuSourceDomain("");
   }
 
   function handleAnalyze() {
     pendingConfirmedMenuTextRef.current = null;
+    pendingConfirmedMenuUrlsRef.current = [];
 
     if (hasAllergiesOrIntolerances(profile)) {
       analyze.reset();
@@ -120,28 +124,31 @@ export function PickScreen({
 
   function startAnalyze() {
     setLastAnalyzedMenuUrl(normalizeMenuUrl(menuText));
-    analyze.run(menuText, situation);
+    analyze.run(menuText, situation, menuUrls);
   }
 
   function startAnalyzeWithExtractedMenuText(value: string) {
     setMenuText(value);
+    setMenuUrls([]);
     setSelectedRestaurantName("");
     setSelectedMenuSourceDomain("");
     setLastAnalyzedMenuUrl("");
 
     if (hasAllergiesOrIntolerances(profile)) {
       pendingConfirmedMenuTextRef.current = value;
+      pendingConfirmedMenuUrlsRef.current = [];
       analyze.reset();
       showAllergyWarningBeforeAnalyze();
       return;
     }
 
-    analyze.run(value, situation);
+    analyze.run(value, situation, []);
   }
 
   function resetAnalysisState() {
     analyze.reset();
     setMenuText("");
+    setMenuUrls([]);
     setSelectedRestaurantName("");
     setSelectedMenuSourceDomain("");
     setLastAnalyzedMenuUrl("");
@@ -153,8 +160,9 @@ export function PickScreen({
     setShowRestaurantDiscovery(false);
   }
 
-  function applyDiscoveredMenuUrl(value: string, restaurantName?: string, menuSourceDomain?: string) {
+  function applyDiscoveredMenuUrl(value: string, restaurantName?: string, menuSourceDomain?: string, discoveredMenuUrls?: string[]) {
     setMenuText(value);
+    setMenuUrls(discoveredMenuUrls?.length ? discoveredMenuUrls : [value]);
     setSelectedRestaurantName(restaurantName?.trim() ?? "");
     setSelectedMenuSourceDomain(menuSourceDomain?.trim() ?? "");
     setShowQrScanner(false);
@@ -197,6 +205,7 @@ export function PickScreen({
 
   function rejectAllergyWarning() {
     pendingConfirmedMenuTextRef.current = null;
+    pendingConfirmedMenuUrlsRef.current = [];
     analyze.reset();
     setShowAllergyWarning(false);
   }
@@ -210,9 +219,11 @@ export function PickScreen({
       });
       setShowAllergyWarning(false);
       const pendingMenuText = pendingConfirmedMenuTextRef.current;
+      const pendingMenuUrls = pendingConfirmedMenuUrlsRef.current;
       pendingConfirmedMenuTextRef.current = null;
+      pendingConfirmedMenuUrlsRef.current = [];
       if (pendingMenuText) {
-        analyze.run(pendingMenuText, situation);
+        analyze.run(pendingMenuText, situation, pendingMenuUrls);
         return;
       }
       startAnalyze();

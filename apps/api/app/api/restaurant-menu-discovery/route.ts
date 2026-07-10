@@ -7,6 +7,7 @@ import { errorResponse } from "../../../src/errors/errorResponse";
 import { loadMenuTextFromUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import { parseMenu } from "../../../src/menu/parseMenu";
 import { getRestaurantDiscoveryCountryNames, getRestaurantDiscoveryCountryTlds } from "../../../src/restaurant/restaurantDiscoveryCountries";
+import { selectRestaurantMenuSource } from "../../../src/restaurant/selectRestaurantMenuSource";
 
 const MENU_DISCOVERY_TIMEOUT_MS = 22000;
 const OFFICIAL_SOURCE_DISCOVERY_TIMEOUT_MS = 5000;
@@ -69,6 +70,7 @@ type RestaurantMenuDiscoveryRequest = z.infer<typeof RestaurantMenuDiscoveryRequ
 type RestaurantMenuDiscoveryResult = {
   websiteUrl: string;
   menuUrl?: string;
+  menuUrls?: string[];
   externalMenuCandidate?: ExternalMenuCandidate;
 };
 
@@ -179,25 +181,26 @@ async function resolveMenuForCandidate(
     return { websiteUrl };
   }
 
-  const sourceMenu = await withTimeout(
-    findMenuInWebsiteSource(candidate, discoveredWebsiteUrl),
-    OFFICIAL_SOURCE_DISCOVERY_TIMEOUT_MS,
-    { websiteUrl: discoveredWebsiteUrl }
-  );
-  if (sourceMenu.menuUrl || sourceMenu.externalMenuCandidate) return sourceMenu;
+  return mapSelectedRestaurantMenuSource(await selectRestaurantMenuSource({
+    ...candidate,
+    websiteUrl: discoveredWebsiteUrl
+  }));
+}
 
-  const directMenu = await verifyProvidedMenuUrl(candidate.menuUrl, candidate, discoveredWebsiteUrl);
-  if (directMenu.menuUrl || directMenu.externalMenuCandidate) {
+function mapSelectedRestaurantMenuSource(
+  selection: Awaited<ReturnType<typeof selectRestaurantMenuSource>>
+): RestaurantMenuDiscoveryResult {
+  if (selection.externalMenuCandidate) {
     return {
-      websiteUrl: discoveredWebsiteUrl,
-      ...directMenu
+      websiteUrl: selection.websiteUrl,
+      externalMenuCandidate: selection.externalMenuCandidate
     };
   }
 
-  const discoveredMenu = await discoverOfficialMenuSource(candidate, discoveredWebsiteUrl);
   return {
-    websiteUrl: discoveredWebsiteUrl,
-    ...discoveredMenu
+    websiteUrl: selection.websiteUrl,
+    ...(selection.menuUrl ? { menuUrl: selection.menuUrl } : {}),
+    ...(selection.menuUrls ? { menuUrls: selection.menuUrls } : {})
   };
 }
 

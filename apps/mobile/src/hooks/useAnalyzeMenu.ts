@@ -104,7 +104,7 @@ export function useAnalyzeMenu() {
     setLoading(false);
   }, [profileFingerprint]);
 
-  async function run(menuText: string, situation: Situation) {
+  async function run(menuText: string, situation: Situation, menuUrls?: string[]) {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
     abortControllerRef.current?.abort();
@@ -133,6 +133,7 @@ export function useAnalyzeMenu() {
     try {
       const data = await analyzeMenu({
         menuText,
+        menuUrls,
         situation,
         profile: {
           ...profileForRequest,

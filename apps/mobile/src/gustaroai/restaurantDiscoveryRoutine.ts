@@ -14,11 +14,13 @@ export type RestaurantCandidate = {
   address?: string;
   websiteUrl?: string;
   menuUrl?: string;
+  menuUrls?: string[];
   externalMenuCandidate?: ExternalMenuCandidate;
 };
 
 export type RestaurantSourceLink = {
   url: string;
+  urls?: string[];
   kind: "menu" | "external-menu" | "other";
   providerDomain?: string;
 };
@@ -26,6 +28,7 @@ export type RestaurantSourceLink = {
 export type SelectedRestaurantSource = {
   websiteUrl: string;
   menuUrl?: string;
+  menuUrls?: string[];
   externalMenuCandidate?: ExternalMenuCandidate;
 };
 
@@ -144,7 +147,7 @@ export async function resolveSelectedRestaurantSource(
       if (!(await provider.validateUrl(menuUrl))) continue;
     }
 
-    return { websiteUrl, menuUrl };
+    return { websiteUrl, menuUrl, menuUrls: link.urls?.length ? link.urls : [menuUrl] };
   }
 
   return { websiteUrl };
@@ -163,13 +166,14 @@ export const gustaroaiRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
       address: candidate.address,
       websiteUrl: candidate.websiteUrl,
       menuUrl: candidate.menuUrl,
+      menuUrls: candidate.menuUrls,
       externalMenuCandidate: candidate.externalMenuCandidate
     }));
   },
 
   async loadCandidateLinks(candidate) {
     if (candidate.menuUrl) {
-      return [{ url: candidate.menuUrl, kind: "menu" }];
+      return [{ url: candidate.menuUrl, urls: candidate.menuUrls, kind: "menu" }];
     }
 
     if (candidate.externalMenuCandidate) {
@@ -182,7 +186,7 @@ export const gustaroaiRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
 
     const result = await discoverRestaurantMenu(candidate);
     if (result.menuUrl) {
-      return [{ url: result.menuUrl, kind: "menu" }];
+      return [{ url: result.menuUrl, urls: result.menuUrls, kind: "menu" }];
     }
 
     if (result.externalMenuCandidate) {

@@ -15,6 +15,7 @@ type Situation = "richtig_hunger" | "leicht" | "neues_probieren" | "sicher";
 
 type AnalyzeMenuMobileArgs = {
   menuText: string;
+  menuUrls?: string[];
   situation: Situation;
   profile: UserProfile;
   signal?: AbortSignal;
@@ -40,6 +41,7 @@ type RequestRestaurantIntroMobileArgs = {
 type AnalyzeMenuApiBody = {
   sourceKind: "text";
   menuText: string;
+  menuUrls?: string[];
   situation: Situation;
   profile: UserProfile;
   userLocale: string;
@@ -126,6 +128,7 @@ export type RestaurantDiscoveryApiCandidate = {
   address?: string;
   websiteUrl?: string;
   menuUrl?: string;
+  menuUrls?: string[];
   externalMenuCandidate?: ExternalMenuCandidateApiResult;
 };
 
@@ -147,6 +150,7 @@ type DiscoverRestaurantMenuBody = {
 export type RestaurantMenuDiscoveryApiResult = {
   websiteUrl: string;
   menuUrl?: string;
+  menuUrls?: string[];
   externalMenuCandidate?: ExternalMenuCandidateApiResult;
 };
 
@@ -154,6 +158,7 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
   const body: AnalyzeMenuApiBody = {
     sourceKind: "text",
     menuText: args.menuText,
+    ...(args.menuUrls?.length ? { menuUrls: args.menuUrls } : {}),
     situation: args.situation,
     profile: sanitizeProfileForApi(args.profile),
     userLocale: resolveGuiLanguageFromDevice()

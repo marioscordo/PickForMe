@@ -33,7 +33,7 @@ type RestaurantDiscoveryDialogProps = {
   onGoHome?: () => void;
   visible: boolean;
   onClose: () => void;
-  onApply: (menuUrl: string, restaurantName?: string, menuSourceDomain?: string) => void;
+  onApply: (menuUrl: string, restaurantName?: string, menuSourceDomain?: string, menuUrls?: string[]) => void;
 };
 
 const BASE_WIDTH = 393;
@@ -198,6 +198,7 @@ export function RestaurantDiscoveryDialog({
   const [selectedCandidate, setSelectedCandidate] = useState<RestaurantCandidate | null>(null);
   const [highlightedCandidate, setHighlightedCandidate] = useState<RestaurantCandidate | null>(null);
   const [menuUrl, setMenuUrl] = useState("");
+  const [menuUrls, setMenuUrls] = useState<string[]>([]);
   const [externalMenuCandidate, setExternalMenuCandidate] = useState<ExternalMenuCandidate | null>(null);
   const [confirmedExternalMenuProviderDomain, setConfirmedExternalMenuProviderDomain] = useState("");
   const [message, setMessage] = useState("");
@@ -249,6 +250,7 @@ export function RestaurantDiscoveryDialog({
     setSelectedCandidate(null);
     setHighlightedCandidate(null);
     setMenuUrl("");
+    setMenuUrls([]);
     setExternalMenuCandidate(null);
     setConfirmedExternalMenuProviderDomain("");
     setMessage("");
@@ -284,6 +286,7 @@ export function RestaurantDiscoveryDialog({
     setSelectedCandidate(null);
     setHighlightedCandidate(null);
     setMenuUrl("");
+    setMenuUrls([]);
     setExternalMenuCandidate(null);
     setConfirmedExternalMenuProviderDomain("");
     setMessage("");
@@ -325,6 +328,7 @@ export function RestaurantDiscoveryDialog({
     setSelectedCandidate(null);
     setHighlightedCandidate(null);
     setMenuUrl("");
+    setMenuUrls([]);
     setExternalMenuCandidate(null);
     setConfirmedExternalMenuProviderDomain("");
     lastCandidateTapRef.current = null;
@@ -372,6 +376,7 @@ export function RestaurantDiscoveryDialog({
     setSelectedCandidate(candidate);
     setHighlightedCandidate(candidate);
     setMenuUrl("");
+    setMenuUrls([]);
     setExternalMenuCandidate(null);
     setConfirmedExternalMenuProviderDomain("");
     setMessage(copy.menuSearchLoading);
@@ -385,6 +390,7 @@ export function RestaurantDiscoveryDialog({
     menuLookupIdRef.current = lookupId;
     setLoadingMenu(true);
     setMenuUrl("");
+    setMenuUrls([]);
     setExternalMenuCandidate(null);
     setConfirmedExternalMenuProviderDomain("");
     setMessage(copy.menuSearchLoading);
@@ -394,6 +400,7 @@ export function RestaurantDiscoveryDialog({
       if (!isCurrentMenuLookup(sessionId, lookupId)) return;
       if (source.menuUrl) {
         setMenuUrl(source.menuUrl);
+        setMenuUrls(source.menuUrls?.length ? source.menuUrls : [source.menuUrl]);
         setMessage("");
         setApplyCardScrollRequestKey((current) => current + 1);
         return;
@@ -420,15 +427,17 @@ export function RestaurantDiscoveryDialog({
   function applyMenuUrl() {
     if (!menuUrl) return;
     const nextMenuUrl = menuUrl;
+    const nextMenuUrls = menuUrls.length ? menuUrls : [menuUrl];
     const nextRestaurantName = selectedCandidate?.name.trim();
     const nextMenuSourceDomain = confirmedExternalMenuProviderDomain.trim();
     sessionIdRef.current += 1;
     resetDialogState();
-    onApply(nextMenuUrl, nextRestaurantName || undefined, nextMenuSourceDomain || undefined);
+    onApply(nextMenuUrl, nextRestaurantName || undefined, nextMenuSourceDomain || undefined, nextMenuUrls);
   }
 
   function confirmExternalMenuCandidate(candidate: ExternalMenuCandidate) {
     setMenuUrl(candidate.url);
+    setMenuUrls([candidate.url]);
     setConfirmedExternalMenuProviderDomain(candidate.providerDomain);
     setExternalMenuCandidate(null);
     setMessage("");
@@ -456,6 +465,7 @@ export function RestaurantDiscoveryDialog({
     setSelectedCandidate(null);
     setHighlightedCandidate(null);
     setMenuUrl("");
+    setMenuUrls([]);
     setExternalMenuCandidate(null);
     setConfirmedExternalMenuProviderDomain("");
     lastCandidateTapRef.current = null;
