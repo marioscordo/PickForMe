@@ -102,9 +102,9 @@ const local = StyleSheet.create({
     flexBasis: "48%",
     flexDirection: "row",
     flexGrow: 1,
-    gap: s(9),
+    gap: s(7),
     minHeight: s(58),
-    paddingHorizontal: s(12),
+    paddingHorizontal: s(10),
     paddingVertical: s(10),
     shadowColor: "#6F5522",
     shadowOffset: { width: 0, height: s(5) },
@@ -126,9 +126,9 @@ const local = StyleSheet.create({
     borderColor: "rgba(228, 212, 182, 0.86)",
     borderRadius: 999,
     borderWidth: 1,
-    height: s(34),
+    height: s(32),
     justifyContent: "center",
-    width: s(34)
+    width: s(32)
   },
   optionIconActive: {
     backgroundColor: "rgba(255, 253, 248, 0.14)",
@@ -137,9 +137,11 @@ const local = StyleSheet.create({
   optionText: {
     color: premiumPalette.oliveDeep,
     flex: 1,
-    fontSize: fs(15),
+    flexShrink: 1,
+    fontSize: fs(14),
     fontWeight: "700",
-    lineHeight: fs(19)
+    lineHeight: fs(18),
+    minWidth: 0
   },
   optionTextActive: {
     color: premiumPalette.surface
