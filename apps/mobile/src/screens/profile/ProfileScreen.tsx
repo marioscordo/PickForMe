@@ -10,7 +10,8 @@ import { Screen } from "../../components/ui/Screen";
 import { env } from "../../config/env";
 import { OUTPUT_LOCALES, resolveOutputLocale } from "../../config/outputLocales";
 import { profileFeatures } from "../../config/profileFeatures";
-import { formatContent } from "../../content/mobileContent";
+import { resolveGuiLanguageFromDevice } from "../../content/guiLanguage";
+import { formatContent, type GuiLanguage } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
 import { premiumColors, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { UserProfile } from "../../types/profile";
@@ -84,6 +85,16 @@ function optionalTestFeedbackText(value: string) {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function withLegalLanguage(url: string, guiLanguage: GuiLanguage) {
+  const lang = guiLanguage === "de-DE" ? "de" : "en";
+
+  if (/[?&]lang=/.test(url)) {
+    return url.replace(/([?&])lang=[^&]*/, `$1lang=${lang}`);
+  }
+
+  return `${url}${url.includes("?") ? "&" : "?"}lang=${lang}`;
+}
+
 type PreferenceOption = {
   label: string;
   value: string;
@@ -105,6 +116,7 @@ export function ProfileScreen({
   setActiveSection: (section: ProfileSection | null) => void;
 }) {
   const content = useMobileContent();
+  const guiLanguage = useMemo(() => resolveGuiLanguageFromDevice(), []);
   const auth = useAuth();
   const { profile, setProfile } = useProfile();
   const [deleteAccountPending, setDeleteAccountPending] = useState(false);
@@ -485,7 +497,7 @@ export function ProfileScreen({
 
     async function openLegalUrl(url: string) {
       try {
-        await Linking.openURL(url);
+        await Linking.openURL(withLegalLanguage(url, guiLanguage));
       } catch {
         Alert.alert(content.profileScreen.legalLinkFailed);
       }
