@@ -181,7 +181,25 @@ export async function classifyProfileInputAI({
     JSON.parse(stripJsonFence(response.choices[0]?.message?.content ?? "{}"))
   );
 
-  return normalizeClassificationResult(inputValue, inputKind, parsed);
+  const normalized = normalizeClassificationResult(inputValue, inputKind, parsed);
+
+  if (inputKind === "exclusion" && normalized.allowed && normalized.classification !== "allergen") {
+    const strictFoodCheck = await classifyProfileInputAI({
+      inputKind: "preference",
+      value: inputValue,
+      signal
+    });
+
+    if (!strictFoodCheck.allowed) {
+      return {
+        allowed: false,
+        classification: "ambiguous",
+        reasonCode: "unrecognized_food_input"
+      };
+    }
+  }
+
+  return normalized;
 }
 
 export function classifyProfilePreferenceDeterministically(value: string): ProfilePreferenceClassificationResult | null {
@@ -259,7 +277,7 @@ function buildSystemPrompt(inputKind: ProfileInputKind) {
     : "allowed=true nur fuer classification food_item, ingredient, dish, food_category oder allergen.";
   const domainLine = inputKind === "preference"
     ? "Erlaubt als Vorliebe sind konkrete Lebensmittel, speisekartenrelevante Zutaten, Gerichte und Essenskategorien."
-    : "Erlaubt als Ausschluss oder Unvertraeglichkeit sind erkennbare Lebensmittel, speisekartenrelevante Zutaten, Gerichte, Essenskategorien, Allergene und persoenliche harte No-Gos.";
+    : "Erlaubt als Ausschluss oder Unvertraeglichkeit sind erkennbare Lebensmittel, speisekartenrelevante Zutaten, Gerichte, Essenskategorien und Allergene.";
 
   return [
     "Du bist ein gekapselter GustaroAI-Klassifikator fuer eigene Profil-Eingaben.",
@@ -269,10 +287,13 @@ function buildSystemPrompt(inputKind: ProfileInputKind) {
     allowedLine,
     "Blockiere Eigenschaften, Geschmacksprofile, reine Zubereitungsarten, Preis-/Portionswuensche, Naehrwertziele, Stimmungen, universelle Kuechenbasics und generische Gewuerz-/Kraeuter-Sammelbegriffe.",
     "Universelle Kuechenbasics wie Salz, Pfeffer, Oel, Wasser oder Zucker sowie generische Sammelbegriffe wie Gewuerze, Kraeuter, Wuerzung, Seasoning, Herbs oder Spices sind nicht als Profil-Eingabe erlaubt; konkrete einzelne Zutaten, Kraeuter und Gewuerzpflanzen wie Ingwer, Minze, Koriander, Ginger oder Mint sind als ingredient erlaubt.",
-    "classification allergen nur fuer klar anerkannte Allergene verwenden; persoenliche harte No-Go-Zutaten, Kraeuter und Gewuerzpflanzen bleiben classification ingredient.",
+    "classification allergen nur fuer klar anerkannte Allergene verwenden; erkennbare No-Go-Zutaten, Kraeuter und Gewuerzpflanzen bleiben classification ingredient.",
     "Wenn inputKind=exclusion und die Eingabe eine konkrete einzelne No-Go-Zutat, ein Kraut oder eine Gewuerzpflanze ist, setze allowed=true und classification=ingredient.",
     "Bei Unsicherheit: allowed=false und classification=ambiguous.",
-    "Du darfst einfache Schreibweisen normalisieren, wenn eindeutig: pizzza -> Pizza, tomate -> Tomaten, rindfleisch -> Rindfleisch.",
+    "Du darfst einfache Schreibweisen nur normalisieren, wenn der Eingabewert auch ohne geratenes Ersatzwort eindeutig als Lebensmittel, Zutat, Gericht oder Essenskategorie erkennbar ist.",
+    "Unklare Einzelwoerter, Fantasiebegriffe oder moegliche Tippfehler duerfen nicht durch geratenes Aehnlichkeitswissen als ingredient akzeptiert werden.",
+    "Ein einzelnes Wort darf nur allowed=true sein, wenn exakt dieses eingegebene Wort selbst ein bekanntes Lebensmittel, eine bekannte Zutat, ein bekanntes Gericht, eine bekannte Essenskategorie oder ein anerkanntes Allergen ist.",
+    "Wenn ein einzelnes Wort nur durch Austausch, Einfuegen oder Entfernen einzelner Buchstaben wie ein Lebensmittel wirken koennte, bleibt es ambiguous.",
     "Eigenschaften sind keine Lebensmittel, Gerichte oder Essenskategorien.",
     "Konkrete Speisen, Beilagen, Saettigungsbeilagen oder Speisenkomponenten bleiben erlaubt, auch wenn der Gesamtbegriff ein Zubereitungswort enthaelt.",
     "Eingaben, die auf Speisekarten als Gerichtstyp, Lebensmittelgruppe oder Kategorie vorkommen koennen, sind Essenskategorien und erlaubt.",
