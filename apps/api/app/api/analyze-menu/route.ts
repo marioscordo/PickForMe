@@ -21,6 +21,7 @@ import {
   applyDishRoleClassifications,
   getDishesNeedingRoleClassification
 } from "../../../src/menu/applyDishRoleClassifications";
+import { rankMenuSourceCandidatesByQuality } from "../../../src/restaurant/menuSourceQuality";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import { gatekeepMainDishRecommendations } from "../../../src/recommendation/gatekeeper";
 import { mapGatekeptMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
@@ -72,6 +73,8 @@ const TEXT_AI_TIMEOUT_MS = 90000;
 const PDF_AI_TIMEOUT_MS = 90000;
 const DISH_ROLE_CLASSIFICATION_TIMEOUT_MS = 30000;
 const STARTER_CANDIDATE_DISH_LIMIT = 20;
+const PDF_TEXT_AUGMENT_URL_LIMIT = 3;
+const PDF_TEXT_AUGMENT_CHAR_LIMIT = 36000;
 const SECOND_LEVEL_DOMAIN_SUFFIXES = new Set([
   "co.uk",
   "org.uk",
@@ -145,11 +148,12 @@ export async function POST(request: Request) {
       ? canonicalizePdfSourceUrl(rawMenuText)
       : null;
     const linkedPdfMenu = !dynamicMenuText && inputLooksLikeUrl && !directPdfUrl ? await findLinkedPdfMenu(rawMenuText) : null;
-    const pdfMenuUrls = providedPdfMenuUrls.length > 0
-      ? providedPdfMenuUrls
-      : directPdfUrl
-      ? [directPdfUrl]
-      : linkedPdfMenu?.urls ?? (linkedPdfMenu?.url ? [linkedPdfMenu.url] : []);
+    const selectedPdfMenu = await selectPdfMenuForAnalysis({
+      providedPdfMenuUrls,
+      directPdfUrl,
+      linkedPdfMenu
+    });
+    const pdfMenuUrls = selectedPdfMenu?.urls ?? [];
     const pdfMenuUrl = pdfMenuUrls[0];
     const officialRestaurantUrl = inputLooksLikeUrl
       ? getOfficialRestaurantHomepageUrl(rawMenuText)
@@ -169,7 +173,7 @@ export async function POST(request: Request) {
             kind: "pdf",
             urls: pdfMenuUrls,
             sourceUrl: pdfMenuUrl,
-            text: linkedPdfMenu?.restaurantContextText ?? rawMenuText
+            text: selectedPdfMenu?.restaurantContextText ?? rawMenuText
           },
           responseMode: "ai_pdf",
           profile,
@@ -178,7 +182,7 @@ export async function POST(request: Request) {
           restaurantDescription,
           localizedRestaurantDescription,
           restaurantUrl: officialRestaurantUrl,
-          fallbackHeroContextText: linkedPdfMenu?.restaurantContextText ?? rawMenuText,
+          fallbackHeroContextText: selectedPdfMenu?.restaurantContextText ?? rawMenuText,
           htmlMenuExtraction: null,
           starterCandidateSourceUrls: pdfMenuUrls,
           extraPayload: {
@@ -675,6 +679,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   timeoutMs: number;
 }) {
   const flowStartedAt = Date.now();
+  const runId = createAnalyzeRunId();
   const sourceKind = source.kind;
   const sourceCount = getTwoStepMainSourceCount(source);
   const searchSpace = prepareRecommendationSearchSpace({
@@ -691,6 +696,11 @@ async function analyzeMenuWithTwoStepMainFlow({
         text: searchSpace.text
       }
     : source;
+  const augmentedSourceForMainAi = await augmentPdfSourceWithExtractedText({
+    source: sourceForMainAi,
+    responseMode,
+    runId
+  });
   let proposedMainDishes: Awaited<ReturnType<typeof recommendMainDishesAI>>;
   let mainAiDurationMs = 0;
 
@@ -698,10 +708,11 @@ async function analyzeMenuWithTwoStepMainFlow({
   try {
     proposedMainDishes = await withAbortTimeout(
       (signal) => recommendMainDishesAI({
-        source: sourceForMainAi,
+        source: augmentedSourceForMainAi,
         profile,
         situation,
         userLocale: outputLocale,
+        runId,
         signal
       }),
       timeoutMs,
@@ -710,6 +721,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     mainAiDurationMs = Date.now() - mainStartedAt;
     logTwoStepMain({
       phase: "main-ai",
+      runId,
       responseMode,
       sourceKind,
       sourceCount,
@@ -720,6 +732,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   } catch (error) {
     logTwoStepMainError({
       phase: "main-ai-error",
+      runId,
       responseMode,
       sourceKind,
       sourceCount,
@@ -733,6 +746,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   const gatekeeperResult = gatekeepMainDishRecommendations(proposedMainDishes);
   logTwoStepMain({
     phase: "gatekeeper",
+    runId,
     responseMode,
     sourceKind,
     sourceCount,
@@ -745,6 +759,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   const mapped = mapGatekeptMainRecommendationsToAnalyzeData(gatekeeperResult.accepted);
   logTwoStepMain({
     phase: "mapper",
+    runId,
     responseMode,
     sourceKind,
     sourceCount,
@@ -791,7 +806,8 @@ async function analyzeMenuWithTwoStepMainFlow({
     totalDurationMs: Date.now() - flowStartedAt,
     responseMode,
     sourceKind,
-    sourceCount
+    sourceCount,
+    runId
   });
 
   return NextResponse.json({
@@ -808,6 +824,99 @@ async function analyzeMenuWithTwoStepMainFlow({
 }
 
 type TwoStepMainLogValue = string | number | boolean | null | undefined;
+
+function createAnalyzeRunId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function augmentPdfSourceWithExtractedText({
+  source,
+  responseMode,
+  runId
+}: {
+  source: TwoStepMenuSourceInput;
+  responseMode: TwoStepAnalyzeResponseMode;
+  runId: string;
+}) {
+  if (source.kind !== "pdf") {
+    return source;
+  }
+
+  const startedAt = Date.now();
+  const pdfUrls = uniqueStrings([
+    ...(source.urls ?? []),
+    source.sourceUrl ?? ""
+  ]).filter(looksLikeUrl).slice(0, PDF_TEXT_AUGMENT_URL_LIMIT);
+
+  if (pdfUrls.length === 0) {
+    logTwoStepMain({
+      phase: "pdf-text-augment",
+      runId,
+      responseMode,
+      sourceKind: source.kind,
+      sourceCount: getTwoStepMainSourceCount(source),
+      pdfTextExtracted: false,
+      pdfTextSourceCount: 0,
+      pdfTextCharCount: 0,
+      pdfTextSourceUrls: "",
+      durationMs: Date.now() - startedAt
+    });
+    return source;
+  }
+
+  const extractedTexts: string[] = [];
+
+  for (const pdfUrl of pdfUrls) {
+    try {
+      const extractedText = await loadMenuTextFromUrl(pdfUrl);
+      if (extractedText.trim()) {
+        extractedTexts.push(extractedText.trim());
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("GustaroAI PDF text augmentation failed.", {
+          runId,
+          errorName: error instanceof Error ? error.name : typeof error,
+          errorMessage: getShortLogMessage(getErrorMessage(error))
+        });
+      }
+    }
+  }
+
+  const supplementalText = extractedTexts
+    .map((text, index) => [`PDF-Textauszug ${index + 1}:`, text].join("\n"))
+    .join("\n\n")
+    .slice(0, PDF_TEXT_AUGMENT_CHAR_LIMIT);
+
+  logTwoStepMain({
+    phase: "pdf-text-augment",
+    runId,
+    responseMode,
+    sourceKind: source.kind,
+    sourceCount: getTwoStepMainSourceCount(source),
+    pdfTextExtracted: supplementalText.trim().length > 0,
+    pdfTextSourceCount: extractedTexts.length,
+    pdfTextCharCount: supplementalText.length,
+    pdfTextSourceUrls: pdfUrls.join(","),
+    durationMs: Date.now() - startedAt
+  });
+
+  if (!supplementalText.trim()) {
+    return source;
+  }
+
+  const existingText = source.text?.trim();
+  const text = [
+    existingText,
+    "Serverseitig extrahierter PDF-Text (best effort, nur als zusätzlicher Menü-Kontext für die AI):",
+    supplementalText
+  ].filter(Boolean).join("\n\n");
+
+  return {
+    ...source,
+    text
+  };
+}
 
 function logTwoStepMain(fields: Record<string, TwoStepMainLogValue>) {
   const payload = Object.entries(fields)
@@ -829,6 +938,7 @@ function logAnalyzePerf(fields: Record<string, TwoStepMainLogValue>) {
 
 function logTwoStepMainError({
   phase,
+  runId,
   responseMode,
   sourceKind,
   sourceCount,
@@ -836,6 +946,7 @@ function logTwoStepMainError({
   error
 }: {
   phase: string;
+  runId?: string;
   responseMode: TwoStepAnalyzeResponseMode;
   sourceKind: string;
   sourceCount: number;
@@ -844,6 +955,7 @@ function logTwoStepMainError({
 }) {
   logTwoStepMain({
     phase,
+    runId,
     responseMode,
     sourceKind,
     sourceCount,
@@ -2083,13 +2195,12 @@ async function findLinkedPdfMenu(value: string): Promise<LinkedPdfMenu | null> {
 
     const html = await response.text();
     const candidates = extractPdfCandidates(html, finalUrl);
-    const familyUrls = findNormalMenuSourceFamilyUrls(candidates);
-    const url = familyUrls[0] ?? candidates.find((candidate) => scorePdfCandidate(candidate.url) > 0)?.url;
+    const selectedCandidate = await selectBestLinkedPdfMenuCandidate(candidates);
 
-    return url
+    return selectedCandidate
       ? {
-          url,
-          urls: familyUrls.length > 0 ? familyUrls : [url],
+          url: selectedCandidate.url,
+          urls: selectedCandidate.urls?.length ? selectedCandidate.urls : [selectedCandidate.url],
           restaurantContextText: extractOfficialRestaurantContext(html)
         }
       : null;
@@ -2183,8 +2294,168 @@ function cleanOfficialContextText(value: string): string {
 }
 
 function extractPdfCandidates(html: string, baseUrl: string): MenuSourceCandidate[] {
-  return extractLinkedMenuSourceCandidates(html, baseUrl, "pdf")
+  return [
+    ...extractLinkedMenuSourceCandidates(html, baseUrl, "pdf"),
+    ...extractEmbeddedPdfCandidates(html, baseUrl)
+  ]
+    .filter((candidate, index, candidates) =>
+      candidates.findIndex((other) => other.url.toLowerCase() === candidate.url.toLowerCase()) === index
+    )
     .sort((a, b) => scorePdfCandidate(b.url) - scorePdfCandidate(a.url));
+}
+
+function extractEmbeddedPdfCandidates(html: string, baseUrl: string): MenuSourceCandidate[] {
+  const candidates: MenuSourceCandidate[] = [];
+  const normalizedHtml = html.replace(/\\\//g, "/");
+  const urlPattern = /(?:https?:\/\/|\/)[^\s"'<>\\]+\.pdf(?:[^\s"'<>\\]*)?/gi;
+  let match: RegExpExecArray | null;
+  let index = 10000;
+
+  while ((match = urlPattern.exec(normalizedHtml)) !== null) {
+    collectMenuSourceCandidate(
+      candidates,
+      decodeHtmlAttribute(match[0] ?? ""),
+      "",
+      baseUrl,
+      "pdf",
+      index
+    );
+    index += 1;
+  }
+
+  return candidates;
+}
+
+async function selectPdfMenuForAnalysis({
+  providedPdfMenuUrls,
+  directPdfUrl,
+  linkedPdfMenu
+}: {
+  providedPdfMenuUrls: string[];
+  directPdfUrl: string | null;
+  linkedPdfMenu: LinkedPdfMenu | null;
+}): Promise<LinkedPdfMenu | null> {
+  const candidates = [
+    ...(directPdfUrl
+      ? [{
+          url: directPdfUrl,
+          urls: [directPdfUrl],
+          label: "direct menu text pdf",
+          baseScore: 40,
+          source: "direct" as const
+        }]
+      : []),
+    ...(providedPdfMenuUrls.length > 0
+      ? [{
+          url: providedPdfMenuUrls[0] ?? "",
+          urls: providedPdfMenuUrls,
+          label: "provided pdf menu urls",
+          baseScore: 10,
+          source: "provided" as const
+        }]
+      : []),
+    ...(linkedPdfMenu?.url
+      ? [{
+          url: linkedPdfMenu.url,
+          urls: linkedPdfMenu.urls?.length ? linkedPdfMenu.urls : [linkedPdfMenu.url],
+          label: "linked pdf menu",
+          baseScore: 25,
+          source: "linked" as const,
+          restaurantContextText: linkedPdfMenu.restaurantContextText
+        }]
+      : [])
+  ].filter((candidate) => candidate.url);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const rankedCandidates = await rankMenuSourceCandidatesByQuality(candidates);
+  const selected = rankedCandidates[0];
+  const selectedSource = candidates.find((candidate) => candidate.url === selected?.url);
+
+  if (selected) {
+    console.info("[GUSTARO_PDF_ANALYSIS_SOURCE_SELECTION]", JSON.stringify({
+      selectedUrl: selected.url,
+      selectedSource: selectedSource?.source ?? "unknown",
+      selectedUrlsCount: selected.urls?.length ?? 1,
+      textLength: selected.metrics.textLength,
+      dishCount: selected.metrics.dishCount,
+      priceCount: selected.metrics.priceCount,
+      score: selected.metrics.score,
+      candidates: rankedCandidates.map((candidate) => {
+        const source = candidates.find((original) => original.url === candidate.url)?.source ?? "unknown";
+
+        return {
+          url: candidate.url,
+          source,
+          urlsCount: candidate.urls?.length ?? 1,
+          textLength: candidate.metrics.textLength,
+          dishCount: candidate.metrics.dishCount,
+          priceCount: candidate.metrics.priceCount,
+          score: candidate.metrics.score
+        };
+      })
+    }));
+  }
+
+  return selected
+    ? {
+        url: selected.url,
+        urls: selected.urls?.length ? selected.urls : [selected.url],
+        restaurantContextText: selectedSource?.restaurantContextText
+      }
+    : null;
+}
+
+async function selectBestLinkedPdfMenuCandidate(
+  candidates: MenuSourceCandidate[]
+): Promise<{ url: string; urls?: string[] } | null> {
+  const familyUrls = findNormalMenuSourceFamilyUrls(candidates);
+  const qualityCandidates = [
+    ...candidates
+      .map((candidate) => ({
+        url: candidate.url,
+        label: candidate.label,
+        baseScore: scorePdfCandidate(candidate.url)
+      })),
+    ...(familyUrls.length > 1
+      ? [{
+          url: familyUrls[0] ?? "",
+          urls: familyUrls,
+          label: "pdf family",
+          baseScore: 30
+        }]
+      : [])
+  ].filter((candidate) => candidate.url);
+  const rankedCandidates = await rankMenuSourceCandidatesByQuality(qualityCandidates);
+  const selected = rankedCandidates[0];
+
+  if (selected) {
+    console.info("[GUSTARO_LINKED_PDF_SELECTION]", JSON.stringify({
+      selectedUrl: selected.url,
+      selectedUrlsCount: selected.urls?.length ?? 1,
+      textLength: selected.metrics.textLength,
+      dishCount: selected.metrics.dishCount,
+      priceCount: selected.metrics.priceCount,
+      score: selected.metrics.score,
+      candidates: rankedCandidates.map((candidate) => ({
+        url: candidate.url,
+        urlsCount: candidate.urls?.length ?? 1,
+        textLength: candidate.metrics.textLength,
+        dishCount: candidate.metrics.dishCount,
+        priceCount: candidate.metrics.priceCount,
+        score: candidate.metrics.score
+      }))
+    }));
+  }
+
+  return selected
+    ? {
+        url: selected.url,
+        urls: selected.urls
+      }
+    : null;
 }
 
 async function extractHtmlMenuFamilyFromUrl(value: string): Promise<MenuExtractionResult | null> {

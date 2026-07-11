@@ -416,7 +416,7 @@ export function RestaurantDiscoveryDialog({
       setMessage(copy.noMenuUrl);
     } catch {
       if (!isCurrentMenuLookup(sessionId, lookupId)) return;
-      setMessage(copy.noMenuUrl);
+      setMessage(copy.menuSearchFailed);
     } finally {
       if (isCurrentMenuLookup(sessionId, lookupId)) {
         setLoadingMenu(false);

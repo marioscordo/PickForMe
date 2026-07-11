@@ -25,6 +25,8 @@ type PickScreenProps = {
   onOpenProfile?: () => void;
 };
 
+type MenuInputOrigin = "empty" | "manual" | "discovered" | "qr" | "photo";
+
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
 const ANALYSIS_LOADING_STEP_INTERVAL_MS = 1500;
 const RESULT_BOTTOM_SCROLL_INSET = 0;
@@ -57,6 +59,8 @@ export function PickScreen({
   const [menuUrls, setMenuUrls] = useState<string[]>([]);
   const [selectedRestaurantName, setSelectedRestaurantName] = useState("");
   const [selectedMenuSourceDomain, setSelectedMenuSourceDomain] = useState("");
+  const [menuInputOrigin, setMenuInputOrigin] = useState<MenuInputOrigin>("empty");
+  const [restaurantMenuDiscoveryCompleted, setRestaurantMenuDiscoveryCompleted] = useState(false);
   const [situation, setSituation] = useState<Situation>("leicht");
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showPhotoCamera, setShowPhotoCamera] = useState(false);
@@ -102,11 +106,31 @@ export function PickScreen({
     return "";
   }
 
+  function logAnalyzeSource(value: string, urls: string[] | undefined, phase: string) {
+    const normalizedMenuTextUrl = normalizeMenuUrl(value);
+    const firstMenuUrl = urls?.[0]?.trim() ?? "";
+
+    console.info("[GUSTARO_MOBILE_ANALYZE_SOURCE]", JSON.stringify({
+      phase,
+      menuTextUrl: normalizedMenuTextUrl,
+      firstMenuUrl,
+      effectiveSourceCandidate: normalizedMenuTextUrl ? "menuTextUrl" : firstMenuUrl ? "firstMenuUrl" : "menuText",
+      menuTextIsUrl: Boolean(normalizedMenuTextUrl),
+      menuUrlsCount: urls?.length ?? 0,
+      menuInputOrigin,
+      fromDiscoveredMenu: menuInputOrigin === "discovered",
+      fromManualLinkOrText: menuInputOrigin !== "discovered",
+      restaurantMenuDiscoveryCompleted
+    }));
+  }
+
   function updateMenuText(value: string) {
     setMenuText(value);
     setMenuUrls([]);
     setSelectedRestaurantName("");
     setSelectedMenuSourceDomain("");
+    setMenuInputOrigin(value.trim() ? "manual" : "empty");
+    setRestaurantMenuDiscoveryCompleted(false);
 
     if (normalizeMenuUrl(value)) {
       Keyboard.dismiss();
@@ -128,6 +152,7 @@ export function PickScreen({
   }
 
   function startAnalyze() {
+    logAnalyzeSource(menuText, menuUrls, "startAnalyze");
     setLastAnalyzedMenuUrl(normalizeMenuUrl(menuText));
     analyze.run(menuText, situation, menuUrls);
   }
@@ -138,6 +163,8 @@ export function PickScreen({
     setMenuUrls([]);
     setSelectedRestaurantName("");
     setSelectedMenuSourceDomain("");
+    setMenuInputOrigin("photo");
+    setRestaurantMenuDiscoveryCompleted(false);
     setLastAnalyzedMenuUrl("");
 
     if (hasAllergiesOrIntolerances(profile)) {
@@ -147,6 +174,7 @@ export function PickScreen({
       return;
     }
 
+    logAnalyzeSource(value, [], "photo");
     analyze.run(value, situation, []);
   }
 
@@ -156,6 +184,8 @@ export function PickScreen({
     setMenuUrls([]);
     setSelectedRestaurantName("");
     setSelectedMenuSourceDomain("");
+    setMenuInputOrigin("empty");
+    setRestaurantMenuDiscoveryCompleted(false);
     setLastAnalyzedMenuUrl("");
     setLoadingStepIndex(0);
     setEntryScrollToActionKey(0);
@@ -165,12 +195,27 @@ export function PickScreen({
     setShowRestaurantDiscovery(false);
   }
 
+  function openRestaurantDiscovery() {
+    Keyboard.dismiss();
+    analyze.reset();
+    setMenuText("");
+    setMenuUrls([]);
+    setSelectedRestaurantName("");
+    setSelectedMenuSourceDomain("");
+    setMenuInputOrigin("empty");
+    setRestaurantMenuDiscoveryCompleted(false);
+    setLastAnalyzedMenuUrl("");
+    setShowRestaurantDiscovery(true);
+  }
+
   function applyDiscoveredMenuUrl(value: string, restaurantName?: string, menuSourceDomain?: string, discoveredMenuUrls?: string[]) {
     Keyboard.dismiss();
     setMenuText(value);
     setMenuUrls(discoveredMenuUrls?.length ? discoveredMenuUrls : [value]);
     setSelectedRestaurantName(restaurantName?.trim() ?? "");
     setSelectedMenuSourceDomain(menuSourceDomain?.trim() ?? "");
+    setMenuInputOrigin("discovered");
+    setRestaurantMenuDiscoveryCompleted(true);
     setShowQrScanner(false);
     setShowPhotoCamera(false);
     setPhotoMenuError("");
@@ -229,6 +274,7 @@ export function PickScreen({
       pendingConfirmedMenuTextRef.current = null;
       pendingConfirmedMenuUrlsRef.current = [];
       if (pendingMenuText) {
+        logAnalyzeSource(pendingMenuText, pendingMenuUrls, "allergyConfirmed");
         analyze.run(pendingMenuText, situation, pendingMenuUrls);
         return;
       }
@@ -356,8 +402,11 @@ export function PickScreen({
           <QrMenuScanner
             onUrlScanned={(value: string) => {
               setMenuText(value);
+              setMenuUrls([]);
               setSelectedRestaurantName("");
               setSelectedMenuSourceDomain("");
+              setMenuInputOrigin("qr");
+              setRestaurantMenuDiscoveryCompleted(false);
               setShowQrScanner(false);
               setShowPhotoCamera(false);
               setPhotoMenuError("");
@@ -388,7 +437,7 @@ export function PickScreen({
           <Feather color={premiumPalette.textSoft} name="chevron-right" size={s(24)} />
         </Pressable>
 
-        <Pressable accessibilityRole="button" style={local.findMenuRow} onPress={() => setShowRestaurantDiscovery(true)}>
+        <Pressable accessibilityRole="button" style={local.findMenuRow} onPress={openRestaurantDiscovery}>
           <View style={local.findMenuLeft}>
             <Feather color={premiumPalette.gold} name="search" size={s(19)} />
             <Text style={local.findMenuText}>{content.pick.findMenuButton}</Text>

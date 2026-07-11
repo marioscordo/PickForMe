@@ -564,6 +564,7 @@
     "backButton": "zurück",
     "loading": "Bitte warten...",
     "noResults": "Keine Treffer gefunden",
+    "menuSearchFailed": "Die Speisekartensuche ist fehlgeschlagen. Bitte versuche es erneut oder füge den Speisekartenlink manuell ein.",
     "noMenuUrl": "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen"
   },
   "help": {

@@ -9,7 +9,8 @@ const OptionalNullableStringSchema = z.string().trim().min(1).nullable().optiona
 export const TwoStepProfileSafetySchema = z.object({
   hasKnownConflict: z.boolean(),
   uncertainForAllergy: z.boolean(),
-  conflictReason: OptionalNullableStringSchema
+  conflictReason: OptionalNullableStringSchema,
+  checkedAgainst: z.array(z.string().trim().min(1)).optional()
 });
 
 export const TwoStepMenuSourceInputSchema = z.object({
@@ -34,6 +35,34 @@ export const MainDishAIRecommendationSchema = z.object({
   reason: z.string().trim().min(1),
   confidence: TwoStepConfidenceSchema,
   profileSafety: TwoStepProfileSafetySchema
+});
+
+export const MainDishAIAnalyzedDishSchema = z.object({
+  nameOriginal: z.string().trim().min(1),
+  descriptionOriginal: OptionalNullableStringSchema,
+  price: OptionalNullableStringSchema,
+  detectedConflicts: z.array(z.string().trim().min(1)),
+  isSafe: z.boolean()
+});
+
+export const MainDishAIRemovedDishSchema = z.object({
+  nameOriginal: z.string().trim().min(1),
+  matchedProfileValue: z.string().trim().min(1),
+  reason: z.string().trim().min(1)
+});
+
+export const MainDishAISafeCandidateSchema = z.object({
+  nameOriginal: z.string().trim().min(1),
+  descriptionOriginal: OptionalNullableStringSchema,
+  scoreReason: z.string().trim().min(1)
+});
+
+export const MainDishAIResultSummarySchema = z.object({
+  allDishCount: z.number(),
+  removedDishCount: z.number(),
+  safeCandidateCount: z.number(),
+  recommendationCount: z.number(),
+  lessThanThreeReason: OptionalNullableStringSchema
 });
 
 export const CommittedMainDishRecommendationSchema = z.object({
@@ -98,7 +127,12 @@ export const StarterCommitResultSchema = z.discriminatedUnion("committed", [
 ]);
 
 export const MainDishAIResponseSchema = z.object({
+  allDishes: z.array(MainDishAIAnalyzedDishSchema),
+  removedDishes: z.array(MainDishAIRemovedDishSchema),
+  safeCandidates: z.array(MainDishAISafeCandidateSchema),
   recommendations: z.array(MainDishAIRecommendationSchema).max(3)
+    .refine((values) => values.length <= 3, "Main AI must not return more than 3 recommendations"),
+  resultSummary: MainDishAIResultSummarySchema
 });
 
 export const MainDishCommitResponseSchema = z.object({
@@ -119,6 +153,10 @@ export type TwoStepCommittedConfidence = z.infer<typeof TwoStepCommittedConfiden
 export type TwoStepProfileSafety = z.infer<typeof TwoStepProfileSafetySchema>;
 export type TwoStepMenuSourceInput = z.infer<typeof TwoStepMenuSourceInputSchema>;
 export type MainDishAIRecommendation = z.infer<typeof MainDishAIRecommendationSchema>;
+export type MainDishAIAnalyzedDish = z.infer<typeof MainDishAIAnalyzedDishSchema>;
+export type MainDishAIRemovedDish = z.infer<typeof MainDishAIRemovedDishSchema>;
+export type MainDishAISafeCandidate = z.infer<typeof MainDishAISafeCandidateSchema>;
+export type MainDishAIResultSummary = z.infer<typeof MainDishAIResultSummarySchema>;
 export type CommittedMainDishRecommendation = z.infer<typeof CommittedMainDishRecommendationSchema>;
 export type RejectedMainDishRecommendation = z.infer<typeof RejectedMainDishRecommendationSchema>;
 export type MainDishCommitResult = z.infer<typeof MainDishCommitResultSchema>;

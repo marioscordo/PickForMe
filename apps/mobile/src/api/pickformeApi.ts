@@ -124,9 +124,6 @@ export type RestaurantDiscoveryApiCandidate = {
   country?: string;
   address?: string;
   websiteUrl?: string;
-  menuUrl?: string;
-  menuUrls?: string[];
-  externalMenuCandidate?: ExternalMenuCandidateApiResult;
 };
 
 export type ExternalMenuCandidateApiResult = {

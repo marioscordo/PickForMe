@@ -220,19 +220,11 @@ export async function discoverRestaurantCandidatesOnly(input: DiscoverRestaurant
   const client = new OpenAI({ apiKey });
   const model = process.env.OPENAI_DISCOVERY_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini";
   const rawCandidates = await requestRestaurantOnlyCandidates(client, model, buildRestaurantOnlyPrompt(input));
-  const externalProviderCandidates: RestaurantDiscoveryCandidate[] = [];
-  const externalProviderSeen = new Set<string>();
   const candidates: RestaurantDiscoveryCandidate[] = [];
   const seen = new Set<string>();
 
-  await addTrustedExternalProviderCandidates(input, externalProviderCandidates, externalProviderSeen);
-
-  for (const rawCandidate of rawCandidates.slice(0, Math.max(1, MAX_CANDIDATES - externalProviderCandidates.length))) {
+  for (const rawCandidate of rawCandidates.slice(0, MAX_CANDIDATES)) {
     await addVerifiedRestaurantCandidate(rawCandidate, candidates, seen);
-  }
-
-  for (const candidate of externalProviderCandidates) {
-    addCandidate(candidate, candidates, seen);
   }
 
   if (candidates.length < MAX_CANDIDATES) {

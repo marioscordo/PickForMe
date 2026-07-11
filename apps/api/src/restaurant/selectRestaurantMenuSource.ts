@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { loadMenuTextFromUrl } from "../menu/loadMenuTextFromUrl";
 import { parseMenu } from "../menu/parseMenu";
+import { getMenuSourceQualityMetrics } from "./menuSourceQuality";
 import { getRestaurantDiscoveryCountryNames } from "./restaurantDiscoveryCountries";
 
 export type RestaurantMenuSourceInput = {
@@ -75,6 +76,12 @@ type CandidateDraft = {
   score: number;
   reason: string;
   providerDomain?: string;
+};
+
+type MenuSourceDiagnosticMetrics = {
+  textLength: number;
+  dishCount: number;
+  priceCount: number;
 };
 
 type MenuSourceFamilyInfo = SourceLink & {
@@ -268,11 +275,15 @@ export async function selectRestaurantMenuSource(
     }
   }
 
-  let selected = orderCandidates(candidates)[0];
+  let candidatesForDiagnostics = candidates;
+  let selected = orderCandidates(candidatesForDiagnostics)[0];
   if (!selected) {
     const aiCandidates = await discoverMenuSourcesWithAi(input, websiteUrl, websiteDomain, rejectedCandidates);
+    candidatesForDiagnostics = aiCandidates;
     selected = orderCandidates(aiCandidates)[0];
   }
+
+  await logMenuDiscoveryDiagnostic(input, websiteUrl, candidatesForDiagnostics, selected);
 
   if (!selected) {
     return buildNoSelection(websiteUrl, "no_plausible_menu_source", rejectedCandidates);
@@ -920,6 +931,48 @@ function buildNoSelection(
     confidence: "none",
     reason,
     rejectedCandidates
+  };
+}
+
+async function logMenuDiscoveryDiagnostic(
+  input: RestaurantMenuSourceInput,
+  websiteUrl: string,
+  candidates: CandidateDraft[],
+  selected: CandidateDraft | undefined
+) {
+  const orderedCandidates = orderCandidates(candidates);
+  const rows = await Promise.all(orderedCandidates.map(async (candidate) => {
+    const metrics = await getMenuSourceDiagnosticMetrics(candidate.url);
+
+    return {
+      url: candidate.url,
+      kind: candidate.kind,
+      score: candidate.score,
+      reason: candidate.reason,
+      textLength: metrics.textLength,
+      dishCount: metrics.dishCount,
+      priceCount: metrics.priceCount
+    };
+  }));
+
+  console.info("[GUSTARO_MENU_DISCOVERY_DIAG]", JSON.stringify({
+    restaurant: input.name,
+    website: websiteUrl,
+    selectedUrl: selected?.url ?? "",
+    selectedKind: selected?.kind ?? "none",
+    selectedScore: selected?.score ?? 0,
+    selectedReason: selected?.reason ?? "no_selection",
+    candidates: rows
+  }));
+}
+
+async function getMenuSourceDiagnosticMetrics(url: string): Promise<MenuSourceDiagnosticMetrics> {
+  const metrics = await getMenuSourceQualityMetrics(url);
+
+  return {
+    textLength: metrics.textLength,
+    dishCount: metrics.dishCount,
+    priceCount: metrics.priceCount
   };
 }
 

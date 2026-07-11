@@ -564,6 +564,7 @@
     "backButton": "back",
     "loading": "Please wait...",
     "noResults": "No results found",
+    "menuSearchFailed": "The menu search failed. Please try again or paste the menu link manually.",
     "noMenuUrl": "No evaluable menu link found. Please paste a link, text, or photo manually"
   },
   "help": {

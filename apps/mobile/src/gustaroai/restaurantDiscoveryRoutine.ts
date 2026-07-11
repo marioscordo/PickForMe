@@ -13,9 +13,6 @@ export type RestaurantCandidate = {
   country?: string;
   address?: string;
   websiteUrl?: string;
-  menuUrl?: string;
-  menuUrls?: string[];
-  externalMenuCandidate?: ExternalMenuCandidate;
 };
 
 export type RestaurantSourceLink = {
@@ -164,27 +161,27 @@ export const gustaroaiRestaurantDiscoveryProvider: RestaurantDiscoveryProvider =
       city: candidate.city,
       country: candidate.country,
       address: candidate.address,
-      websiteUrl: candidate.websiteUrl,
-      menuUrl: candidate.menuUrl,
-      menuUrls: candidate.menuUrls,
-      externalMenuCandidate: candidate.externalMenuCandidate
+      websiteUrl: candidate.websiteUrl
     }));
   },
 
   async loadCandidateLinks(candidate) {
-    if (candidate.menuUrl) {
-      return [{ url: candidate.menuUrl, urls: candidate.menuUrls, kind: "menu" }];
-    }
-
-    if (candidate.externalMenuCandidate) {
-      return [{
-        url: candidate.externalMenuCandidate.url,
-        kind: "external-menu",
-        providerDomain: candidate.externalMenuCandidate.providerDomain
-      }];
-    }
+    console.info("[GUSTARO_MOBILE_MENU_DISCOVERY]", JSON.stringify({
+      phase: "start",
+      restaurant: candidate.name,
+      city: candidate.city,
+      websiteUrl: candidate.websiteUrl ?? ""
+    }));
 
     const result = await discoverRestaurantMenu(candidate);
+    console.info("[GUSTARO_MOBILE_MENU_DISCOVERY]", JSON.stringify({
+      phase: "result",
+      restaurant: candidate.name,
+      menuUrl: result.menuUrl ?? "",
+      menuUrlsCount: result.menuUrls?.length ?? 0,
+      hasExternalMenuCandidate: Boolean(result.externalMenuCandidate)
+    }));
+
     if (result.menuUrl) {
       return [{ url: result.menuUrl, urls: result.menuUrls, kind: "menu" }];
     }
