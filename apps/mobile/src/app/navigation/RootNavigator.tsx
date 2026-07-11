@@ -13,18 +13,37 @@ type RootTab = "home" | "pick" | "profile";
 export function RootNavigator({ auth }: { auth: AuthState }) {
   const [activeTab, setActiveTab] = useState<RootTab>("home");
   const [activeProfileSection, setActiveProfileSection] = useState<ProfileSection | null>(null);
+  const [profileReturnToPick, setProfileReturnToPick] = useState(false);
+  const [pickReturnToMoodKey, setPickReturnToMoodKey] = useState(0);
+
   function openPickFromStart() {
     setActiveProfileSection(null);
+    setProfileReturnToPick(false);
     setActiveTab("pick");
   }
 
   function openProfileFromStart() {
     setActiveProfileSection(null);
+    setProfileReturnToPick(false);
     setActiveTab("profile");
+  }
+
+  function openPreferencesFromPick() {
+    setActiveProfileSection("preferences");
+    setProfileReturnToPick(true);
+    setActiveTab("profile");
+  }
+
+  function returnToPickFromProfile() {
+    setActiveProfileSection(null);
+    setProfileReturnToPick(false);
+    setActiveTab("pick");
+    setPickReturnToMoodKey((current) => current + 1);
   }
 
   function goHome() {
     setActiveProfileSection(null);
+    setProfileReturnToPick(false);
     setActiveTab("home");
   }
 
@@ -45,11 +64,18 @@ export function RootNavigator({ auth }: { auth: AuthState }) {
         <PickScreen
           onGoHome={goHome}
           onOpenProfile={openProfileFromStart}
+          onOpenProfilePreferences={openPreferencesFromPick}
+          returnToMoodKey={pickReturnToMoodKey}
         />
       </View>
 
       <View style={[styles.flex, activeTab !== "profile" && local.hiddenScreen]}>
-        <ProfileScreen activeSection={activeProfileSection} setActiveSection={setActiveProfileSection} />
+        <ProfileScreen
+          activeSection={activeProfileSection}
+          onReturnToPick={returnToPickFromProfile}
+          returnToPickOnBack={profileReturnToPick}
+          setActiveSection={setActiveProfileSection}
+        />
       </View>
 
       {activeTab === "home" ? null : (

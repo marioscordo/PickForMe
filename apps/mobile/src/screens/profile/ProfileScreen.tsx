@@ -110,9 +110,13 @@ export type ProfileSection = "general" | ProfileEditorSection;
 
 export function ProfileScreen({
   activeSection,
+  onReturnToPick,
+  returnToPickOnBack,
   setActiveSection
 }: {
   activeSection: ProfileSection | null;
+  onReturnToPick?: () => void;
+  returnToPickOnBack?: boolean;
   setActiveSection: (section: ProfileSection | null) => void;
 }) {
   const content = useMobileContent();
@@ -193,6 +197,15 @@ export function ProfileScreen({
 
   function handleOverviewScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     setOverviewScrollY(event.nativeEvent.contentOffset.y);
+  }
+
+  function closeActiveSection() {
+    if (returnToPickOnBack) {
+      onReturnToPick?.();
+      return;
+    }
+
+    setActiveSection(null);
   }
 
 
@@ -438,6 +451,7 @@ export function ProfileScreen({
         : profileSections.find((section) => section.id === activeSection)?.label ?? content.profileScreen.title;
 
     const activeSubtitle = activeSection === "general" ? content.profileScreen.subtitle : activeSectionHint(activeSection, content);
+    const backLabel = returnToPickOnBack ? content.profileScreen.backToPickFlow : content.profileScreen.title;
     const activeHelpTopic =
       activeSection === "general"
         ? content.help.profileGeneral
@@ -722,8 +736,9 @@ export function ProfileScreen({
         <Screen contentContainerStyle={local.generalContent}>
           <PremiumProfileBackLink
             accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
-            label={content.profileScreen.title}
-            onPress={() => setActiveSection(null)}
+            label={backLabel}
+            onPress={closeActiveSection}
+            prominent={returnToPickOnBack}
           />
 
           <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
@@ -799,8 +814,9 @@ export function ProfileScreen({
         <Screen contentContainerStyle={local.detailContent}>
           <PremiumProfileBackLink
             accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
-            label={content.profileScreen.title}
-            onPress={() => setActiveSection(null)}
+            label={backLabel}
+            onPress={closeActiveSection}
+            prominent={returnToPickOnBack}
           />
           <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
 
@@ -879,8 +895,9 @@ export function ProfileScreen({
         <Screen contentContainerStyle={local.detailContent}>
           <PremiumProfileBackLink
             accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
-            label={content.profileScreen.title}
-            onPress={() => setActiveSection(null)}
+            label={backLabel}
+            onPress={closeActiveSection}
+            prominent={returnToPickOnBack}
           />
           <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
 
@@ -962,8 +979,9 @@ export function ProfileScreen({
         <Screen contentContainerStyle={local.detailContent}>
           <PremiumProfileBackLink
             accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
-            label={content.profileScreen.title}
-            onPress={() => setActiveSection(null)}
+            label={backLabel}
+            onPress={closeActiveSection}
+            prominent={returnToPickOnBack}
           />
           <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
 
@@ -997,8 +1015,9 @@ export function ProfileScreen({
       <Screen contentContainerStyle={local.detailContent}>
         <PremiumProfileBackLink
           accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
-          label={content.profileScreen.title}
-          onPress={() => setActiveSection(null)}
+          label={backLabel}
+          onPress={closeActiveSection}
+          prominent={returnToPickOnBack}
         />
         <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
         <ProfileEditor profile={profile} setProfile={setProfile} section={activeSection} hideHeader />
@@ -1130,20 +1149,26 @@ function PremiumFeatherChip({
 function PremiumProfileBackLink({
   accessory,
   label,
-  onPress
+  onPress,
+  prominent
 }: {
   accessory?: React.ReactNode;
   label: string;
   onPress: () => void;
+  prominent?: boolean;
 }) {
   const backLink = (
     <Pressable
       accessibilityRole="button"
       hitSlop={8}
       onPress={onPress}
-      style={[local.generalBackLink, accessory ? local.generalBackLinkInline : null]}
+      style={[
+        local.generalBackLink,
+        accessory ? local.generalBackLinkInline : null,
+        prominent ? local.generalBackLinkProminent : null
+      ]}
     >
-      <Text style={local.generalBackText}>{"\u2039"} {label}</Text>
+      <Text style={[local.generalBackText, prominent ? local.generalBackTextProminent : null]}>{"\u2039"} {label}</Text>
     </Pressable>
   );
 
@@ -1576,6 +1601,15 @@ const local = StyleSheet.create({
   generalBackLinkInline: {
     marginBottom: 0
   },
+  generalBackLinkProminent: {
+    backgroundColor: "#FFFDF8",
+    borderColor: "#E4D4B6",
+    borderRadius: 999,
+    borderWidth: 1,
+    minHeight: s(42),
+    paddingHorizontal: s(14),
+    paddingVertical: s(9)
+  },
   detailUtilityRow: {
     alignItems: "center",
     flexDirection: "row",
@@ -1587,6 +1621,10 @@ const local = StyleSheet.create({
     fontSize: fs(16),
     fontWeight: "800",
     lineHeight: fs(22)
+  },
+  generalBackTextProminent: {
+    fontSize: fs(15),
+    lineHeight: fs(20)
   },
   generalHeader: {
     marginBottom: s(32)

@@ -23,6 +23,8 @@ import type { Situation, UserProfile } from "../../types/profile";
 type PickScreenProps = {
   onGoHome?: () => void;
   onOpenProfile?: () => void;
+  onOpenProfilePreferences?: () => void;
+  returnToMoodKey?: number;
 };
 
 type MenuInputOrigin = "empty" | "manual" | "discovered" | "qr" | "photo";
@@ -50,7 +52,9 @@ function fs(value: number) {
 
 export function PickScreen({
   onGoHome,
-  onOpenProfile
+  onOpenProfile,
+  onOpenProfilePreferences,
+  returnToMoodKey = 0
 }: PickScreenProps) {
   const content = useMobileContent();
   const { profile } = useProfile();
@@ -101,6 +105,12 @@ export function PickScreen({
       clearTimeout(linkAcceptedTimerRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    if (returnToMoodKey > 0) {
+      setEntryScrollToMoodKey((current) => current + 1);
+    }
+  }, [returnToMoodKey]);
 
   function normalizeMenuUrl(value: string) {
     const trimmed = value.trim();
@@ -574,6 +584,22 @@ export function PickScreen({
         <MaterialCommunityIcons color={premiumPalette.surface} name="room-service-outline" size={s(25)} />
         <Text style={local.mainButtonText}>{analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}</Text>
       </Pressable>
+
+      {onOpenProfilePreferences ? (
+        <Pressable
+          accessibilityRole="button"
+          disabled={analyze.loading}
+          onPress={onOpenProfilePreferences}
+          style={({ pressed }) => [
+            local.reviewPreferencesButton,
+            analyze.loading ? local.reviewPreferencesButtonDisabled : null,
+            pressed ? local.reviewPreferencesButtonPressed : null
+          ]}
+        >
+          <Feather color={premiumPalette.gold} name="user-check" size={s(18)} />
+          <Text style={local.reviewPreferencesButtonText}>{content.pick.reviewPreferences}</Text>
+        </Pressable>
+      ) : null}
 
       {linkAcceptedVisible ? (
         <Surface tone="soft" style={local.linkAcceptedCard}>
@@ -1083,6 +1109,37 @@ const local = StyleSheet.create({
     fontSize: fs(18),
     fontWeight: "800",
     lineHeight: fs(23),
+    textAlign: "center"
+  },
+
+  reviewPreferencesButton: {
+    alignItems: "center",
+    alignSelf: "center",
+    borderColor: premiumPalette.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: s(8),
+    justifyContent: "center",
+    marginBottom: s(10),
+    minHeight: s(46),
+    paddingHorizontal: s(18),
+    paddingVertical: s(10)
+  },
+
+  reviewPreferencesButtonDisabled: {
+    opacity: 0.55
+  },
+
+  reviewPreferencesButtonPressed: {
+    opacity: 0.72
+  },
+
+  reviewPreferencesButtonText: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20),
     textAlign: "center"
   },
 

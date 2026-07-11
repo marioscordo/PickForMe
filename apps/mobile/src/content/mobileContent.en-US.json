@@ -35,6 +35,7 @@
     "inputMissingTitle": "Menu missing",
     "mainButtonIdle": "Find something for me",
     "mainButtonLoading": "I am looking at the menu ...",
+    "reviewPreferences": "Review preferences",
     "openMenu": "Open menu",
     "findMenuButton": "Find menu",
     "photoMenuButton": "Photograph menu",
@@ -147,6 +148,7 @@
   },
   "profileScreen": {
     "title": "Profile",
+    "backToPickFlow": "Back to selection",
     "chevron": ">",
     "activeStatus": "{count} active",
     "emptyStatus": "not set",
@@ -455,14 +457,15 @@
     ]
   },
   "analysisErrors": {
-    "unsafeProfile": "I could not evaluate this menu safely with your current profile.",
-    "generic": "I could not evaluate this menu safely.",
-    "auth": "Your session is not active. Please sign in again or reload the app.",
-    "devAuth": "The local test access is not active. Please restart app and API.",
-    "apiConnection": "I cannot reach the API right now. Please check whether the local server is running.",
+    "unsafeProfile": "I don't want to risk anything for you: I can't find a safe choice here right now. Check your exclusions briefly or give me another menu.",
+    "analysisNotSafe": "This is not safe enough for you yet. Please try again or give me another source.",
+    "generic": "That didn't work, unfortunately. Please try again.",
+    "auth": "Your session has expired. Please sign in again or reload the app.",
+    "devAuth": "Your session has expired. Please sign in again or reload the app.",
+    "apiConnection": "I can't reach the service right now. Please check the connection or try again.",
     "dynamicMenuUnsupported": "This digital menu platform is not supported in V1 yet. Please use a PDF menu or paste the menu text.",
-    "menuUrlLoadFailed": "This menu could not be loaded. Please check the link or use a PDF menu.",
-    "aiRateLimit": "I cannot evaluate the menu right now. Please try again in a moment.",
+    "menuUrlLoadFailed": "I can't get to this menu, unfortunately. Please check the link or give me another source.",
+    "aiRateLimit": "I'm briefly overloaded, but I'll be back in a moment. Please try again.",
     "emptyMenuInput": "Please add a menu link or menu text first.",
     "menuTooShort": "Please paste a menu or scan a QR code.",
     "sourceKindUnsupported": "This kind of menu is not supported in V1 yet.",
@@ -565,8 +568,8 @@
     "backButton": "back",
     "loading": "Please wait...",
     "noResults": "No results found",
-    "menuSearchFailed": "The menu search failed. Please try again or paste the menu link manually.",
-    "noMenuUrl": "No evaluable menu link found. Please paste a link, text, or photo manually"
+    "menuSearchFailed": "I can't find the menu right now. Please try again or paste the link - I'll evaluate it for you.",
+    "noMenuUrl": "I can't find a safe source. Send me the menu link, text, or photo - then I'll take care of it."
   },
   "help": {
     "common": {

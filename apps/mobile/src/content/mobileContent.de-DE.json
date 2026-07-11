@@ -35,6 +35,7 @@
     "inputMissingTitle": "Speisekarte fehlt",
     "mainButtonIdle": "Such mir etwas Passendes",
     "mainButtonLoading": "Ich schaue auf die Karte ...",
+    "reviewPreferences": "Vorlieben prüfen",
     "openMenu": "Speisekarte öffnen",
     "findMenuButton": "Speisekarte finden",
     "photoMenuButton": "Speisekarte fotografieren",
@@ -147,6 +148,7 @@
   },
   "profileScreen": {
     "title": "Profil",
+    "backToPickFlow": "Zurück zur Auswahl",
     "chevron": "›",
     "activeStatus": "{count} aktiv",
     "emptyStatus": "keine Angabe",
@@ -455,14 +457,15 @@
     ]
   },
   "analysisErrors": {
-    "unsafeProfile": "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
-    "generic": "Ich konnte diese Speisekarte nicht sicher auswerten.",
-    "auth": "Deine Sitzung ist nicht aktiv. Bitte melde Dich erneut an oder lade die App neu.",
-    "devAuth": "Der lokale Testzugang ist nicht aktiv. Bitte starte App und API neu.",
-    "apiConnection": "Ich konnte die API gerade nicht erreichen. Bitte prüfe, ob der lokale Server läuft.",
+    "unsafeProfile": "Ich möchte für Dich nichts riskieren: Hier finde ich gerade keine sichere Wahl. Prüf kurz Deine Ausschlüsse oder gib mir eine andere Karte.",
+    "analysisNotSafe": "Das ist mir für Dich noch nicht sicher genug. Versuch es bitte erneut oder gib mir eine andere Quelle.",
+    "generic": "Das hat leider nicht geklappt. Versuch es bitte erneut.",
+    "auth": "Deine Sitzung ist abgelaufen. Melde Dich bitte erneut an oder lade die App neu.",
+    "devAuth": "Deine Sitzung ist abgelaufen. Melde Dich bitte erneut an oder lade die App neu.",
+    "apiConnection": "Ich erreiche den Service gerade nicht. Prüf bitte die Verbindung oder versuch es erneut.",
     "dynamicMenuUnsupported": "Diese digitale Menüplattform wird in V1 noch nicht unterstützt. Bitte nutze eine PDF-Speisekarte oder füge den Speisekartentext ein.",
-    "menuUrlLoadFailed": "Diese Speisekarte konnte nicht geladen werden. Bitte prüfe den Link oder nutze eine PDF-Speisekarte.",
-    "aiRateLimit": "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal.",
+    "menuUrlLoadFailed": "Ich komme an diese Karte leider nicht ran. Prüf bitte den Link oder gib mir eine andere Quelle.",
+    "aiRateLimit": "Ich bin kurz überlastet, aber gleich wieder da. Versuch es bitte erneut.",
     "emptyMenuInput": "Bitte füge zuerst einen Speisekartenlink oder Speisekartentext ein.",
     "menuTooShort": "Bitte füge eine Speisekarte ein oder scanne einen QR-Code.",
     "sourceKindUnsupported": "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.",
@@ -565,8 +568,8 @@
     "backButton": "zurück",
     "loading": "Bitte warten...",
     "noResults": "Keine Treffer gefunden",
-    "menuSearchFailed": "Die Speisekartensuche ist fehlgeschlagen. Bitte versuche es erneut oder füge den Speisekartenlink manuell ein.",
-    "noMenuUrl": "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen"
+    "menuSearchFailed": "Ich finde die Karte gerade nicht. Versuch es bitte erneut oder füge den Link ein – ich werte sie dann aus.",
+    "noMenuUrl": "Ich finde keine sichere Quelle. Schick mir Link, Text oder Foto der Karte – dann kümmere ich mich darum."
   },
   "help": {
     "common": {
