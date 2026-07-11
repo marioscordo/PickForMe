@@ -591,7 +591,7 @@
     "pickInput": {
       "title": "Speisekarte zeigen",
       "points": [
-        "Füge einen Link, ein PDF oder Speisekartentext ein.",
+        "Du kannst GustaroAI eine Speisekarte auf mehreren Wegen zeigen: Restaurant suchen und Speisekarte finden, Link einfügen, QR-Code scannen, Foto aufnehmen oder Speisekartentext einfügen. Bevor GustaroAI Dir passende Gerichte empfiehlt, kannst Du Deine Vorlieben noch einmal prüfen. Danach kommst Du direkt zurück zur Speisekartenanalyse – Deine gefundene Speisekarte, Dein Link, QR-Code, Foto oder Text bleibt erhalten.",
         "Mit „Wonach ist Dir heute?“ sagst Du GustaroAI, ob Du Einzelgerichte, eine Vor- und Hauptspeise, etwas Neues oder eine sichere Wahl möchtest.",
         "Diese Auswahl beeinflusst, welche Gerichte GustaroAI bevorzugt - Dein Profil bleibt dabei weiterhin wichtig.",
         "Die Auswertung kann etwas Zeit in Anspruch nehmen, besonders bei längeren Speisekarten."
@@ -644,7 +644,8 @@
         "Antippen wählt eine Vorliebe aus. Erneutes Antippen wählt sie wieder ab.",
         "Ausgewählte Vorlieben helfen GustaroAI, passende Gerichte stärker zu bevorzugen.",
         "Eigene Begriffe kannst Du im Eingabefeld hinzufügen. Ein einzelnes Wort als Begriff reicht, zum Beispiel „Koriander“ oder „Sushi“.",
-        "Aktive Vorlieben löschst Du unten im Bereich „Aktive Vorlieben löschen“."
+        "Aktive Vorlieben löschst Du unten im Bereich „Aktive Vorlieben löschen“.",
+        "Wenn Du aus der Speisekartenanalyse hierher kommst, bringt Dich „Zurück zur Auswahl“ wieder direkt zurück zur Empfehlungsauswahl. Deine gefundene Speisekarte, Dein Link, QR-Code, Foto oder Text bleibt erhalten."
       ],
       "tip": "Vorlieben erhöhen die Chance, dass GustaroAI Deinen Geschmack trifft."
     },

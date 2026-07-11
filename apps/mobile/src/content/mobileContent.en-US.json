@@ -591,7 +591,7 @@
     "pickInput": {
       "title": "Show menu",
       "points": [
-        "Paste a link, PDF, or menu text.",
+        "You can show GustaroAI a menu in several ways: search for a restaurant and find its menu, paste a link, scan a QR code, take a photo, or paste menu text. Before GustaroAI recommends dishes for you, you can quickly review your preferences. Afterwards, you return directly to the menu analysis – your discovered menu, link, QR code, photo, or text stays in place.",
         "With 'What are you in the mood for?' you tell GustaroAI whether you want single dishes, a starter and main course, something new, or a safer choice.",
         "This influences which dishes GustaroAI prefers - your profile still remains important.",
         "The analysis can take a little time, especially with longer menus."
@@ -644,7 +644,8 @@
         "Tap to select a preference. Tap again to deselect it.",
         "Selected preferences help GustaroAI prefer dishes that better match your taste.",
         "You can add your own terms in the input field. A single word is enough, for example 'coriander' or 'sushi'.",
-        "You can remove active preferences in the 'Remove active preferences' section."
+        "You can remove active preferences in the 'Remove active preferences' section.",
+        "If you came here from the menu analysis, “Back to selection” takes you directly back to the recommendation selection. Your discovered menu, link, QR code, photo, or text stays in place."
       ],
       "tip": "Preferences increase the chance that GustaroAI matches your taste."
     },
