@@ -77,15 +77,9 @@ export function useAnalyzeMenu() {
   const profileFingerprint = useMemo(
     () =>
       JSON.stringify({
-        dietStyle: profile.dietStyle,
         outputLocale: profile.outputLocale,
         primaryLikes: profile.primaryLikes,
-        secondaryLikes: profile.secondaryLikes,
-        dislikes: profile.dislikes,
-        intolerances: profile.intolerances,
-        customPreferences: profile.customPreferences,
         customExclusions: profile.customExclusions,
-        customIntolerances: profile.customIntolerances,
         allergens: profile.allergens
       }),
     [profile]

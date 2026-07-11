@@ -906,17 +906,18 @@ function applyAllergySafetyGate({
   recommendations: Recommendation[];
   profile: AnalyzeMenuRequest["profile"];
 }) {
-  const activeIntolerances = [
-    ...stringArrayValue(profile.intolerances),
-    ...stringArrayValue(profile.customIntolerances)
+  const activeHardProfileValues = [
+    ...stringArrayValue(profile.customExclusions),
+    ...stringArrayValue(profile.allergens)
   ];
 
-  if (activeIntolerances.length === 0) {
+  if (activeHardProfileValues.length === 0) {
     return recommendations;
   }
 
-  const intoleranceOnlyProfile = {
-    intolerances: activeIntolerances
+  const hardProfile = {
+    customExclusions: activeHardProfileValues,
+    allergens: stringArrayValue(profile.allergens)
   };
   const dishesById = new Map(dishes.map((dish) => [dish.id, dish]));
 
@@ -942,7 +943,7 @@ function applyAllergySafetyGate({
         sourceLine: dish.sourceLine,
         evidence: recommendation.facts
       },
-      intoleranceOnlyProfile
+      hardProfile
     );
   });
 }
@@ -1157,7 +1158,7 @@ function getAllergenInfoWarningText(userLocale: string | undefined) {
 }
 
 function hasAllergiesOrIntolerances(profile: AnalyzeMenuRequest["profile"]) {
-  return [profile.intolerances, profile.customIntolerances].some((items) =>
+  return [profile.allergens].some((items) =>
     (items ?? []).some((item) => item.trim().length > 0)
   );
 }

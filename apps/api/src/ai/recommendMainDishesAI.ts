@@ -153,14 +153,7 @@ function buildMainDishProfileContext(
   positivePreferences: string[],
   searchAssignment: ActivePreferenceSearchAssignment
 ) {
-  const hardExclusions = uniqueValues([
-    ...arrayValue(profile.dislikes),
-    ...arrayValue(profile.customExclusions)
-  ]);
-  const hardIntolerances = uniqueValues([
-    ...arrayValue(profile.intolerances),
-    ...arrayValue(profile.customIntolerances)
-  ]);
+  const hardExclusions = uniqueValues(arrayValue(profile.customExclusions));
   const hardAllergens = uniqueValues(arrayValue(profile.allergens));
   return [
     "Nutzerprofil fuer diesen Main-AI-Call:",
@@ -170,8 +163,7 @@ function buildMainDishProfileContext(
     `- Aktive heutige Vorlieben/Wunschrichtungen: ${listOrNone(positivePreferences)}`,
     `- Aktiver Suchauftrag: ${searchAssignment.instruction}`,
     `- Aktiver Suchraum: ${searchAssignment.searchSpaceLabel}`,
-    `- Aktive harte Abneigungen/Ausschluesse: ${listOrNone(hardExclusions)}`,
-    `- Aktive Unvertraeglichkeiten: ${listOrNone(hardIntolerances)}`,
+    `- Aktive Ausschluesse und Unvertraeglichkeiten: ${listOrNone(hardExclusions)}`,
     `- Aktive Allergene: ${listOrNone(hardAllergens)}`,
     "- Harte Ausschluesse, Allergien und Unvertraeglichkeiten sind wichtiger als Vorlieben und Situation.",
     "- Bei harten Ausschluessen, Allergien und Unvertraeglichkeiten gilt: Wenn unsicher, nicht empfehlen.",
@@ -193,24 +185,14 @@ function buildStructuredMainDishAssignment({
   searchAssignment: ActivePreferenceSearchAssignment;
   targetLocale: string;
 }) {
-  const hardExclusions = uniqueValues([
-    ...arrayValue(profile.dislikes),
-    ...arrayValue(profile.customExclusions)
-  ]);
-  const hardIntolerances = uniqueValues([
-    ...arrayValue(profile.intolerances),
-    ...arrayValue(profile.customIntolerances)
-  ]);
+  const hardExclusions = uniqueValues(arrayValue(profile.customExclusions));
   const hardAllergens = uniqueValues(arrayValue(profile.allergens));
 
   return {
     analyse: {
       profil: {
         vorlieben: activePreferences,
-        ausschluesse_und_unvertraeglichkeiten: uniqueValues([
-          ...hardExclusions,
-          ...hardIntolerances
-        ]),
+        ausschluesse_und_unvertraeglichkeiten: hardExclusions,
         allergene: hardAllergens,
         ausgabesprache: targetLocale
       },

@@ -13,22 +13,17 @@ export type RecommendationFeedback = {
 export type UserProfile = {
   displayName: string;
   primaryLikes: string[];
-  secondaryLikes: string[];
-  dislikes: string[];
-  intolerances: string[];
-  dietStyle: "normal" | "vegetarisch" | "vegan" | "flexitarisch";
   outputLocale: string;
   appetiteMood?: AppetiteMood;
 
-  customPreferences?: string[];
   customExclusions?: string[];
-  customIntolerances?: string[];
   allergens?: string[];
 
   hiddenPreferences?: string[];
   hiddenExclusions?: string[];
-  hiddenIntolerances?: string[];
   hiddenAllergens?: string[];
+  deletedPreferences?: string[];
+  deletedExclusions?: string[];
 };
 
 

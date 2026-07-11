@@ -272,21 +272,13 @@
       {
         "label": "Vegetarian",
         "value": "vegetarisch",
-        "kind": "diet"
+        "kind": "like"
       },
       {
         "label": "Vegan",
         "value": "vegan",
-        "kind": "diet"
+        "kind": "like"
       }
-    ],
-    "normalDietPreferenceValues": [
-      "Fleisch",
-      "Fisch"
-    ],
-    "exclusiveDietPreferenceValues": [
-      "vegetarisch",
-      "vegan"
     ],
     "quickExclusions": [
       {

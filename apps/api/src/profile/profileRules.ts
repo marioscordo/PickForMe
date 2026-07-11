@@ -83,20 +83,17 @@ const STOP_WORDS = new Set([
 
 export function buildProfilePromptLines(profile: ProfileInput = {}, situation?: string) {
   const primaryLikes = arrayValue(profile.primaryLikes);
-  const secondaryLikes = arrayValue(profile.secondaryLikes);
-  const dislikes = arrayValue(profile.dislikes);
-  const intolerances = arrayValue(profile.intolerances);
+  const customExclusions = arrayValue(profile.customExclusions);
+  const allergens = arrayValue(profile.allergens);
   const canonicalRules = deriveCanonicalRules(profile);
 
   return [
     "Nutzerprofil:",
     `Name: ${profile.displayName || "Gast"}`,
     `Ausgabesprache nur fuer nutzerseitige Texte, kein Auswahlkriterium: ${profile.outputLocale || "de-DE"}`,
-    `Ernaehrungsstil: ${profile.dietStyle || "normal"}`,
-    `Aktive starke Vorlieben: ${listOrNone(primaryLikes)}`,
-    `Aktive weitere Vorlieben: ${listOrNone(secondaryLikes)}`,
-    `Aktive harte Ausschluesse / Abneigungen: ${listOrNone(dislikes)}`,
-    `Aktive Allergien / Unvertraeglichkeiten: ${listOrNone(intolerances)}`,
+    `Aktive Vorlieben: ${listOrNone(primaryLikes)}`,
+    `Aktive Ausschluesse und Unvertraeglichkeiten: ${listOrNone(customExclusions)}`,
+    `Aktive Allergene: ${listOrNone(allergens)}`,
     `Ess-Stimmung: ${describeAppetiteMood(profile.appetiteMood)}`,
     `Aktuelle Situation: ${situation || "nicht angegeben"}`,
     "",
@@ -113,8 +110,7 @@ export function buildProfilePromptLines(profile: ProfileInput = {}, situation?: 
     "- Vorlieben beeinflussen nur die Reihenfolge sicherer Gerichte.",
     "- Inaktive gespeicherte Profiloptionen zaehlen nicht. Aktiv sind nur die oben genannten Werte.",
     "- Eine fruehere Analyse darf niemals wiederverwendet werden. Jede Analyse gilt nur fuer das aktuell uebergebene Nutzerprofil.",
-    "- Wenn Ernaehrungsstil normal ist, gelten vegetarisch oder vegan nicht als aktive Diaet, auch wenn sie frueher einmal aktiv waren.",
-    "- Wenn Fleisch, Fisch oder Proteinreich als aktive starke Vorliebe genannt sind, gewichte passende vollwertige Fleisch-, Fisch- oder Protein-Hauptgerichte hoeher als rein vegane Ausweichgerichte, sofern sie sicher zum Profil passen."
+    "- Wenn Fleisch, Fisch oder Proteinreich als aktive Vorliebe genannt sind, gewichte passende vollwertige Fleisch-, Fisch- oder Protein-Hauptgerichte hoeher als rein vegane Ausweichgerichte, sofern sie sicher zum Profil passen."
   ];
 }
 
@@ -230,8 +226,8 @@ function blockReasonForText(rawText: string, profile: ProfileInput) {
 
 function deriveCanonicalRules(profile: ProfileInput): CanonicalRule[] {
   const activeRules = uniqueValues([
-    ...arrayValue(profile.dislikes),
-    ...arrayValue(profile.intolerances)
+    ...arrayValue(profile.customExclusions),
+    ...arrayValue(profile.allergens)
   ]);
 
   const canonicalRules: CanonicalRule[] = [];
@@ -244,21 +240,13 @@ function deriveCanonicalRules(profile: ProfileInput): CanonicalRule[] {
     }
   }
 
-  if (profile.dietStyle === "vegetarisch") {
-    canonicalRules.push({ id: "DIET_VEGETARIAN", source: "vegetarisch" });
-  }
-
-  if (profile.dietStyle === "vegan") {
-    canonicalRules.push({ id: "DIET_VEGAN", source: "vegan" });
-  }
-
   return canonicalRules;
 }
 
 function rawRulesWithoutCanonicalMeaning(profile: ProfileInput) {
   return uniqueValues([
-    ...arrayValue(profile.dislikes),
-    ...arrayValue(profile.intolerances)
+    ...arrayValue(profile.customExclusions),
+    ...arrayValue(profile.allergens)
   ]).filter((rule) => !classifyRule(rule));
 }
 

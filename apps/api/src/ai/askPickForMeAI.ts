@@ -306,13 +306,9 @@ function getPrioritizedStandaloneDishCandidates(
 }
 
 function scoreConciergeCandidate(item: MenuItemFact, profile: UserProfile, situation: Situation): Omit<PrioritizedMenuItem, "item"> {
-  const strongPreferenceScore = preferenceScoreForItem(item, uniquePreferences([
-    ...(profile.primaryLikes ?? []),
-    ...(profile.customPreferences ?? [])
-  ]), 90);
-  const secondaryPreferenceScore = preferenceScoreForItem(item, uniquePreferences(profile.secondaryLikes ?? []), 24);
+  const strongPreferenceScore = preferenceScoreForItem(item, uniquePreferences(profile.primaryLikes ?? []), 90);
   const structuralScore = structuralScoreForItem(item, situation);
-  const score = strongPreferenceScore + secondaryPreferenceScore + structuralScore;
+  const score = strongPreferenceScore + structuralScore;
 
   return {
     score,

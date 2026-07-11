@@ -1,10 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { DEFAULT_OUTPUT_LOCALE } from "../../config/outputLocales";
-import {
-  filterControlledProfileValues,
-  splitGlobalAllergens
-} from "../../profile/profileInputPolicy";
+import { filterControlledProfileValues } from "../../profile/profileInputPolicy";
 import type { UserProfile } from "../../types/profile";
 
 const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";
@@ -12,21 +9,16 @@ const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";
 const defaultProfile: UserProfile = {
   displayName: "Mario",
   primaryLikes: ["Fleisch", "Fisch"],
-  secondaryLikes: ["Pasta", "Salat"],
-  dislikes: ["Keine Innereien", "Kein Grätenfisch", "Kein Lamm"],
-  intolerances: [],
-  dietStyle: "normal",
   outputLocale: DEFAULT_OUTPUT_LOCALE,
   appetiteMood: "leicht",
-  customPreferences: [],
   customExclusions: [],
-  customIntolerances: [],
   allergens: [],
 
   hiddenPreferences: [],
   hiddenExclusions: [],
-  hiddenIntolerances: [],
-  hiddenAllergens: []
+  hiddenAllergens: [],
+  deletedPreferences: [],
+  deletedExclusions: []
 };
 
 type ProfileContextValue = {
@@ -72,7 +64,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    AsyncStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile)).catch(() => {
+    AsyncStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(toStoredProfile(profile))).catch(() => {
       // Profile changes remain available in memory for the current session.
     });
   }, [profile, profileLoaded]);
@@ -112,62 +104,40 @@ function mergeStoredProfile(storedProfile: string | null): UserProfile {
   try {
     const parsed = JSON.parse(storedProfile) as Partial<UserProfile>;
 
-    return normalizeProfile({
-      ...defaultProfile,
-      ...parsed
-    });
+    return normalizeProfile(parsed);
   } catch {
     return defaultProfile;
   }
 }
 
 function normalizeProfile(profile: Partial<UserProfile>): UserProfile {
-  const splitIntolerances = splitGlobalAllergens(stringArray(profile.intolerances));
-  const splitCustomIntolerances = splitGlobalAllergens(stringArray(profile.customIntolerances));
-  const splitHiddenIntolerances = splitGlobalAllergens(stringArray(profile.hiddenIntolerances));
-  const allergens = [
-    ...stringArray(profile.allergens),
-    ...splitIntolerances.allergens,
-    ...splitCustomIntolerances.allergens
-  ];
-
   return {
-    ...defaultProfile,
-    ...profile,
     displayName: typeof profile.displayName === "string" && profile.displayName.trim()
       ? profile.displayName
       : defaultProfile.displayName,
     primaryLikes: filterControlledProfileValues(stringArray(profile.primaryLikes)),
-    secondaryLikes: stringArray(profile.secondaryLikes),
-    dislikes: filterControlledProfileValues(stringArray(profile.dislikes)),
-    intolerances: filterControlledProfileValues(splitIntolerances.rest),
-    dietStyle: isDietStyle(profile.dietStyle) ? profile.dietStyle : defaultProfile.dietStyle,
     outputLocale: typeof profile.outputLocale === "string" && profile.outputLocale.trim()
       ? profile.outputLocale
       : defaultProfile.outputLocale,
     appetiteMood: isAppetiteMood(profile.appetiteMood) ? profile.appetiteMood : defaultProfile.appetiteMood,
-    customPreferences: filterControlledProfileValues(stringArray(profile.customPreferences)),
     customExclusions: filterControlledProfileValues(stringArray(profile.customExclusions)),
-    customIntolerances: filterControlledProfileValues(splitCustomIntolerances.rest),
-    allergens: uniqueValues(filterControlledProfileValues(allergens)),
+    allergens: uniqueValues(filterControlledProfileValues(stringArray(profile.allergens))),
     hiddenPreferences: stringArray(profile.hiddenPreferences),
     hiddenExclusions: stringArray(profile.hiddenExclusions),
-    hiddenIntolerances: splitHiddenIntolerances.rest,
-    hiddenAllergens: uniqueValues([
-      ...stringArray(profile.hiddenAllergens),
-      ...splitHiddenIntolerances.allergens
-    ])
+    hiddenAllergens: stringArray(profile.hiddenAllergens),
+    deletedPreferences: stringArray(profile.deletedPreferences),
+    deletedExclusions: stringArray(profile.deletedExclusions)
   };
+}
+
+function toStoredProfile(profile: UserProfile): UserProfile {
+  return normalizeProfile(profile);
 }
 
 function stringArray(values: unknown) {
   return Array.isArray(values)
     ? values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
-}
-
-function isDietStyle(value: unknown): value is UserProfile["dietStyle"] {
-  return value === "normal" || value === "vegetarisch" || value === "vegan" || value === "flexitarisch";
 }
 
 function isAppetiteMood(value: unknown): value is UserProfile["appetiteMood"] {

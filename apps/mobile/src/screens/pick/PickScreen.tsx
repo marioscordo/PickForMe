@@ -1078,7 +1078,7 @@ const local = StyleSheet.create({
 function hasAllergiesOrIntolerances(profile: UserProfile) {
   const allergenValues = profileFeatures.allergenModuleEnabled ? profile.allergens : [];
 
-  return [allergenValues, profile.intolerances, profile.customIntolerances].some((items) =>
+  return [allergenValues].some((items) =>
     (items ?? []).some((item) => item.trim().length > 0)
   );
 }
@@ -1086,7 +1086,7 @@ function hasAllergiesOrIntolerances(profile: UserProfile) {
 function hasActiveProfileChips(profile: UserProfile) {
   const allergenValues = profileFeatures.allergenModuleEnabled ? profile.allergens : [];
 
-  return profile.dietStyle !== "normal" || [profile.primaryLikes, profile.dislikes, profile.intolerances, allergenValues].some((items) =>
+  return [profile.primaryLikes, profile.customExclusions, allergenValues].some((items) =>
     (items ?? []).some((item) => item.trim().length > 0)
   );
 }

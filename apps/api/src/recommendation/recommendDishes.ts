@@ -40,12 +40,12 @@ function scoreDish(
   structuredContext: StructuredRecommendationContext
 ) {
   let score = 0;
-  const activeLikes = [...(profile.primaryLikes ?? []), ...(profile.secondaryLikes ?? [])];
+  const activeLikes = profile.primaryLikes ?? [];
   const hasStructuredAttributes = hasStructuredRecommendationAttributes(dish);
 
   for (const like of activeLikes) {
     if (preferenceMatchesDish(dish, like)) {
-      score += profile.primaryLikes.includes(like) ? 6 : 3;
+      score += 6;
     }
   }
 

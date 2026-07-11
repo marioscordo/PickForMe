@@ -4,10 +4,7 @@ import { apiPost } from "./apiClient";
 import { DEFAULT_OUTPUT_LOCALE, resolveOutputLocale } from "../config/outputLocales";
 import { resolveGuiLanguageFromDevice } from "../content/guiLanguage";
 import { profileFeatures } from "../config/profileFeatures";
-import {
-  filterControlledProfileValues,
-  splitGlobalAllergens
-} from "../profile/profileInputPolicy";
+import { filterControlledProfileValues } from "../profile/profileInputPolicy";
 import type { UserProfile } from "../types/profile";
 import type { AnalyzeData, RestaurantIntroData, StarterPairingsData } from "../types/recommendations";
 
@@ -294,36 +291,16 @@ function getNativeBuildNumber() {
 }
 
 function sanitizeProfileForApi(profile: UserProfile): UserProfile {
-  const activeProfile = { ...profile };
-  delete activeProfile.hiddenPreferences;
-  delete activeProfile.hiddenExclusions;
-  delete activeProfile.hiddenIntolerances;
-  delete activeProfile.hiddenAllergens;
-  const splitIntolerances = splitGlobalAllergens(profile.intolerances);
-  const splitCustomIntolerances = splitGlobalAllergens(profile.customIntolerances ?? []);
-  const allergens = [
-    ...(profile.allergens ?? []),
-    ...splitIntolerances.allergens,
-    ...splitCustomIntolerances.allergens
-  ];
   const controlledAllergens = profileFeatures.allergenModuleEnabled
-    ? uniqueValues(filterControlledProfileValues(allergens))
+    ? uniqueValues(filterControlledProfileValues(profile.allergens ?? []))
     : [];
-  const controlledIntolerances = filterControlledProfileValues([
-    ...splitIntolerances.rest,
-    ...splitCustomIntolerances.rest
-  ]);
 
   return {
-    ...activeProfile,
+    displayName: profile.displayName,
     outputLocale: profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE,
     primaryLikes: filterControlledProfileValues(profile.primaryLikes),
-    customPreferences: filterControlledProfileValues(profile.customPreferences ?? []),
-    dislikes: filterControlledProfileValues(profile.dislikes),
     customExclusions: filterControlledProfileValues(profile.customExclusions ?? []),
-    allergens: controlledAllergens,
-    intolerances: uniqueValues([...controlledAllergens, ...controlledIntolerances]),
-    customIntolerances: controlledIntolerances
+    allergens: controlledAllergens
   };
 }
 
