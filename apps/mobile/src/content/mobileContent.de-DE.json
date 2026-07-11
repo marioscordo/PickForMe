@@ -19,6 +19,7 @@
     "heroTitle": "Was darf ich Dir heute\nempfehlen?",
     "heroSubtitle": "Zeig mir kurz die Speisekarte. Ich suche Dir etwas, das heute zu Dir passt.",
     "pasteTab": "Einfügen",
+    "linkAccepted": "Link wurde übernommen.",
     "qrTab": "QR-Code",
     "restaurantContextLabel": "Im Restaurant",
     "restaurantMenuSourceLabel": "Quelle der Speisekarte: {provider}",

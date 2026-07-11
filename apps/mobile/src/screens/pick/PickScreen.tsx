@@ -68,6 +68,9 @@ export function PickScreen({
   const [photoMenuError, setPhotoMenuError] = useState("");
   const [showRestaurantDiscovery, setShowRestaurantDiscovery] = useState(false);
   const [entryScrollToActionKey, setEntryScrollToActionKey] = useState(0);
+  const [entryScrollToMoodKey, setEntryScrollToMoodKey] = useState(0);
+  const [moodSectionY, setMoodSectionY] = useState(0);
+  const [linkAcceptedVisible, setLinkAcceptedVisible] = useState(false);
   const analyze = useAnalyzeMenu();
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
   const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
@@ -75,6 +78,7 @@ export function PickScreen({
   const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
   const pendingConfirmedMenuUrlsRef = useRef<string[]>([]);
+  const linkAcceptedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const allergyWarningParagraphs = content.allergyWarning.message.split("\n\n");
 
   useEffect(() => {
@@ -91,6 +95,12 @@ export function PickScreen({
 
     return () => clearInterval(timer);
   }, [analyze.loading, loadingSteps.length]);
+
+  useEffect(() => () => {
+    if (linkAcceptedTimerRef.current) {
+      clearTimeout(linkAcceptedTimerRef.current);
+    }
+  }, []);
 
   function normalizeMenuUrl(value: string) {
     const trimmed = value.trim();
@@ -134,6 +144,17 @@ export function PickScreen({
 
     if (normalizeMenuUrl(value)) {
       Keyboard.dismiss();
+      setLinkAcceptedVisible(true);
+      if (linkAcceptedTimerRef.current) {
+        clearTimeout(linkAcceptedTimerRef.current);
+      }
+      linkAcceptedTimerRef.current = setTimeout(() => {
+        setLinkAcceptedVisible(false);
+        linkAcceptedTimerRef.current = null;
+      }, 2200);
+      setEntryScrollToMoodKey((current) => current + 1);
+    } else {
+      setLinkAcceptedVisible(false);
     }
   }
 
@@ -354,6 +375,8 @@ export function PickScreen({
       bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET}
       contentContainerStyle={local.entryScreenContent}
       scrollToEndKey={entryScrollToActionKey || undefined}
+      scrollToOffsetKey={entryScrollToMoodKey || undefined}
+      scrollToOffsetY={Math.max(moodSectionY - s(12), 0)}
       scrollToTopKey="pick-entry"
     >
       <View style={local.conciergeIntro}>
@@ -489,7 +512,10 @@ export function PickScreen({
         </View>
       ) : null}
 
-      <View style={local.premiumCard}>
+      <View
+        onLayout={(event) => setMoodSectionY(event.nativeEvent.layout.y)}
+        style={local.premiumCard}
+      >
         <View style={local.cardHeader}>
           <View style={local.cardIcon}>
             <Feather color={premiumPalette.gold} name="heart" size={s(20)} />
@@ -548,6 +574,14 @@ export function PickScreen({
         <MaterialCommunityIcons color={premiumPalette.surface} name="room-service-outline" size={s(25)} />
         <Text style={local.mainButtonText}>{analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}</Text>
       </Pressable>
+
+      {linkAcceptedVisible ? (
+        <Surface tone="soft" style={local.linkAcceptedCard}>
+          <Feather color={premiumPalette.gold} name="check-circle" size={s(18)} />
+          <Text style={local.linkAcceptedText}>{content.pick.linkAccepted}</Text>
+        </Surface>
+      ) : null}
+
       <Modal
         animationType="fade"
         onRequestClose={() => undefined}
@@ -937,6 +971,24 @@ const local = StyleSheet.create({
     fontWeight: "700",
     lineHeight: fs(20),
     marginTop: s(10)
+  },
+
+  linkAcceptedCard: {
+    alignItems: "center",
+    borderColor: "rgba(198, 160, 74, 0.28)",
+    borderRadius: s(18),
+    flexDirection: "row",
+    gap: s(9),
+    marginBottom: s(14),
+    paddingHorizontal: s(16),
+    paddingVertical: s(12)
+  },
+
+  linkAcceptedText: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20)
   },
 
   feedbackCard: {
