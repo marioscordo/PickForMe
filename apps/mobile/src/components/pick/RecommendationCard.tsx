@@ -403,12 +403,15 @@ export function RecommendationCard({
           const dishData = dish as Dish & {
             name?: string;
             nameOriginal?: string;
+            description?: string;
             price?: number;
           };
 
           const originalName = dishData.nameOriginal ?? dishData.name ?? content.recommendation.fallbackDishName;
           const translatedName = buildDisplayTranslation(originalName, rec.translatedName);
           const showTranslation = translatedName.length > 0;
+          const translatedDescription = typeof dishData.description === "string" ? dishData.description.trim() : "";
+          const showDescription = translatedDescription.length > 0 && translatedDescription !== translatedName;
           const starter = rec.starter;
           const starterTranslation = starter
             ? buildDisplayTranslation(starter.nameOriginal, starter.translatedName)
@@ -442,6 +445,10 @@ export function RecommendationCard({
 
                 {showTranslation ? (
                   <Text style={[local.translation, isPrimaryRecommendation && local.translationPrimary]}>{translatedName}</Text>
+                ) : null}
+
+                {showDescription ? (
+                  <Text style={[local.description, isPrimaryRecommendation && local.descriptionPrimary]}>{translatedDescription}</Text>
                 ) : null}
 
                 {priceText ? <Text style={[local.price, isPrimaryRecommendation && local.pricePrimary]}>{priceText}</Text> : null}
@@ -791,6 +798,19 @@ const local = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: spacing.xs
+  },
+
+  description: {
+    color: premiumColors.textMuted,
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 19,
+    marginBottom: spacing.xs
+  },
+
+  descriptionPrimary: {
+    fontSize: 13,
+    lineHeight: 19
   },
 
   price: {

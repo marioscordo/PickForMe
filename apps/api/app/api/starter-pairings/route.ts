@@ -12,6 +12,7 @@ import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { gatekeepStarterRecommendation } from "../../../src/recommendation/gatekeeper";
 import { mapGatekeptStarterRecommendationToRecommendation } from "../../../src/recommendation/twoStepRecommendationMappers";
+import { sanitizeProfileForRecommendation } from "../../../src/profile/profileInputPolicy";
 import {
   extractHtmlMenuFromUrl,
   htmlMenuExtractionToDishes,
@@ -40,6 +41,10 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as StarterPairingsRequest;
     const outputLocale = normalizeTargetLocale(body.profile.outputLocale);
+    const profile = sanitizeProfileForRecommendation({
+      ...body.profile,
+      outputLocale
+    });
 
     if (body.sourceKind !== "text") {
       throw new AppError(400, "SOURCE_KIND_UNSUPPORTED", "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.");
@@ -68,7 +73,7 @@ export async function POST(request: Request) {
         dishes: body.dishes,
         recommendations: targetRecommendations,
         situation: body.situation,
-        profile: body.profile,
+        profile,
         userLocale: outputLocale
       }),
       getStarterPairingTimeoutMs(menuText, body.dishes),

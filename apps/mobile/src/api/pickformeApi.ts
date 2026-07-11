@@ -294,6 +294,11 @@ function getNativeBuildNumber() {
 }
 
 function sanitizeProfileForApi(profile: UserProfile): UserProfile {
+  const activeProfile = { ...profile };
+  delete activeProfile.hiddenPreferences;
+  delete activeProfile.hiddenExclusions;
+  delete activeProfile.hiddenIntolerances;
+  delete activeProfile.hiddenAllergens;
   const splitIntolerances = splitGlobalAllergens(profile.intolerances);
   const splitCustomIntolerances = splitGlobalAllergens(profile.customIntolerances ?? []);
   const allergens = [
@@ -310,7 +315,7 @@ function sanitizeProfileForApi(profile: UserProfile): UserProfile {
   ]);
 
   return {
-    ...profile,
+    ...activeProfile,
     outputLocale: profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE,
     primaryLikes: filterControlledProfileValues(profile.primaryLikes),
     customPreferences: filterControlledProfileValues(profile.customPreferences ?? []),

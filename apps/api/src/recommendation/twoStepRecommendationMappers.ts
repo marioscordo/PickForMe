@@ -75,10 +75,14 @@ export function mapGatekeptMainRecommendationsToAnalyzeData(
 
   const dishes: Dish[] = accepted.map((item, index) => {
     const evidence = normalizeOptionalString(item.sourceEvidence);
+    const descriptionOriginal = normalizeOptionalString(item.descriptionOriginal);
+    const translatedDescription = normalizeOptionalString(item.translatedDescription);
 
     return {
       id: `gatekept_main_${String(index + 1).padStart(3, "0")}`,
       nameOriginal: item.nameOriginal,
+      ...(translatedDescription ? { description: translatedDescription } : {}),
+      ...(descriptionOriginal ? { descriptionOriginal } : {}),
       price: parseOptionalPrice(item.priceRaw),
       category: "AI-Hauptempfehlung",
       itemType: "dish",
@@ -92,7 +96,11 @@ export function mapGatekeptMainRecommendationsToAnalyzeData(
       roleEvidence: evidence,
       isMainCourseCandidate: true,
       isSafeRecommendationCandidate: true,
-      sourceLine: evidence ?? item.nameOriginal
+      sourceLine: buildFullSourceLine({
+        nameOriginal: item.nameOriginal,
+        descriptionOriginal,
+        evidence
+      })
     };
   });
 
@@ -192,6 +200,20 @@ function normalizeOptionalString(value: string | null | undefined) {
 
 function isTechnicalPlaceholder(value: string) {
   return /^(?:null|undefined|n\/a|nan)$/i.test(value.trim());
+}
+
+function buildFullSourceLine({
+  nameOriginal,
+  descriptionOriginal,
+  evidence
+}: {
+  nameOriginal: string;
+  descriptionOriginal?: string;
+  evidence?: string;
+}) {
+  return [nameOriginal, descriptionOriginal, evidence]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(" ");
 }
 
 function parseOptionalPrice(value: string | null | undefined) {

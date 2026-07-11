@@ -55,6 +55,11 @@ const GLOBAL_ALLERGEN_LOOKUP = new Set([
 ].map(normalizeProfileInputValue));
 
 export function sanitizeProfileForRecommendation(profile: UserProfile): UserProfile {
+  const activeProfile = { ...profile };
+  delete activeProfile.hiddenPreferences;
+  delete activeProfile.hiddenExclusions;
+  delete activeProfile.hiddenIntolerances;
+  delete activeProfile.hiddenAllergens;
   const primaryLikes = filterControlledProfileValues(profile.primaryLikes);
   const customPreferences = filterControlledProfileValues(profile.customPreferences ?? []);
   const dislikes = filterControlledProfileValues(profile.dislikes);
@@ -72,7 +77,7 @@ export function sanitizeProfileForRecommendation(profile: UserProfile): UserProf
   const controlledIntolerances = uniqueValues(filterControlledProfileValues(rawIntolerances));
 
   return {
-    ...profile,
+    ...activeProfile,
     primaryLikes,
     customPreferences,
     dislikes,

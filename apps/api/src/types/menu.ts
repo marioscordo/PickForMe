@@ -13,6 +13,7 @@ export type SubstanceLevel = "light" | "medium" | "substantial" | "unknown";
 export type Dish = {
   id: string;
   nameOriginal: string;
+  description?: string;
   descriptionOriginal?: string;
   price?: number;
   category?: string;

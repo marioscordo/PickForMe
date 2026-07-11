@@ -24,6 +24,8 @@ export const MainDishAIRecommendationSchema = z.object({
   rank: z.number(),
   nameOriginal: z.string().trim().min(1),
   translatedName: z.string().trim().min(1),
+  descriptionOriginal: OptionalNullableStringSchema,
+  translatedDescription: OptionalNullableStringSchema,
   priceRaw: OptionalNullableStringSchema,
   sourceEvidence: OptionalNullableStringSchema,
   sourceKind: TwoStepSourceKindSchema.optional(),

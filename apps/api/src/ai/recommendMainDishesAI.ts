@@ -1,5 +1,5 @@
 import type { ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
-import type { UserProfile } from "../types/profile";
+import type { Situation, UserProfile } from "../types/profile";
 import {
   buildTwoStepSourceContent,
   createTwoStepOpenAIClient,
@@ -17,11 +17,13 @@ import {
 export async function recommendMainDishesAI({
   source,
   profile,
+  situation,
   userLocale,
   signal
 }: {
   source: TwoStepMenuSourceInput;
   profile: UserProfile;
+  situation?: Situation;
   userLocale?: string;
   signal?: AbortSignal;
 }): Promise<MainDishAIRecommendation[]> {
@@ -36,6 +38,7 @@ export async function recommendMainDishesAI({
         content: buildTwoStepSourceContent({
           prompt: buildMainDishPrompt({
             profile,
+            situation,
             targetLocale,
             targetLanguage
           }),
@@ -53,41 +56,58 @@ export async function recommendMainDishesAI({
 
 function buildMainDishPrompt({
   profile,
+  situation,
   targetLocale,
   targetLanguage
 }: {
   profile: UserProfile;
+  situation?: Situation;
   targetLocale: string;
   targetLanguage: string;
 }) {
   const activePreferences = getActivePreferenceValues(profile);
   const searchAssignment = buildActivePreferenceSearchAssignment(activePreferences);
+  const structuredAssignment = buildStructuredMainDishAssignment({
+    profile,
+    situation,
+    activePreferences,
+    searchAssignment,
+    targetLocale
+  });
 
   return [
     "Du bist GustaroAI in der neuen 2+2-AI-Architektur.",
-    "Du bist kein Speisekartenparser.",
-    "Liefere nur die benoetigten Hauptgericht-Empfehlungen, nicht die komplette Speisekarte.",
-    "Aufgabe: Erfuelle den verbindlichen Suchauftrag mit echten Hauptspeisen aus der Speisekarte.",
+    "Du bist der Main-AI-Concierge fuer Hauptgerichte.",
+    "Du bekommst Profil, Situation, Regeln und Speisekarte vollstaendig strukturiert.",
+    "Liefere genau die benoetigten Hauptgericht-Empfehlungen, nicht die komplette Speisekarte.",
+    "Aufgabe: Finde genau 3 echte Hauptgerichte aus der Speisekarte, die alle harten Profilwerte respektieren und moeglichst gut zu den Vorlieben und zur Situation passen.",
+    "Wenn weniger als 3 sichere passende Hauptgerichte vorhanden sind, liefere nur die sicheren passenden Gerichte.",
     `Sprache fuer nutzerseitige Ausgaben: ${targetLanguage} (${targetLocale}).`,
     "",
-    "Der folgende Suchauftrag ist verbindlich:",
-    searchAssignment.instruction,
+    "Strukturierter Auftrag:",
+    JSON.stringify(structuredAssignment, null, 2),
     "",
     "Verbindliche Regeln:",
     ...searchAssignment.rules,
-    "- Das aktive Nutzerprofil muss beruecksichtigt werden.",
-    "- Gruende muessen profilbezogen sein.",
-    "- Erfinde nichts.",
-    "- Nutze nur Gerichte, die belegbar in der Speisekarte vorkommen.",
-    "- Keine Vorspeisen, Desserts, Getraenke, Beilagen, Zutaten oder Beschreibungsteile.",
-    "- Allergien, Unvertraeglichkeiten, Abneigungen und harte Profilregeln sind verbindliche Ausschluesse.",
-    "- Empfiehl kein Gericht mit bekanntem Profilkonflikt.",
-    "- Wenn bei Allergie oder Unvertraeglichkeit nicht sicher ausgeschlossen werden kann, dass ein Gericht problematisch ist: nicht empfehlen.",
+    "- Alle Ausschluesse, Unvertraeglichkeiten und aktiven Allergene sind harte Tabus.",
+    "- Harte Tabus stehen immer ueber Vorlieben, Situation, Beliebtheit, Preis, Kategorie oder Restaurantklassikern.",
+    "- Vorlieben sind positive Orientierung; sie duerfen harte Tabus niemals ueberstimmen.",
+    "- Empfiehl kein Gericht mit bekanntem oder sichtbarem Profilkonflikt.",
+    "- Wenn ein harter Konflikt nicht sicher ausgeschlossen werden kann, empfehle das Gericht nicht.",
+    "- Wenn Sahne, Rahm, Cream oder Panna in Ausschluessen, Unvertraeglichkeiten oder Allergenen aktiv ist: kein Gericht mit Sahne, Sahnesosse, Sahnesauce, Rahm, Cream, Cream sauce oder Panna empfehlen.",
+    "- Beispiel Modo Mio: Spaghetti al Tartufo mit Pecorino-Trueffel-Sahnesauce darf bei Ausschluss Sahne nicht empfohlen werden.",
+    "- Nutze nur echte Hauptgerichte, die belegbar in der Speisekarte vorkommen.",
+    "- Keine Vorspeisen, Desserts, Getraenke, Beilagen, Zutaten oder Beschreibungsteile als Hauptgericht empfehlen.",
     "- Wenn ein Risiko in einem gelieferten Ergebnis erkannt wird, muss profileSafety dies korrekt markieren.",
     "- Ein Gericht darf nicht wegen fehlendem Preis ausgeschlossen werden.",
     "- priceRaw ist optional und darf null oder fehlen.",
     "- sourceEvidence soll geliefert werden, wenn ein kurzer Beleg sicher moeglich ist.",
     "- sourceEvidence darf null oder fehlen, wenn kein knapper Beleg sicher angegeben werden kann.",
+    "- Wenn der sichtbare Menueeintrag eine echte Beschreibung enthaelt, gib descriptionOriginal als vollstaendige originale Beschreibung aus.",
+    "- translatedDescription ist optional und darf nur gesetzt werden, wenn descriptionOriginal vorhanden ist.",
+    `- translatedDescription muss descriptionOriginal treu in ${targetLanguage} (${targetLocale}) wiedergeben.`,
+    "- Wenn keine echte Beschreibung sichtbar ist, lasse descriptionOriginal und translatedDescription null oder weg.",
+    "- Erfinde keine Beschreibung, Zutaten oder Details.",
     "- translatedName ist Pflicht und ist die nutzerseitige Anzeigeuebersetzung in der Zielsprache.",
     `- translatedName muss in ${targetLanguage} (${targetLocale}) formuliert sein.`,
     "- Bei de-DE muss translatedName eine deutsche Anzeigeuebersetzung oder ein deutscher, fuer Nutzer verstaendlicher Gloss sein.",
@@ -95,11 +115,10 @@ function buildMainDishPrompt({
     "- Eigennamen oder unveraenderliche Gerichtstitel duerfen teilweise erhalten bleiben, aber translatedName muss trotzdem in der Zielsprache verstaendlich sein.",
     "- Uebersetze nur, was durch sourceEvidence oder Speisekartentext belegbar ist.",
     "- Erfinde keine Zutaten und fuege keine freien Ausschmueckungen hinzu.",
-    "- Wenn weniger als 3 sichere Hauptgerichte existieren, liefere weniger.",
+    "- Keine nachgelagerte Qualitaetskontrolle voraussetzen: die Auswahl muss in diesem Call korrekt sein.",
+    "- Kein PDF-Fuzzy-Matching voraussetzen: entscheide nur aus dem sichtbaren Speisekartenkontext.",
     "",
-    ...buildMainDishQualityRules(searchAssignment),
-    "",
-    buildMainDishProfileContext(profile, activePreferences, searchAssignment),
+    buildMainDishProfileContext(profile, situation, activePreferences, searchAssignment),
     "",
     "Antwort ausschliesslich als valides JSON ohne Markdown:",
     "{",
@@ -108,6 +127,8 @@ function buildMainDishPrompt({
     '      "rank": 1,',
     '      "nameOriginal": "exakter Originalname aus der Speisekarte",',
     '      "translatedName": "display-sichere nutzerseitige Anzeigeuebersetzung in der Zielsprache",',
+    '      "descriptionOriginal": "vollstaendige Originalbeschreibung falls sichtbar, sonst null",',
+    '      "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
     '      "priceRaw": "Preis falls sichtbar, sonst null oder weglassen",',
     '      "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
     '      "sourceKind": "pdf | html | image | text | unknown",',
@@ -126,55 +147,9 @@ function buildMainDishPrompt({
   ].join("\n");
 }
 
-function buildMainDishQualityRules(searchAssignment: ActivePreferenceSearchAssignment) {
-  return [
-    "Auswahlgewichtung fuer das aktive Profil:",
-    "- Das aktive Nutzerprofil ist nicht dekorativ, sondern verbindliches Auswahlkriterium.",
-    "- Das Profil steuert, WAS empfohlen wird.",
-    searchAssignment.kind === "none"
-      ? "- Es gibt keine aktive Wunschrichtung; waehle passende sichere Hauptgerichte aus der Speisekarte."
-      : "- Aktive Vorlieben bilden den Suchraum dieses Calls, nicht nur weichen Kontext.",
-    searchAssignment.kind === "none"
-      ? "- Ohne aktive Wunschrichtung nicht kuenstlich eine Kategorie erzwingen."
-      : `- Der aktive Suchraum lautet: ${searchAssignment.searchSpaceLabel}.`,
-    searchAssignment.kind === "single"
-      ? "- Genau eine aktive Vorliebe ist gesetzt; diese Vorliebe ist die exklusive Suchrichtung fuer alle Empfehlungen, solange sichere Treffer in der Quelle erkennbar sind."
-      : "- Wenn mehrere aktive Vorlieben gesetzt sind, bilden diese Vorlieben gemeinsam den erlaubten Suchraum.",
-    searchAssignment.kind === "single"
-      ? "- Wenn im Suchraum mindestens 3 sichere passende eigenstaendige Hauptgerichte erkennbar sind, muessen alle 3 Empfehlungen aus diesem Suchraum stammen."
-      : "- Wenn im Suchraum genug sichere passende eigenstaendige Hauptgerichte erkennbar sind, muessen die Empfehlungen aus diesem Suchraum stammen.",
-    searchAssignment.kind === "single"
-      ? "- Wenn im Suchraum nur 2 sichere Treffer erkennbar sind, liefere nur 2 Empfehlungen; wenn nur 1 sicherer Treffer erkennbar ist, liefere nur 1 Empfehlung."
-      : "- Wenn im Suchraum weniger sichere Treffer erkennbar sind, liefere weniger Empfehlungen.",
-    "- Nicht mit neutralen Kategorien ausserhalb des aktiven Suchraums auffuellen.",
-    "- Keine fremden Kategorien als Ersatzempfehlungen verwenden, solange passende sichere Gerichte im Suchraum vorhanden sind.",
-    "- Beispiele fuer aktive positive Vorlieben: Salat, Pasta, Pizza, vegetarische Gerichte, Gemuesegerichte, Fleisch, Fisch, Ei, Kaese oder andere aktuell genannte Speisen/Kategorien.",
-    "- Empfiehl nicht stattdessen prominente Fleisch-, Fisch-, Pasta-, Risotto- oder Gnocchi-Gerichte nur, weil sie klassisch, teuer, beliebt oder auffaellig sind, wenn sie ausserhalb des aktiven Suchraums liegen.",
-    "- Aktive harte Abneigungen, Ausschluesse, Allergien und Unvertraeglichkeiten sind dagegen verbindliche Tabus.",
-    "- Wenn aktiver Suchraum und harte Ausschluesse zusammenwirken, waehle nur Gerichte aus dem Suchraum, die keinen harten Konflikt haben.",
-    "- Beispiel: Bei aktivem Suchraum Pizza oder Salat zuerst Pizza- und Salatgerichte pruefen; Fleisch ist nicht profilhart verboten, aber nicht Teil dieses Suchauftrags.",
-    "- Beispiel: Wenn Pizza die einzige aktive Essensvorliebe ist und mindestens 3 sichere Pizza-Gerichte sichtbar sind, muessen alle Empfehlungen Pizza-Gerichte sein.",
-    "- Beispiel: Wenn Pizza die einzige aktive Essensvorliebe ist und nur 2 sichere Pizza-Gerichte sichtbar sind, liefere nur diese 2 Pizza-Gerichte.",
-    "- Beispiel: Wenn Pizza die einzige aktive Essensvorliebe ist und nur 1 sichere Pizza erkennbar ist, liefere nur 1 Pizza statt neutraler Auffueller.",
-    "- Beispiel: Wenn Pizza die einzige aktive Essensvorliebe ist und genug sichere Pizza-Gerichte sichtbar sind, sind 2 x Pizza + 1 x Salat falsch.",
-    "- Beispiel: Wenn Pizza die einzige aktive Essensvorliebe ist und genug sichere Pizza-Gerichte sichtbar sind, sind 2 x Pasta/Nudeln + 1 x Pizza falsch.",
-    "- Beispiel: Wenn Pizza die einzige aktive Essensvorliebe ist und genug sichere Pizza-Gerichte sichtbar sind, ist Saltimbocca falsch.",
-    "- Liefere lieber weniger Empfehlungen als drei Empfehlungen, die keine aktive Vorliebe erfuellen.",
-    "- Wenn keine Empfehlung aus einer aktiven Vorliebe stammt, muss die reason erklaeren, warum keine sichere passende Option aus der aktiven Vorliebe erkennbar war.",
-    "- Bei genau einer aktiven Vorliebe darf eine neutrale Empfehlung nicht allgemein mit 'beliebt', 'klassisch' oder 'passt gut' begruendet werden.",
-    "- Bei genau einer aktiven Vorliebe muss jede gelieferte Empfehlung in der reason erklaeren, wie sie diese aktive Vorliebe erfuellt.",
-    "- Bei genau einer aktiven Vorliebe darf eine Empfehlung, die diese Vorliebe nicht erfuellt, nicht geliefert werden, wenn sichere passende Gerichte aus der Vorliebe vorhanden sind.",
-    "- reason muss kurz erklaeren, welches aktive Suchziel erfuellt wird und warum das Gericht innerhalb des Suchraums passt.",
-    "- reason darf keine technischen Profilbegriffe erwaehnen.",
-    "- Schlechte reasons sind allgemeine Aussagen wie 'Klassiker des Hauses', 'beliebt' oder 'hochwertig', wenn sie den aktiven Suchraum nicht sichtbar beruecksichtigen.",
-    "- profileSafety bleibt fuer harte Ausschluesse, Allergien, Unvertraeglichkeiten und echte bekannte Konflikte reserviert.",
-    "- Reine aktive Vorlieben sind Auswahlpraeferenzen, aber kein Safety-Konflikt.",
-    "- Setze profileSafety.hasKnownConflict oder uncertainForAllergy nur, wenn die bestehende Safety-Semantik wirklich passt."
-  ];
-}
-
 function buildMainDishProfileContext(
   profile: UserProfile,
+  situation: Situation | undefined,
   positivePreferences: string[],
   searchAssignment: ActivePreferenceSearchAssignment
 ) {
@@ -186,20 +161,83 @@ function buildMainDishProfileContext(
     ...arrayValue(profile.intolerances),
     ...arrayValue(profile.customIntolerances)
   ]);
+  const hardAllergens = uniqueValues(arrayValue(profile.allergens));
   return [
     "Nutzerprofil fuer diesen Main-AI-Call:",
     `- Ausgabesprache nur fuer nutzerseitige Texte, kein Auswahlkriterium: ${profile.outputLocale || "de-DE"}`,
+    `- Aktuelle Essenssituation/Modus: ${situation || profile.appetiteMood || "nicht angegeben"}`,
     `- Anzahl aktiver heutiger Vorlieben/Wunschrichtungen: ${positivePreferences.length}`,
     `- Aktive heutige Vorlieben/Wunschrichtungen: ${listOrNone(positivePreferences)}`,
     `- Aktiver Suchauftrag: ${searchAssignment.instruction}`,
     `- Aktiver Suchraum: ${searchAssignment.searchSpaceLabel}`,
     `- Aktive harte Abneigungen/Ausschluesse: ${listOrNone(hardExclusions)}`,
-    `- Aktive Allergien/Unvertraeglichkeiten: ${listOrNone(hardIntolerances)}`,
-    "- Harte Ausschluesse, Allergien und Unvertraeglichkeiten sind wichtiger als Vorlieben.",
+    `- Aktive Unvertraeglichkeiten: ${listOrNone(hardIntolerances)}`,
+    `- Aktive Allergene: ${listOrNone(hardAllergens)}`,
+    "- Harte Ausschluesse, Allergien und Unvertraeglichkeiten sind wichtiger als Vorlieben und Situation.",
     "- Bei harten Ausschluessen, Allergien und Unvertraeglichkeiten gilt: Wenn unsicher, nicht empfehlen.",
     "- Aktive Vorlieben definieren den Suchraum fuer diesen Empfehlungslauf.",
     "- Diese Signale stammen aus dem aktuellen Request-Profil und duerfen nicht aus frueheren Analysen ersetzt werden."
   ].join("\n");
+}
+
+function buildStructuredMainDishAssignment({
+  profile,
+  situation,
+  activePreferences,
+  searchAssignment,
+  targetLocale
+}: {
+  profile: UserProfile;
+  situation?: Situation;
+  activePreferences: string[];
+  searchAssignment: ActivePreferenceSearchAssignment;
+  targetLocale: string;
+}) {
+  const hardExclusions = uniqueValues([
+    ...arrayValue(profile.dislikes),
+    ...arrayValue(profile.customExclusions)
+  ]);
+  const hardIntolerances = uniqueValues([
+    ...arrayValue(profile.intolerances),
+    ...arrayValue(profile.customIntolerances)
+  ]);
+  const hardAllergens = uniqueValues(arrayValue(profile.allergens));
+
+  return {
+    analyse: {
+      profil: {
+        vorlieben: activePreferences,
+        ausschluesse_und_unvertraeglichkeiten: uniqueValues([
+          ...hardExclusions,
+          ...hardIntolerances
+        ]),
+        allergene: hardAllergens,
+        ausgabesprache: targetLocale
+      },
+      situation: {
+        modus: situation || profile.appetiteMood || "nicht angegeben"
+      },
+      regeln: {
+        anzahl_gerichte: 3,
+        harte_ausschluesse_sind_verbindlich: true,
+        allergene_sind_verbindlich: true,
+        unvertraeglichkeiten_sind_verbindlich: true,
+        vorlieben_sind_positive_orientierung: true,
+        vorlieben_duerfen_harte_ausschluesse_nicht_ueberstimmen: true,
+        nur_speisekarteninformationen: true,
+        beschreibung_nur_wenn_vorhanden: true,
+        keine_beschreibung_erfinden: true,
+        keine_nachgelagerte_qualitaetskontrolle: true,
+        kein_pdf_fuzzy_matching: true
+      },
+      suchauftrag: {
+        instruktion: searchAssignment.instruction,
+        suchraum: searchAssignment.searchSpaceLabel
+      },
+      speisekarte: "siehe Quellenkontext/Speisekartentext oder angehaengte Speisekartendateien"
+    },
+    auftrag: "Finde genau 3 Hauptgerichte aus der Speisekarte, die alle harten Ausschluesse, Allergene und Unvertraeglichkeiten respektieren und moeglichst gut zu den Vorlieben und zur Situation passen."
+  };
 }
 
 type ActivePreferenceSearchAssignment = {
