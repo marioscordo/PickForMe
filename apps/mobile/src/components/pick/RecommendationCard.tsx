@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { PickForMeApiError } from "../../api/apiClient";
@@ -63,6 +63,45 @@ function formatDisplayPrice(rawPrice?: string | null) {
 
 function isTechnicalPricePlaceholder(value: string) {
   return /^(?:null|undefined|n\/a|nan)$/i.test(value.trim());
+}
+
+function normalizeRestaurantIntroText(value: string) {
+  return value
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function splitRestaurantIntroParagraphs(value: string) {
+  const paragraphs = normalizeRestaurantIntroText(value)
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length !== 1) {
+    return paragraphs;
+  }
+
+  const introParagraph = paragraphs[0];
+  if (!introParagraph) {
+    return paragraphs;
+  }
+
+  const sentences = introParagraph.match(/[^.!?]+(?:[.!?]+|$)/g)?.map((sentence) => sentence.trim()).filter(Boolean) ?? [];
+
+  if (sentences.length <= 3) {
+    return paragraphs;
+  }
+
+  const groupedParagraphs: string[] = [];
+  for (let index = 0; index < sentences.length; index += 2) {
+    groupedParagraphs.push(sentences.slice(index, index + 2).join(" "));
+  }
+
+  return groupedParagraphs;
 }
 
 function PremiumCardAction({
@@ -160,7 +199,11 @@ export function RecommendationCard({
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
   const isStarterSearchRunning = Object.values(starterRequestStatusByDishId).some((status) => status === "loading");
   const restaurantIntroLocale = resolveOutputLocale(profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE);
-  const cachedRestaurantIntro = restaurantIntroText.trim();
+  const cachedRestaurantIntro = normalizeRestaurantIntroText(restaurantIntroText);
+  const restaurantIntroParagraphs = useMemo(
+    () => splitRestaurantIntroParagraphs(cachedRestaurantIntro),
+    [cachedRestaurantIntro]
+  );
   const hasRestaurantIntro = restaurantIntroVisible && cachedRestaurantIntro.length > 0;
   const isRestaurantIntroLoading = restaurantIntroStatus === "loading";
   const topBox = (
@@ -178,7 +221,27 @@ export function RecommendationCard({
       ) : null}
       <Text style={local.title}>{content.recommendation.restaurantTitle}</Text>
       {hasRestaurantIntro ? (
-        <Text style={local.restaurantIntroText}>{cachedRestaurantIntro}</Text>
+        <ScrollView
+          contentContainerStyle={local.restaurantIntroTextBlock}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={restaurantIntroParagraphs.length > 2}
+          style={local.restaurantIntroScroll}
+        >
+          {restaurantIntroParagraphs.map((paragraph, index) => (
+            <Text
+              android_hyphenationFrequency="full"
+              key={`${index}-${paragraph.slice(0, 16)}`}
+              lineBreakStrategyIOS="standard"
+              style={[
+                local.restaurantIntroText,
+                index === restaurantIntroParagraphs.length - 1 ? local.restaurantIntroTextLast : null
+              ]}
+              textBreakStrategy="highQuality"
+            >
+              {paragraph}
+            </Text>
+          ))}
+        </ScrollView>
       ) : (
         <Text style={local.subtitle}>{content.recommendation.restaurantIntroTeaser}</Text>
       )}
@@ -243,7 +306,7 @@ export function RecommendationCard({
         menuText,
         profile
       });
-      const nextText = data.introText.trim();
+      const nextText = normalizeRestaurantIntroText(data.introText);
 
       if (!nextText) {
         setRestaurantIntroStatus("error");
@@ -579,7 +642,7 @@ const local = StyleSheet.create({
     borderWidth: 1,
     marginBottom: spacing.xxl,
     paddingHorizontal: 22,
-    paddingRight: 54,
+    paddingRight: 22,
     paddingVertical: 20,
     position: "relative",
     shadowColor: premiumColors.olive,
@@ -667,9 +730,23 @@ const local = StyleSheet.create({
 
   restaurantIntroText: {
     color: premiumColors.textMuted,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 23
+    flexShrink: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 21,
+    marginBottom: spacing.sm
+  },
+
+  restaurantIntroScroll: {
+    maxHeight: 360
+  },
+
+  restaurantIntroTextBlock: {
+    paddingBottom: 2
+  },
+
+  restaurantIntroTextLast: {
+    marginBottom: 0
   },
 
   restaurantIntroStatusText: {
