@@ -21,8 +21,6 @@
     "pasteTab": "Paste",
     "linkAccepted": "Link accepted.",
     "qrTab": "QR Code",
-    "restaurantContextLabel": "At the restaurant",
-    "restaurantMenuSourceLabel": "Menu source: {provider}",
     "moodTitle": "What are you in the mood for?",
     "loadingTitle": "I am finding something good for you",
     "loadingSteps": [
@@ -37,7 +35,6 @@
     "mainButtonLoading": "I am looking at the menu ...",
     "reviewPreferences": "Review preferences",
     "openMenu": "Open menu",
-    "findMenuButton": "Find menu",
     "photoMenuButton": "Photograph menu",
     "moodHint": "Choose what you feel like today.",
     "profileHintTitle": "Profile still empty",
@@ -72,7 +69,7 @@
     "close": "Close scanner"
   },
   "permissions": {
-    "camera": "GustaroAI needs the camera to scan menu QR codes."
+    "camera": "GustaroAI needs access to the camera so you can scan a menu QR code or take a photo of the menu."
   },
   "allergyWarning": {
     "title": "Important note about allergies",
@@ -200,7 +197,6 @@
     "descriptionRequired": "Please briefly describe what happened.",
     "submitError": "The report could not be saved right now. Please try again later.",
     "categoryLabels": {
-      "menu_discovery": "Find menu",
       "photo_menu": "Photograph menu",
       "recommendation": "Recommendation",
       "profile": "Profile",
@@ -472,105 +468,6 @@
     "pdfAiDisabled": "PDF menus require AI mode.",
     "noDishesFound": "I could not recognize any dishes in this input yet."
   },
-  "restaurantDiscovery": {
-    "title": "Find menu",
-    "searchCardTitle": "Find restaurant",
-    "applyCardTitle": "Apply menu",
-    "restaurantNameLabel": "Restaurant name",
-    "cityLabel": "City",
-    "countryLabel": "Country",
-    "countrySearchPlaceholder": "Search country...",
-    "countrySearchNoResults": "No country found",
-    "countries": {
-      "AL": "Albania",
-      "AD": "Andorra",
-      "AM": "Armenia",
-      "AT": "Austria",
-      "AZ": "Azerbaijan",
-      "BY": "Belarus",
-      "BE": "Belgium",
-      "BA": "Bosnia and Herzegovina",
-      "BG": "Bulgaria",
-      "HR": "Croatia",
-      "CY": "Cyprus",
-      "CZ": "Czechia",
-      "DK": "Denmark",
-      "DE": "Germany",
-      "EE": "Estonia",
-      "FI": "Finland",
-      "FR": "France",
-      "GE": "Georgia",
-      "GR": "Greece",
-      "HU": "Hungary",
-      "IS": "Iceland",
-      "IE": "Ireland",
-      "IT": "Italy",
-      "XK": "Kosovo",
-      "LV": "Latvia",
-      "LI": "Liechtenstein",
-      "LT": "Lithuania",
-      "LU": "Luxembourg",
-      "MT": "Malta",
-      "MD": "Moldova",
-      "MC": "Monaco",
-      "ME": "Montenegro",
-      "NL": "Netherlands",
-      "MK": "North Macedonia",
-      "NO": "Norway",
-      "PL": "Poland",
-      "PT": "Portugal",
-      "RO": "Romania",
-      "RU": "Russia",
-      "SM": "San Marino",
-      "RS": "Serbia",
-      "SK": "Slovakia",
-      "SI": "Slovenia",
-      "ES": "Spain",
-      "SE": "Sweden",
-      "CH": "Switzerland",
-      "TR": "Turkey",
-      "UA": "Ukraine",
-      "GB": "United Kingdom",
-      "VA": "Vatican City",
-      "US": "USA",
-      "CA": "Canada",
-      "CN": "China",
-      "JP": "Japan",
-      "AU": "Australia",
-      "BR": "Brazil",
-      "MX": "Mexico",
-      "AR": "Argentina",
-      "CL": "Chile",
-      "IN": "India",
-      "TH": "Thailand",
-      "VN": "Vietnam",
-      "KR": "South Korea",
-      "SG": "Singapore",
-      "AE": "United Arab Emirates",
-      "ZA": "South Africa"
-    },
-    "showButton": "Show",
-    "selectRestaurantHint": "Tap a result once to mark it. Double-tap it to apply the restaurant. GustaroAI will then look for the matching menu link.",
-    "restaurantOutputLabel": "Restaurant",
-    "linkOutputLabel": "Link",
-    "menuSearchLoading": "Searching for menu",
-    "applyButton": "Apply",
-    "applyHint": "Apply the found menu link. On the next screen, the \"Find something suitable\" button will be visible.",
-    "externalMenuSourceLine": "Menu source: {provider}",
-    "externalMenuConfirmation": {
-      "title": "External menu source",
-      "message": "I found the menu on an external menu provider. Use this link?",
-      "sourceLabel": "Provider",
-      "confirmButton": "Use link",
-      "rejectButton": "Do not use"
-    },
-    "cancelSearchButton": "Cancel search",
-    "backButton": "back",
-    "loading": "Please wait...",
-    "noResults": "No results found",
-    "menuSearchFailed": "I can't find the menu right now. Please try again or paste the link - I'll evaluate it for you.",
-    "noMenuUrl": "I can't find a safe source. Send me the menu link, text, or photo - then I'll take care of it."
-  },
   "help": {
     "common": {
       "title": "Gustaro helps briefly",
@@ -591,22 +488,12 @@
     "pickInput": {
       "title": "Show menu",
       "points": [
-        "You can show GustaroAI a menu in several ways: search for a restaurant and find its menu, paste a link, scan a QR code, take a photo, or paste menu text. Before GustaroAI recommends dishes for you, you can quickly review your preferences. Afterwards, you return directly to the menu analysis – your discovered menu, link, QR code, photo, or text stays in place.",
+        "You can show GustaroAI a menu in several ways: paste a link, scan a QR code, take a photo, or paste menu text. Before GustaroAI recommends dishes for you, you can quickly review your preferences. Afterwards, you return directly to the menu analysis - your link, QR code, photo, or text stays in place.",
         "With 'What are you in the mood for?' you tell GustaroAI whether you want single dishes, a starter and main course, something new, or a safer choice.",
         "This influences which dishes GustaroAI prefers - your profile still remains important.",
         "The analysis can take a little time, especially with longer menus."
       ],
       "tip": "The clearer the menu is, the better GustaroAI can choose."
-    },
-    "menuDiscovery": {
-      "title": "Find menu",
-      "points": [
-        "GustaroAI first searches for the restaurant. When the matching restaurant is found, you can select it.",
-        "GustaroAI then searches for an analyzable menu. Menus found on the restaurant's own website are used directly.",
-        "If GustaroAI finds a plausible menu on an external menu provider, you will be asked whether to use that link.",
-        "The external menu is analyzed only after your confirmation. The source used is shown transparently in the restaurant section."
-      ],
-      "tip": "If the search does not find the right result, check the restaurant name and city and try again."
     },
     "result": {
       "title": "Your recommendation",
@@ -645,7 +532,7 @@
         "Selected preferences help GustaroAI prefer dishes that better match your taste.",
         "You can add your own terms in the input field. A single word is enough, for example 'coriander' or 'sushi'.",
         "You can remove active preferences in the 'Remove active preferences' section.",
-        "If you came here from the menu analysis, “Back to selection” takes you directly back to the recommendation selection. Your discovered menu, link, QR code, photo, or text stays in place."
+        "When you come from menu analysis, \"Back to selection\" takes you directly there again. Your link, QR code, photo, or text stays in place."
       ],
       "tip": "Preferences increase the chance that GustaroAI matches your taste."
     },

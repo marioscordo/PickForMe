@@ -55,7 +55,6 @@ type LogAllergyWarningConfirmationBody = {
 };
 
 export type TestFeedbackCategory =
-  | "menu_discovery"
   | "photo_menu"
   | "recommendation"
   | "profile"
@@ -115,37 +114,6 @@ type ProfileInputKind = "preference" | "exclusion";
 type ClassifyProfilePreferenceBody = {
   inputKind?: ProfileInputKind;
   value: string;
-};
-
-export type RestaurantDiscoveryApiCandidate = {
-  id: string;
-  name: string;
-  city: string;
-  country?: string;
-  address?: string;
-  websiteUrl?: string;
-};
-
-export type ExternalMenuCandidateApiResult = {
-  url: string;
-  providerDomain: string;
-};
-
-type DiscoverRestaurantsBody = {
-  restaurantName: string;
-  city: string;
-  country?: string;
-};
-
-type DiscoverRestaurantMenuBody = {
-  candidate: RestaurantDiscoveryApiCandidate;
-};
-
-export type RestaurantMenuDiscoveryApiResult = {
-  websiteUrl: string;
-  menuUrl?: string;
-  menuUrls?: string[];
-  externalMenuCandidate?: ExternalMenuCandidateApiResult;
 };
 
 export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
@@ -223,20 +191,6 @@ export function classifyProfileInput(value: string, inputKind: ProfileInputKind,
     {
       signal
     }
-  );
-}
-
-export function discoverRestaurants(body: DiscoverRestaurantsBody) {
-  return apiPost<{ candidates: RestaurantDiscoveryApiCandidate[] }, DiscoverRestaurantsBody>(
-    "/api/restaurant-discovery",
-    body
-  );
-}
-
-export function discoverRestaurantMenu(candidate: RestaurantDiscoveryApiCandidate) {
-  return apiPost<RestaurantMenuDiscoveryApiResult, DiscoverRestaurantMenuBody>(
-    "/api/restaurant-menu-discovery",
-    { candidate }
   );
 }
 

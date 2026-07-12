@@ -28,11 +28,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let active = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) {
-        setState(authStateFromSession(data.session));
-      }
-    });
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        if (active) {
+          setState(authStateFromSession(data.session));
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setState({ status: "anonymous" });
+        }
+      });
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       if (active) {

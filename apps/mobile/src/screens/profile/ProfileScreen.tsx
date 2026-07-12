@@ -38,7 +38,6 @@ const premiumFont = Platform.select({ ios: "Georgia", android: "serif", default:
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
 const TEST_FEEDBACK_CATEGORIES: TestFeedbackCategory[] = [
-  "menu_discovery",
   "photo_menu",
   "recommendation",
   "profile",

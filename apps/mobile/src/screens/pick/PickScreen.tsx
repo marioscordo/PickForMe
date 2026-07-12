@@ -9,7 +9,6 @@ import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { PhotoMenuCamera } from "../../components/pick/PhotoMenuCamera";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
 import { RecommendationCard } from "../../components/pick/RecommendationCard";
-import { RestaurantDiscoveryDialog } from "../../components/pick/RestaurantDiscoveryDialog";
 import { SituationSelector } from "../../components/pick/SituationSelector";
 import { ActionButton } from "../../components/ui/ActionButton";
 import { GustaroHelp } from "../../components/ui/GustaroHelp";
@@ -27,7 +26,7 @@ type PickScreenProps = {
   returnToMoodKey?: number;
 };
 
-type MenuInputOrigin = "empty" | "manual" | "discovered" | "qr" | "photo";
+type MenuInputOrigin = "empty" | "manual" | "qr" | "photo";
 
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
 const ANALYSIS_LOADING_STEP_INTERVAL_MS = 1500;
@@ -51,7 +50,6 @@ function fs(value: number) {
 }
 
 export function PickScreen({
-  onGoHome,
   onOpenProfile,
   onOpenProfilePreferences,
   returnToMoodKey = 0
@@ -60,19 +58,15 @@ export function PickScreen({
   const { profile } = useProfile();
   const loadingSteps = content.pick.loadingSteps;
   const [menuText, setMenuText] = useState("");
-  const [menuUrls, setMenuUrls] = useState<string[]>([]);
-  const [selectedRestaurantName, setSelectedRestaurantName] = useState("");
-  const [selectedMenuSourceDomain, setSelectedMenuSourceDomain] = useState("");
   const [menuInputOrigin, setMenuInputOrigin] = useState<MenuInputOrigin>("empty");
-  const [restaurantMenuDiscoveryCompleted, setRestaurantMenuDiscoveryCompleted] = useState(false);
   const [situation, setSituation] = useState<Situation>("leicht");
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showPhotoCamera, setShowPhotoCamera] = useState(false);
   const [photoMenuLoading, setPhotoMenuLoading] = useState(false);
   const [photoMenuError, setPhotoMenuError] = useState("");
-  const [showRestaurantDiscovery, setShowRestaurantDiscovery] = useState(false);
   const [entryScrollToActionKey, setEntryScrollToActionKey] = useState(0);
   const [entryScrollToMoodKey, setEntryScrollToMoodKey] = useState(0);
+  const [entryScrollToTopKey, setEntryScrollToTopKey] = useState(0);
   const [moodSectionY, setMoodSectionY] = useState(0);
   const [linkAcceptedVisible, setLinkAcceptedVisible] = useState(false);
   const analyze = useAnalyzeMenu();
@@ -81,7 +75,6 @@ export function PickScreen({
   const [showAllergyWarning, setShowAllergyWarning] = useState(false);
   const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
-  const pendingConfirmedMenuUrlsRef = useRef<string[]>([]);
   const linkAcceptedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const allergyWarningParagraphs = content.allergyWarning.message.split("\n\n");
 
@@ -127,6 +120,10 @@ export function PickScreen({
   }
 
   function logAnalyzeSource(value: string, urls: string[] | undefined, phase: string) {
+    if (!__DEV__) {
+      return;
+    }
+
     const normalizedMenuTextUrl = normalizeMenuUrl(value);
     const firstMenuUrl = urls?.[0]?.trim() ?? "";
 
@@ -138,19 +135,13 @@ export function PickScreen({
       menuTextIsUrl: Boolean(normalizedMenuTextUrl),
       menuUrlsCount: urls?.length ?? 0,
       menuInputOrigin,
-      fromDiscoveredMenu: menuInputOrigin === "discovered",
-      fromManualLinkOrText: menuInputOrigin !== "discovered",
-      restaurantMenuDiscoveryCompleted
+      fromManualLinkOrText: menuInputOrigin === "manual"
     }));
   }
 
   function updateMenuText(value: string) {
     setMenuText(value);
-    setMenuUrls([]);
-    setSelectedRestaurantName("");
-    setSelectedMenuSourceDomain("");
     setMenuInputOrigin(value.trim() ? "manual" : "empty");
-    setRestaurantMenuDiscoveryCompleted(false);
 
     if (normalizeMenuUrl(value)) {
       Keyboard.dismiss();
@@ -171,7 +162,6 @@ export function PickScreen({
   function handleAnalyze() {
     Keyboard.dismiss();
     pendingConfirmedMenuTextRef.current = null;
-    pendingConfirmedMenuUrlsRef.current = [];
     analyze.reset();
 
     if (hasAllergiesOrIntolerances(profile)) {
@@ -183,24 +173,19 @@ export function PickScreen({
   }
 
   function startAnalyze() {
-    logAnalyzeSource(menuText, menuUrls, "startAnalyze");
+    logAnalyzeSource(menuText, undefined, "startAnalyze");
     setLastAnalyzedMenuUrl(normalizeMenuUrl(menuText));
-    analyze.run(menuText, situation, menuUrls);
+    analyze.run(menuText, situation);
   }
 
   function startAnalyzeWithExtractedMenuText(value: string) {
     analyze.reset();
     setMenuText(value);
-    setMenuUrls([]);
-    setSelectedRestaurantName("");
-    setSelectedMenuSourceDomain("");
     setMenuInputOrigin("photo");
-    setRestaurantMenuDiscoveryCompleted(false);
     setLastAnalyzedMenuUrl("");
 
     if (hasAllergiesOrIntolerances(profile)) {
       pendingConfirmedMenuTextRef.current = value;
-      pendingConfirmedMenuUrlsRef.current = [];
       showAllergyWarningBeforeAnalyze();
       return;
     }
@@ -212,51 +197,16 @@ export function PickScreen({
   function resetAnalysisState() {
     analyze.reset();
     setMenuText("");
-    setMenuUrls([]);
-    setSelectedRestaurantName("");
-    setSelectedMenuSourceDomain("");
     setMenuInputOrigin("empty");
-    setRestaurantMenuDiscoveryCompleted(false);
     setLastAnalyzedMenuUrl("");
     setLoadingStepIndex(0);
     setEntryScrollToActionKey(0);
-  }
-
-  function closeRestaurantDiscovery() {
-    setShowRestaurantDiscovery(false);
-  }
-
-  function openRestaurantDiscovery() {
-    Keyboard.dismiss();
-    analyze.reset();
-    setMenuText("");
-    setMenuUrls([]);
-    setSelectedRestaurantName("");
-    setSelectedMenuSourceDomain("");
-    setMenuInputOrigin("empty");
-    setRestaurantMenuDiscoveryCompleted(false);
-    setLastAnalyzedMenuUrl("");
-    setShowRestaurantDiscovery(true);
-  }
-
-  function applyDiscoveredMenuUrl(value: string, restaurantName?: string, menuSourceDomain?: string, discoveredMenuUrls?: string[]) {
-    Keyboard.dismiss();
-    setMenuText(value);
-    setMenuUrls(discoveredMenuUrls?.length ? discoveredMenuUrls : [value]);
-    setSelectedRestaurantName(restaurantName?.trim() ?? "");
-    setSelectedMenuSourceDomain(menuSourceDomain?.trim() ?? "");
-    setMenuInputOrigin("discovered");
-    setRestaurantMenuDiscoveryCompleted(true);
-    setShowQrScanner(false);
-    setShowPhotoCamera(false);
-    setPhotoMenuError("");
-    setShowRestaurantDiscovery(false);
-    setEntryScrollToActionKey((current) => current + 1);
+    setEntryScrollToMoodKey(0);
+    setEntryScrollToTopKey((current) => current + 1);
   }
 
   function openPhotoCamera() {
     setShowQrScanner(false);
-    setShowRestaurantDiscovery(false);
     setPhotoMenuError("");
     setShowPhotoCamera(true);
   }
@@ -287,7 +237,6 @@ export function PickScreen({
 
   function rejectAllergyWarning() {
     pendingConfirmedMenuTextRef.current = null;
-    pendingConfirmedMenuUrlsRef.current = [];
     analyze.reset();
     setShowAllergyWarning(false);
   }
@@ -301,12 +250,10 @@ export function PickScreen({
       });
       setShowAllergyWarning(false);
       const pendingMenuText = pendingConfirmedMenuTextRef.current;
-      const pendingMenuUrls = pendingConfirmedMenuUrlsRef.current;
       pendingConfirmedMenuTextRef.current = null;
-      pendingConfirmedMenuUrlsRef.current = [];
       if (pendingMenuText) {
-        logAnalyzeSource(pendingMenuText, pendingMenuUrls, "allergyConfirmed");
-        analyze.run(pendingMenuText, situation, pendingMenuUrls);
+        logAnalyzeSource(pendingMenuText, undefined, "allergyConfirmed");
+        analyze.run(pendingMenuText, situation);
         return;
       }
       startAnalyze();
@@ -376,8 +323,6 @@ export function PickScreen({
     );
   }
 
-  const restaurantContextName = selectedRestaurantName.trim();
-  const showRestaurantContext = Boolean(menuText.trim() && restaurantContextName);
   const showEmptyProfileHint = !hasActiveProfileChips(profile);
 
   return (
@@ -387,7 +332,7 @@ export function PickScreen({
       scrollToEndKey={entryScrollToActionKey || undefined}
       scrollToOffsetKey={entryScrollToMoodKey || undefined}
       scrollToOffsetY={Math.max(moodSectionY - s(12), 0)}
-      scrollToTopKey="pick-entry"
+      scrollToTopKey={`pick-entry-${entryScrollToTopKey}`}
     >
       <View style={local.conciergeIntro}>
         <GustaroHelp common={content.help.common} topic={content.help.pickInput} style={local.entryHelpButton} />
@@ -435,15 +380,10 @@ export function PickScreen({
           <QrMenuScanner
             onUrlScanned={(value: string) => {
               setMenuText(value);
-              setMenuUrls([]);
-              setSelectedRestaurantName("");
-              setSelectedMenuSourceDomain("");
               setMenuInputOrigin("qr");
-              setRestaurantMenuDiscoveryCompleted(false);
               setShowQrScanner(false);
               setShowPhotoCamera(false);
               setPhotoMenuError("");
-              setShowRestaurantDiscovery(false);
             }}
             onClose={() => setShowQrScanner(false)}
           />
@@ -469,34 +409,7 @@ export function PickScreen({
           </View>
           <Feather color={premiumPalette.textSoft} name="chevron-right" size={s(24)} />
         </Pressable>
-
-        <Pressable accessibilityRole="button" style={local.findMenuRow} onPress={openRestaurantDiscovery}>
-          <View style={local.findMenuLeft}>
-            <Feather color={premiumPalette.gold} name="search" size={s(19)} />
-            <Text style={local.findMenuText}>{content.pick.findMenuButton}</Text>
-          </View>
-          <Feather color={premiumPalette.textSoft} name="chevron-right" size={s(24)} />
-        </Pressable>
       </View>
-
-      <RestaurantDiscoveryDialog
-        visible={showRestaurantDiscovery}
-        onClose={closeRestaurantDiscovery}
-        onGoHome={onGoHome}
-        onApply={applyDiscoveredMenuUrl}
-      />
-
-      {showRestaurantContext ? (
-        <View style={local.restaurantContextCard}>
-          <Text style={local.restaurantContextLabel}>{content.pick.restaurantContextLabel}</Text>
-          <Text style={local.restaurantContextName}>{restaurantContextName}</Text>
-          {selectedMenuSourceDomain ? (
-            <Text style={local.restaurantContextSource}>
-              {content.pick.restaurantMenuSourceLabel.replace("{provider}", selectedMenuSourceDomain)}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
 
       {showEmptyProfileHint ? (
         <View style={local.profileHintCard}>
@@ -781,43 +694,6 @@ const local = StyleSheet.create({
     shadowOffset: { width: 0, height: s(10) },
     shadowOpacity: 0.08,
     shadowRadius: s(20)
-  },
-
-  restaurantContextCard: {
-    backgroundColor: premiumPalette.surface,
-    borderColor: premiumPalette.border,
-    borderRadius: s(24),
-    borderWidth: 1,
-    marginBottom: s(18),
-    paddingHorizontal: s(20),
-    paddingVertical: s(18),
-    shadowColor: "#6F5522",
-    shadowOffset: { width: 0, height: s(8) },
-    shadowOpacity: 0.06,
-    shadowRadius: s(16)
-  },
-
-  restaurantContextLabel: {
-    color: premiumPalette.textSoft,
-    fontSize: fs(14),
-    fontWeight: "700",
-    lineHeight: fs(20),
-    marginBottom: s(4)
-  },
-
-  restaurantContextName: {
-    color: premiumPalette.oliveDeep,
-    fontSize: fs(22),
-    fontWeight: "800",
-    lineHeight: fs(28)
-  },
-
-  restaurantContextSource: {
-    color: premiumPalette.textSoft,
-    fontSize: fs(13),
-    fontWeight: "700",
-    lineHeight: fs(18),
-    marginTop: s(6)
   },
 
   profileHintCard: {

@@ -21,8 +21,6 @@
     "pasteTab": "Einfügen",
     "linkAccepted": "Link wurde übernommen.",
     "qrTab": "QR-Code",
-    "restaurantContextLabel": "Im Restaurant",
-    "restaurantMenuSourceLabel": "Quelle der Speisekarte: {provider}",
     "moodTitle": "Wonach ist Dir heute?",
     "loadingTitle": "Ich suche Dir etwas Gutes raus",
     "loadingSteps": [
@@ -37,7 +35,6 @@
     "mainButtonLoading": "Ich schaue auf die Karte ...",
     "reviewPreferences": "Vorlieben prüfen",
     "openMenu": "Speisekarte öffnen",
-    "findMenuButton": "Speisekarte finden",
     "photoMenuButton": "Speisekarte fotografieren",
     "moodHint": "Wähle, wonach Dir gerade ist.",
     "profileHintTitle": "Profil noch leer",
@@ -72,7 +69,7 @@
     "close": "Scanner schließen"
   },
   "permissions": {
-    "camera": "GustaroAI benötigt die Kamera, um QR-Codes von Speisekarten zu scannen."
+    "camera": "GustaroAI benötigt Zugriff auf die Kamera, damit Du den QR-Code einer Speisekarte scannen oder ein Foto der Speisekarte aufnehmen kannst."
   },
   "allergyWarning": {
     "title": "Wichtiger Hinweis zu Allergien",
@@ -200,7 +197,6 @@
     "descriptionRequired": "Bitte beschreibe kurz, was passiert ist.",
     "submitError": "Die Meldung konnte gerade nicht gespeichert werden. Bitte versuche es später noch einmal.",
     "categoryLabels": {
-      "menu_discovery": "Speisekarte finden",
       "photo_menu": "Speisekarte fotografieren",
       "recommendation": "Empfehlung",
       "profile": "Profil",
@@ -472,105 +468,6 @@
     "pdfAiDisabled": "PDF-Speisekarten benötigen den KI-Modus.",
     "noDishesFound": "Ich konnte in dieser Eingabe noch keine Gerichte erkennen."
   },
-  "restaurantDiscovery": {
-    "title": "Speisekarte finden",
-    "searchCardTitle": "Restaurant finden",
-    "applyCardTitle": "Speisekarte übernehmen",
-    "restaurantNameLabel": "Restaurantname",
-    "cityLabel": "Stadt",
-    "countryLabel": "Land",
-    "countrySearchPlaceholder": "Land suchen...",
-    "countrySearchNoResults": "Kein Land gefunden",
-    "countries": {
-      "AL": "Albanien",
-      "AD": "Andorra",
-      "AM": "Armenien",
-      "AT": "Österreich",
-      "AZ": "Aserbaidschan",
-      "BY": "Belarus",
-      "BE": "Belgien",
-      "BA": "Bosnien und Herzegowina",
-      "BG": "Bulgarien",
-      "HR": "Kroatien",
-      "CY": "Zypern",
-      "CZ": "Tschechien",
-      "DK": "Dänemark",
-      "DE": "Deutschland",
-      "EE": "Estland",
-      "FI": "Finnland",
-      "FR": "Frankreich",
-      "GE": "Georgien",
-      "GR": "Griechenland",
-      "HU": "Ungarn",
-      "IS": "Island",
-      "IE": "Irland",
-      "IT": "Italien",
-      "XK": "Kosovo",
-      "LV": "Lettland",
-      "LI": "Liechtenstein",
-      "LT": "Litauen",
-      "LU": "Luxemburg",
-      "MT": "Malta",
-      "MD": "Moldau",
-      "MC": "Monaco",
-      "ME": "Montenegro",
-      "NL": "Niederlande",
-      "MK": "Nordmazedonien",
-      "NO": "Norwegen",
-      "PL": "Polen",
-      "PT": "Portugal",
-      "RO": "Rumänien",
-      "RU": "Russland",
-      "SM": "San Marino",
-      "RS": "Serbien",
-      "SK": "Slowakei",
-      "SI": "Slowenien",
-      "ES": "Spanien",
-      "SE": "Schweden",
-      "CH": "Schweiz",
-      "TR": "Türkei",
-      "UA": "Ukraine",
-      "GB": "Großbritannien",
-      "VA": "Vatikanstadt",
-      "US": "USA",
-      "CA": "Kanada",
-      "CN": "China",
-      "JP": "Japan",
-      "AU": "Australien",
-      "BR": "Brasilien",
-      "MX": "Mexiko",
-      "AR": "Argentinien",
-      "CL": "Chile",
-      "IN": "Indien",
-      "TH": "Thailand",
-      "VN": "Vietnam",
-      "KR": "Südkorea",
-      "SG": "Singapur",
-      "AE": "Vereinigte Arabische Emirate",
-      "ZA": "Südafrika"
-    },
-    "showButton": "Zeigen",
-    "selectRestaurantHint": "Tippe einen Treffer einmal zum Markieren an. Tippe ihn doppelt, um das Restaurant zu übernehmen. Danach sucht GustaroAI den passenden Speisekartenlink.",
-    "restaurantOutputLabel": "Restaurant",
-    "linkOutputLabel": "Link",
-    "menuSearchLoading": "Speisekarte wird gesucht",
-    "applyButton": "Übernehmen",
-    "applyHint": "Übernimm den gefundenen Speisekartenlink. Danach ist der Button „Such mir etwas Passendes“ in der nächsten Maske sichtbar.",
-    "externalMenuSourceLine": "Quelle der Speisekarte: {provider}",
-    "externalMenuConfirmation": {
-      "title": "Externe Menüquelle",
-      "message": "Ich habe die Speisekarte bei einem externen Menüanbieter gefunden. Link übernehmen?",
-      "sourceLabel": "Anbieter",
-      "confirmButton": "Übernehmen",
-      "rejectButton": "Nicht verwenden"
-    },
-    "cancelSearchButton": "Suche abbrechen",
-    "backButton": "zurück",
-    "loading": "Bitte warten...",
-    "noResults": "Keine Treffer gefunden",
-    "menuSearchFailed": "Ich finde die Karte gerade nicht. Versuch es bitte erneut oder füge den Link ein – ich werte sie dann aus.",
-    "noMenuUrl": "Ich finde keine sichere Quelle. Schick mir Link, Text oder Foto der Karte – dann kümmere ich mich darum."
-  },
   "help": {
     "common": {
       "title": "Gustaro hilft Dir kurz",
@@ -591,22 +488,12 @@
     "pickInput": {
       "title": "Speisekarte zeigen",
       "points": [
-        "Du kannst GustaroAI eine Speisekarte auf mehreren Wegen zeigen: Restaurant suchen und Speisekarte finden, Link einfügen, QR-Code scannen, Foto aufnehmen oder Speisekartentext einfügen. Bevor GustaroAI Dir passende Gerichte empfiehlt, kannst Du Deine Vorlieben noch einmal prüfen. Danach kommst Du direkt zurück zur Speisekartenanalyse – Deine gefundene Speisekarte, Dein Link, QR-Code, Foto oder Text bleibt erhalten.",
+        "Du kannst GustaroAI eine Speisekarte auf mehreren Wegen zeigen: Link einfügen, QR-Code scannen, Foto aufnehmen oder Speisekartentext einfügen. Bevor GustaroAI Dir passende Gerichte empfiehlt, kannst Du Deine Vorlieben noch einmal prüfen. Danach kommst Du direkt zurück zur Speisekartenanalyse - Dein Link, QR-Code, Foto oder Text bleibt erhalten.",
         "Mit „Wonach ist Dir heute?“ sagst Du GustaroAI, ob Du Einzelgerichte, eine Vor- und Hauptspeise, etwas Neues oder eine sichere Wahl möchtest.",
         "Diese Auswahl beeinflusst, welche Gerichte GustaroAI bevorzugt - Dein Profil bleibt dabei weiterhin wichtig.",
         "Die Auswertung kann etwas Zeit in Anspruch nehmen, besonders bei längeren Speisekarten."
       ],
       "tip": "Je klarer die Speisekarte lesbar ist, desto besser kann GustaroAI auswählen."
-    },
-    "menuDiscovery": {
-      "title": "Speisekarte finden",
-      "points": [
-        "GustaroAI sucht zuerst nach dem Restaurant. Wenn das passende Restaurant gefunden wurde, kannst Du es übernehmen.",
-        "Danach sucht GustaroAI nach einer auswertbaren Speisekarte. Speisekarten auf der Restaurant-Webseite werden direkt verwendet.",
-        "Findet GustaroAI eine plausible Speisekarte bei einem externen Menüanbieter, wirst Du gefragt, ob der Link übernommen werden soll.",
-        "Erst nach Deiner Bestätigung wird diese externe Speisekarte ausgewertet. Die verwendete Quelle wird im Restaurantbereich transparent angezeigt."
-      ],
-      "tip": "Wenn die Suche kein passendes Ergebnis liefert, prüfe Restaurantname und Stadt und versuche es erneut."
     },
     "result": {
       "title": "Deine Empfehlung",
@@ -645,7 +532,7 @@
         "Ausgewählte Vorlieben helfen GustaroAI, passende Gerichte stärker zu bevorzugen.",
         "Eigene Begriffe kannst Du im Eingabefeld hinzufügen. Ein einzelnes Wort als Begriff reicht, zum Beispiel „Koriander“ oder „Sushi“.",
         "Aktive Vorlieben löschst Du unten im Bereich „Aktive Vorlieben löschen“.",
-        "Wenn Du aus der Speisekartenanalyse hierher kommst, bringt Dich „Zurück zur Auswahl“ wieder direkt zurück zur Empfehlungsauswahl. Deine gefundene Speisekarte, Dein Link, QR-Code, Foto oder Text bleibt erhalten."
+        "Wenn Du aus der Speisekartenanalyse kommst, bringt Dich \"Zurück zur Auswahl\" direkt wieder dorthin. Dein Link, QR-Code, Foto oder Text bleibt erhalten."
       ],
       "tip": "Vorlieben erhöhen die Chance, dass GustaroAI Deinen Geschmack trifft."
     },

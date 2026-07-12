@@ -1,8 +1,9 @@
 const APP_VARIANT = process.env.APP_VARIANT || "development";
 const IS_PROD = APP_VARIANT === "production";
-const mobileContent = require("./src/content/mobileContent.de-DE.json");
+const mobileContentDe = require("./src/content/mobileContent.de-DE.json");
+const mobileContentEn = require("./src/content/mobileContent.en-US.json");
 
-const cameraUsageDescription = mobileContent.permissions.camera;
+const cameraUsageDescription = `${mobileContentDe.permissions.camera}\n\n${mobileContentEn.permissions.camera}`;
 
 module.exports = {
   expo: {
