@@ -81,6 +81,19 @@ function candidate(nameOriginal, descriptionOriginal, match) {
   };
 }
 
+function starterCandidate(nameOriginal, sourceEvidence, match) {
+  return {
+    nameOriginal,
+    sourceEvidence,
+    safetyMatches: match ? [match] : undefined,
+    starterPayload: {
+      nameOriginal,
+      translatedName: `DE ${nameOriginal}`,
+      evidence: sourceEvidence
+    }
+  };
+}
+
 function withoutRecommendationPayload(item) {
   const { recommendationPayload, ...rest } = item;
   return rest;
@@ -109,6 +122,15 @@ function gate(candidates) {
 
   assert(result.candidates.length === 0, "Mira walnut candidate must be removed");
   assert(result.removed[0]?.nameOriginal === "Veggie Mousaka", "Mira removed candidate name missing");
+}
+
+{
+  const result = gate([
+    starterCandidate("Beetroot salad", "beetroot, walnuts, dried figs", match("Walnuesse", "walnuts"))
+  ]);
+
+  assert(result.candidates.length === 0, "Mira beetroot salad starter with walnuts must be removed");
+  assert(result.removed[0]?.nameOriginal === "Beetroot salad", "Mira starter removed candidate name missing");
 }
 
 for (const [label, evidence, description] of [
@@ -185,6 +207,27 @@ for (const [description, safetyMatch, expectedMessage] of [
 
   assert(gated.candidates.length === 0, "No safe candidate should remain");
   assert(recommendations.length === 0, "No recommendation expected when no safe candidate remains");
+}
+
+{
+  const starters = [
+    starterCandidate("Beetroot salad", "beetroot, walnuts, dried figs", match("Walnuesse", "walnuts")),
+    starterCandidate("Greek salad", "tomato, cucumber, olives"),
+    starterCandidate("Tomato soup", "tomato soup")
+  ];
+  const gated = gate(starters);
+
+  assert(gated.candidates[0]?.nameOriginal === "Greek salad", "Second safe starter must move up");
+  assert(gated.candidates[0]?.starterPayload.evidence === "tomato, cucumber, olives", "Moved-up starter must keep its own evidence");
+  assert(gated.candidates.map((item) => item.nameOriginal).join(",") === "Greek salad,Tomato soup", "Starter order must remain unchanged after removal");
+}
+
+{
+  const gated = gate([
+    starterCandidate("Beetroot salad", "beetroot, walnuts, dried figs", match("Walnuesse", "walnuts"))
+  ]);
+
+  assert(gated.candidates.length === 0, "Unsafe starter without replacement must leave no starter candidate");
 }
 
 {

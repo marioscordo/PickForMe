@@ -12,6 +12,7 @@ import {
 import {
   type TwoStepMenuSourceInput
 } from "./twoStepRecommendationSchemas";
+import { buildSemanticEvidenceRestrictions } from "../recommendation/semanticEvidenceSafetyGate";
 
 export type StarterMainDishAnchor = {
   rank?: number;
@@ -42,6 +43,7 @@ export async function recommendStarterForMainDishAI({
   const client = createTwoStepOpenAIClient();
   const targetLocale = normalizeTargetLocale(userLocale ?? profile.outputLocale);
   const targetLanguage = getLanguageNameForLocale(targetLocale);
+  const semanticEvidenceRestrictions = buildSemanticEvidenceRestrictions(profile);
   const request: ResponseCreateParamsNonStreaming = {
     model: getTwoStepModelForSource(source),
     input: [
@@ -53,7 +55,8 @@ export async function recommendStarterForMainDishAI({
             situation,
             mainDish,
             targetLocale,
-            targetLanguage
+            targetLanguage,
+            semanticEvidenceRestrictions
           }),
           source
         })
@@ -76,13 +79,15 @@ function buildStarterPrompt({
   situation,
   mainDish,
   targetLocale,
-  targetLanguage
+  targetLanguage,
+  semanticEvidenceRestrictions
 }: {
   profile: UserProfile;
   situation: Situation;
   mainDish: StarterMainDishAnchor;
   targetLocale: string;
   targetLanguage: string;
+  semanticEvidenceRestrictions: ReturnType<typeof buildSemanticEvidenceRestrictions>;
 }) {
   return [
     "Du bist GustaroAI in der neuen 2+2-AI-Architektur.",
@@ -106,6 +111,13 @@ function buildStarterPrompt({
     "- Wenn ein bekannter Konflikt mit dem Profil besteht: gib recommendation null zurueck.",
     "- Wenn bei Allergie oder Unvertraeglichkeit nicht sicher ausgeschlossen werden kann, dass die Vorspeise problematisch ist: gib recommendation null zurueck.",
     "- Wenn ein Risiko in einem gelieferten Ergebnis erkannt wird, muss profileSafety dies korrekt markieren.",
+    "- Pruefe zusaetzlich sichtbare semantische Konflikte gegen semanticEvidenceRestrictions.",
+    "- Nutze dafuer ausschliesslich die restrictionIds aus semanticEvidenceRestrictions.",
+    "- safetyMatches ist optional und darf nur eindeutige sichtbare Belege aus nameOriginal oder sourceEvidence enthalten.",
+    "- Fuer jeden semantischen Match muss safetyMatches restrictionId, evidence, source und relation enthalten.",
+    "- source ist name, wenn der Beleg im Originalnamen steht, sonst description fuer sourceEvidence.",
+    "- relation ist contains, may_contain, free_from oder unknown.",
+    "- Erfinde keine Belege. Kein typisches Rezeptwissen. Kein Text aus dem Hauptgericht.",
     "- Keine Zutaten, keine Beschreibungsteile und keine Hauptgerichte als Vorspeise.",
     "- sourceEvidence soll geliefert werden, wenn ein kurzer Beleg sicher moeglich ist.",
     "- sourceEvidence darf null oder fehlen, wenn kein knapper Beleg sicher angegeben werden kann.",
@@ -114,6 +126,9 @@ function buildStarterPrompt({
     "- Wenn keine sichere Vorspeise existiert, gib recommendation null zurueck.",
     "",
     buildTwoStepProfileContext(profile, situation),
+    "",
+    "Semantic-Evidence-Restrictions:",
+    JSON.stringify(semanticEvidenceRestrictions),
     "",
     "Antwort ausschliesslich als valides JSON ohne Markdown:",
     "{",
@@ -133,7 +148,15 @@ function buildStarterPrompt({
     '      "hasKnownConflict": false,',
     '      "uncertainForAllergy": false,',
     '      "conflictReason": null',
-    "    }",
+    "    },",
+    '    "safetyMatches": [',
+    "      {",
+    '        "restrictionId": "allergen_0",',
+    '        "evidence": "sichtbarer Originalbeleg, z.B. walnuts",',
+    '        "source": "name | description",',
+    '        "relation": "contains | may_contain | free_from | unknown"',
+    "      }",
+    "    ]",
     "  }",
     "}"
   ].join("\n");

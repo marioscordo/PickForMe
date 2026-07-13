@@ -11,6 +11,10 @@ import {
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { gatekeepStarterRecommendation } from "../../../src/recommendation/gatekeeper";
+import {
+  applySemanticEvidenceSafetyGate,
+  buildSemanticEvidenceRestrictions
+} from "../../../src/recommendation/semanticEvidenceSafetyGate";
 import { mapGatekeptStarterRecommendationToRecommendation } from "../../../src/recommendation/twoStepRecommendationMappers";
 import { sanitizeProfileForRecommendation } from "../../../src/profile/profileInputPolicy";
 import {
@@ -178,6 +182,13 @@ async function addGatekeptStarterPairingsForSource({
 
     const gatekeeperStartedAt = Date.now();
     const gatekeeperResult = gatekeepStarterRecommendation(starterRecommendation);
+    const semanticEvidenceResult = gatekeeperResult.accepted
+      ? applySemanticEvidenceSafetyGate({
+          candidates: [gatekeeperResult.accepted],
+          restrictions: buildSemanticEvidenceRestrictions(profile)
+        })
+      : null;
+    const acceptedStarter = semanticEvidenceResult?.candidates[0] ?? null;
     logGatekeeperStarter({
       phase: "gatekeeper",
       sourceKind,
@@ -185,14 +196,15 @@ async function addGatekeptStarterPairingsForSource({
       hasTargetMainDish,
       gatekeeperAccepted: Boolean(gatekeeperResult.accepted),
       gatekeeperRejected: Boolean(gatekeeperResult.rejected),
+      semanticEvidenceRejected: semanticEvidenceResult?.removed.length ? true : undefined,
       durationMs: Date.now() - gatekeeperStartedAt
     });
 
     const mapperStartedAt = Date.now();
-    const mappedRecommendation = gatekeeperResult.accepted
+    const mappedRecommendation = acceptedStarter
       ? mapGatekeptStarterRecommendationToRecommendation({
           recommendation,
-          starter: gatekeeperResult.accepted
+          starter: acceptedStarter
         })
       : recommendation;
     logGatekeeperStarter({

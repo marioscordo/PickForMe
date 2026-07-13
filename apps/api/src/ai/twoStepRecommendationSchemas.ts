@@ -134,7 +134,8 @@ export const StarterAIRecommendationSchema = z.object({
   sourceCategoryOriginal: OptionalNullableStringSchema,
   pairingReason: z.string().trim().min(1),
   confidence: TwoStepConfidenceSchema,
-  profileSafety: TwoStepProfileSafetySchema
+  profileSafety: TwoStepProfileSafetySchema,
+  safetyMatches: z.array(SemanticEvidenceSafetyMatchSchema).optional()
 });
 
 export const CommittedStarterRecommendationSchema = z.object({
