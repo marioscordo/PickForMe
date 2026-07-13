@@ -6,13 +6,14 @@ import { resolveGuiLanguageFromDevice } from "../content/guiLanguage";
 import { profileFeatures } from "../config/profileFeatures";
 import { filterControlledProfileValues } from "../profile/profileInputPolicy";
 import type { UserProfile } from "../types/profile";
-import type { RequestedDishRole } from "../types/recommendationMode";
+import type { PreferredDishRole, RequestedDishRole } from "../types/recommendationMode";
 import type { AnalyzeData, RestaurantIntroData } from "../types/recommendations";
 
 type AnalyzeMenuMobileArgs = {
   menuText: string;
   menuUrls?: string[];
   requestedDishRoles: RequestedDishRole[];
+  preferredDishRole?: PreferredDishRole;
   profile: UserProfile;
   diagnosticRunId?: string;
   signal?: AbortSignal;
@@ -35,6 +36,7 @@ type AnalyzeMenuApiBody = {
   menuText: string;
   menuUrls?: string[];
   requestedDishRoles: RequestedDishRole[];
+  preferredDishRole?: PreferredDishRole;
   diagnosticRunId?: string;
   profile: UserProfile;
   userLocale: string;
@@ -118,6 +120,7 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
     menuText: args.menuText,
     ...(args.menuUrls?.length ? { menuUrls: args.menuUrls } : {}),
     requestedDishRoles: args.requestedDishRoles,
+    ...(args.preferredDishRole ? { preferredDishRole: args.preferredDishRole } : {}),
     ...(args.diagnosticRunId ? { diagnosticRunId: args.diagnosticRunId } : {}),
     profile: sanitizeProfileForApi(args.profile),
     userLocale: resolveGuiLanguageFromDevice()

@@ -1,10 +1,11 @@
 import type { ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
 import type { Situation, UserProfile } from "../types/profile";
-import type { RequestedDishRole } from "../types/api";
+import type { PreferredDishRole, RequestedDishRole } from "../types/api";
 import {
   buildTwoStepSourceContent,
   createTwoStepOpenAIClient,
   getLanguageNameForLocale,
+  getTwoStepSourceContentDiagnostics,
   getTwoStepModelForSource,
   normalizeTargetLocale,
   stripJsonFence
@@ -49,6 +50,7 @@ export async function recommendMainDishesAI({
   profile,
   situation,
   requestedDishRoles,
+  preferredDishRole,
   userLocale,
   runId,
   signal
@@ -57,6 +59,7 @@ export async function recommendMainDishesAI({
   profile: UserProfile;
   situation?: Situation;
   requestedDishRoles?: RequestedDishRole[];
+  preferredDishRole?: PreferredDishRole;
   userLocale?: string;
   runId?: string;
   signal?: AbortSignal;
@@ -65,33 +68,50 @@ export async function recommendMainDishesAI({
   const targetLocale = normalizeTargetLocale(userLocale ?? profile.outputLocale);
   const targetLanguage = getLanguageNameForLocale(targetLocale);
   const model = getTwoStepModelForSource(source);
+  const sourceContent = buildTwoStepSourceContent({
+    prompt: buildMainDishPrompt({
+      profile,
+      situation,
+      requestedDishRoles,
+      preferredDishRole,
+      targetLocale,
+      targetLanguage
+    }),
+    source
+  });
+  const contentDiagnostics = getTwoStepSourceContentDiagnostics(source, sourceContent);
   const request: ResponseCreateParamsNonStreaming = {
     model,
     input: [
       {
         role: "user",
-        content: buildTwoStepSourceContent({
-          prompt: buildMainDishPrompt({
-            profile,
-            situation,
-            requestedDishRoles,
-            targetLocale,
-            targetLanguage
-          }),
-          source
-        })
+        content: sourceContent
       }
     ]
   };
 
   const requestStartedAt = Date.now();
-  const response = await client.responses.create(request, signal ? { signal } : undefined);
+  const response = await client.responses.create(request, signal ? { signal } : undefined)
+    .catch((error) => {
+      logDevAnalyzeTiming({
+        runId,
+        phase: "api.main_ai_request",
+        durationMs: Date.now() - requestStartedAt,
+        model,
+        sdkRetries: "not_exposed",
+        ...contentDiagnostics,
+        success: false,
+        errorClass: error instanceof Error ? error.name : typeof error
+      });
+      throw error;
+    });
   logDevAnalyzeTiming({
     runId,
     phase: "api.main_ai_request",
     durationMs: Date.now() - requestStartedAt,
     model,
     sdkRetries: "not_exposed",
+    ...contentDiagnostics,
     inputTokens: getUsageValue(response.usage, "input_tokens"),
     outputTokens: getUsageValue(response.usage, "output_tokens"),
     success: true
@@ -394,16 +414,19 @@ function buildMainDishPrompt({
   profile,
   situation,
   requestedDishRoles,
+  preferredDishRole,
   targetLocale,
   targetLanguage
 }: {
   profile: UserProfile;
   situation?: Situation;
   requestedDishRoles?: RequestedDishRole[];
+  preferredDishRole?: PreferredDishRole;
   targetLocale: string;
   targetLanguage: string;
 }) {
   const roleAssignment = buildRequestedDishRoleAssignment(requestedDishRoles);
+  const rolePreferenceAssignment = buildPreferredDishRoleAssignment(preferredDishRole, roleAssignment);
   const activePreferences = getActivePreferenceValues(profile);
   const searchAssignment = buildActivePreferenceSearchAssignment(activePreferences);
   const structuredAssignment = buildStructuredMainDishAssignment({
@@ -440,6 +463,7 @@ function buildMainDishPrompt({
     "",
     "Verbindliche Regeln:",
     ...roleAssignment.rules,
+    ...rolePreferenceAssignment.rules,
     ...searchAssignment.rules,
     "- Alle Ausschluesse, Unvertraeglichkeiten und aktiven Allergene sind harte Tabus.",
     "- Harte Tabus stehen immer ueber Vorlieben, Situation, Beliebtheit, Preis, Kategorie oder Restaurantklassikern.",
@@ -718,6 +742,27 @@ function buildRequestedDishRoleAssignment(values?: RequestedDishRole[]): Request
       "- Identifiziere sichtbare Hauptgerichte und vollwertige Hauptspeisen.",
       "- Vorspeisen, Salate als reine Vorspeisen, Desserts, Getraenke und Beilagen duerfen nicht als Ersatz empfohlen werden.",
       "- Wenn weniger als 3 sichere Hauptspeisen vorhanden sind, liefere weniger als 3 Empfehlungen statt mit Vorspeisen oder Salaten aufzufuellen."
+    ]
+  };
+}
+
+function buildPreferredDishRoleAssignment(
+  preferredDishRole: PreferredDishRole | undefined,
+  roleAssignment: RequestedDishRoleAssignment
+) {
+  if (preferredDishRole !== "starter" || !roleAssignment.roles.includes("starter")) {
+    return {
+      rules: []
+    };
+  }
+
+  return {
+    rules: [
+      "- Optionale Rollenpraeferenz innerhalb dieses Rollenraums: Bevorzuge sichere Vorspeisen gegenueber sicheren Salaten, wenn sie ansonsten aehnlich geeignet sind.",
+      "- Diese Praeferenz darf Safety, harte Profilwerte oder den verbindlichen Rollenraum niemals ueberstimmen.",
+      "- Salate bleiben erlaubt und duerfen empfohlen werden.",
+      "- Liefere nicht weniger Empfehlungen nur weil weniger Vorspeisen vorhanden sind; fuelle verbleibende Plaetze mit sicheren Salaten auf.",
+      "- Innerhalb derselben Rolle bleiben primaryLikes fuer das Ranking aktiv."
     ]
   };
 }

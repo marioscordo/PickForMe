@@ -18,6 +18,13 @@ type TwoStepSourceContentPart =
       detail: "high";
     };
 
+export type TwoStepSourceContentDiagnostics = {
+  inputMode?: "extracted_text" | "pdf_file_fallback";
+  extractedTextCharCount?: number;
+  pdfFileInputIncluded: boolean;
+  fallbackReason?: string;
+};
+
 export function createTwoStepOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -106,12 +113,16 @@ export function buildTwoStepSourceContent({
   ];
 
   if (source.kind === "pdf") {
-    content.push(
-      ...(source.urls ?? []).slice(0, 8).map((url) => ({
-        type: "input_file" as const,
-        file_url: url
-      }))
-    );
+    const shouldIncludePdfFile = source.mainAiInputMode !== "extracted_text";
+
+    if (shouldIncludePdfFile) {
+      content.push(
+        ...(source.urls ?? []).slice(0, 8).map((url) => ({
+          type: "input_file" as const,
+          file_url: url
+        }))
+      );
+    }
   }
 
   if (source.kind === "image") {
@@ -125,6 +136,26 @@ export function buildTwoStepSourceContent({
   }
 
   return content;
+}
+
+export function getTwoStepSourceContentDiagnostics(
+  source: TwoStepMenuSourceInput,
+  content: TwoStepSourceContentPart[]
+): TwoStepSourceContentDiagnostics {
+  const pdfFileInputIncluded = content.some((part) => part.type === "input_file");
+
+  if (source.kind !== "pdf") {
+    return {
+      pdfFileInputIncluded
+    };
+  }
+
+  return {
+    inputMode: source.mainAiInputMode ?? "pdf_file_fallback",
+    extractedTextCharCount: source.extractedTextCharCount ?? 0,
+    pdfFileInputIncluded,
+    fallbackReason: source.pdfFallbackReason
+  };
 }
 
 export function stripJsonFence(value: string) {

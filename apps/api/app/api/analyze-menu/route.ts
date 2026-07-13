@@ -21,13 +21,13 @@ import {
   applyDishRoleClassifications,
   getDishesNeedingRoleClassification
 } from "../../../src/menu/applyDishRoleClassifications";
-import { rankMenuSourceCandidatesByQuality } from "../../../src/restaurant/menuSourceQuality";
+import { rankMenuSourceCandidatesByQuality, type MenuSourceQualityMetrics } from "../../../src/restaurant/menuSourceQuality";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import { gatekeepMainDishRecommendations } from "../../../src/recommendation/gatekeeper";
 import { mapGatekeptMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
 import { blockReasonForRecommendation } from "../../../src/profile/profileRules";
 import { sanitizeProfileForRecommendation } from "../../../src/profile/profileInputPolicy";
-import type { AnalyzeMenuRequest, RequestedDishRole } from "../../../src/types/api";
+import type { AnalyzeMenuRequest, PreferredDishRole, RequestedDishRole } from "../../../src/types/api";
 import type { MenuExtractionResult } from "../../../src/menu/extraction/types";
 import type { RestaurantDescriptionResult } from "../../../src/restaurant/extractRestaurantDescription";
 import type { Dish } from "../../../src/types/menu";
@@ -46,6 +46,12 @@ type LinkedPdfMenu = {
   url: string;
   urls?: string[];
   restaurantContextText?: string;
+  pdfTextQuality?: PdfTextQualityForAnalysis;
+};
+
+type PdfTextQualityForAnalysis = MenuSourceQualityMetrics & {
+  usableForAnalysis: boolean;
+  baseScore: number;
 };
 
 type MenuSourceKind = "pdf" | "html" | "image";
@@ -90,19 +96,21 @@ export async function POST(request: Request) {
   const requestStartedAt = Date.now();
 
   try {
-    logDevAnalyzeTiming({
-      runId: requestRunId,
-      phase: "api.request_received",
-      durationMs: 0
-    });
-
     await requireUser(request);
 
     const validationStartedAt = Date.now();
     const body = (await request.json()) as AnalyzeMenuRequest;
     requestRunId = normalizeDiagnosticRunId(body.diagnosticRunId) ?? requestRunId;
+    logDevAnalyzeTiming({
+      runId: requestRunId,
+      phase: "api.request_received",
+      durationMs: 0
+    });
     const outputLocale = normalizeTargetLocale(body.profile.outputLocale);
     const requestedDishRoles = normalizeRequestedDishRoles(body.requestedDishRoles);
+    const preferredDishRole = requestedDishRoles.includes("starter")
+      ? normalizePreferredDishRole(body.preferredDishRole)
+      : undefined;
     const legacySituation = body.situation ?? "leicht";
     const profile = sanitizeProfileForRecommendation({
       ...body.profile,
@@ -201,12 +209,14 @@ export async function POST(request: Request) {
             kind: "pdf",
             urls: pdfMenuUrls,
             sourceUrl: pdfMenuUrl,
-            text: selectedPdfMenu?.restaurantContextText ?? rawMenuText
+            text: selectedPdfMenu?.restaurantContextText ?? rawMenuText,
+            pdfTextQuality: selectedPdfMenu?.pdfTextQuality
           },
           responseMode: "ai_pdf",
           profile,
           situation: body.situation,
           requestedDishRoles,
+          preferredDishRole,
           outputLocale,
           restaurantDescription,
           localizedRestaurantDescription,
@@ -281,6 +291,7 @@ export async function POST(request: Request) {
           profile,
           situation: body.situation,
           requestedDishRoles,
+          preferredDishRole,
           outputLocale,
           restaurantDescription,
           localizedRestaurantDescription,
@@ -403,6 +414,7 @@ export async function POST(request: Request) {
         profile,
         situation: body.situation,
         requestedDishRoles,
+        preferredDishRole,
         outputLocale,
         restaurantDescription,
         localizedRestaurantDescription,
@@ -692,6 +704,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   profile,
   situation,
   requestedDishRoles,
+  preferredDishRole,
   outputLocale,
   restaurantDescription,
   localizedRestaurantDescription,
@@ -709,6 +722,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   profile: AnalyzeMenuRequest["profile"];
   situation?: AnalyzeMenuRequest["situation"];
   requestedDishRoles: RequestedDishRole[];
+  preferredDishRole?: PreferredDishRole;
   outputLocale: string;
   restaurantDescription: RestaurantDescriptionResult | null;
   localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null;
@@ -754,6 +768,7 @@ async function analyzeMenuWithTwoStepMainFlow({
         profile,
         situation,
         requestedDishRoles,
+        preferredDishRole,
         userLocale: outputLocale,
         runId,
         signal
@@ -1001,12 +1016,25 @@ async function augmentPdfSourceWithExtractedText({
     pdfTextExtracted: supplementalText.trim().length > 0,
     pdfTextSourceCount: extractedTexts.length,
     pdfTextCharCount: supplementalText.length,
+    pdfTextQualityUsable: source.pdfTextQuality?.usableForAnalysis ?? false,
     pdfTextSourceUrls: pdfUrls.join(","),
     durationMs: Date.now() - startedAt
   });
 
-  if (!supplementalText.trim()) {
-    return source;
+  const extractedText = supplementalText.trim();
+  const fallbackReason = getPdfFileFallbackReason({
+    source,
+    extractedText
+  });
+
+  if (extractedText && !fallbackReason) {
+    return {
+      ...source,
+      text: extractedText,
+      mainAiInputMode: "extracted_text" as const,
+      extractedTextCharCount: extractedText.length,
+      pdfFallbackReason: undefined
+    };
   }
 
   const existingText = source.text?.trim();
@@ -1018,8 +1046,33 @@ async function augmentPdfSourceWithExtractedText({
 
   return {
     ...source,
-    text
+    text,
+    mainAiInputMode: "pdf_file_fallback" as const,
+    extractedTextCharCount: extractedText.length,
+    pdfFallbackReason: fallbackReason ?? "pdf_text_not_extracted"
   };
+}
+
+function getPdfFileFallbackReason({
+  source,
+  extractedText
+}: {
+  source: TwoStepMenuSourceInput;
+  extractedText: string;
+}) {
+  if (!extractedText) {
+    return "pdf_text_not_extracted";
+  }
+
+  if (!source.pdfTextQuality) {
+    return "pdf_text_quality_missing";
+  }
+
+  if (!source.pdfTextQuality.usableForAnalysis) {
+    return "pdf_text_quality_not_sufficient";
+  }
+
+  return null;
 }
 
 function logTwoStepMain(fields: Record<string, TwoStepMainLogValue>) {
@@ -2500,6 +2553,7 @@ async function selectPdfMenuForAnalysis({
   });
   const selected = rankedCandidates[0];
   const selectedSource = candidates.find((candidate) => candidate.url === selected?.url);
+  const selectedBaseScore = selectedSource?.baseScore ?? 0;
 
   if (selected) {
     console.info("[GUSTARO_PDF_ANALYSIS_SOURCE_SELECTION]", JSON.stringify({
@@ -2530,9 +2584,18 @@ async function selectPdfMenuForAnalysis({
     ? {
         url: selected.url,
         urls: selected.urls?.length ? selected.urls : [selected.url],
-        restaurantContextText: selectedSource?.restaurantContextText
+        restaurantContextText: selectedSource?.restaurantContextText,
+        pdfTextQuality: {
+          ...selected.metrics,
+          baseScore: selectedBaseScore,
+          usableForAnalysis: isExistingPdfTextQualityUsableForAnalysis(selected.metrics, selectedBaseScore)
+        }
       }
     : null;
+}
+
+function isExistingPdfTextQualityUsableForAnalysis(metrics: MenuSourceQualityMetrics, baseScore: number) {
+  return metrics.textLength > 0 && metrics.score > baseScore;
 }
 
 async function selectBestLinkedPdfMenuCandidate(
@@ -2676,6 +2739,10 @@ function normalizeRequestedDishRoles(values?: RequestedDishRole[]): RequestedDis
   }
 
   return ["main"];
+}
+
+function normalizePreferredDishRole(value: unknown): PreferredDishRole | undefined {
+  return value === "starter" || value === "salad" ? value : undefined;
 }
 
 function extractLinkedMenuSourceCandidates(

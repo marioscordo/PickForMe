@@ -18,7 +18,18 @@ export const TwoStepMenuSourceInputSchema = z.object({
   text: z.string().optional(),
   urls: z.array(z.string().trim().min(1)).optional(),
   sourceUrl: OptionalNullableStringSchema,
-  sourceLabel: OptionalNullableStringSchema
+  sourceLabel: OptionalNullableStringSchema,
+  mainAiInputMode: z.enum(["extracted_text", "pdf_file_fallback"]).optional(),
+  extractedTextCharCount: z.number().optional(),
+  pdfFallbackReason: z.string().trim().min(1).optional(),
+  pdfTextQuality: z.object({
+    usableForAnalysis: z.boolean(),
+    textLength: z.number(),
+    dishCount: z.number(),
+    priceCount: z.number(),
+    score: z.number(),
+    baseScore: z.number()
+  }).optional()
 });
 
 export const MainDishAIRecommendationSchema = z.object({

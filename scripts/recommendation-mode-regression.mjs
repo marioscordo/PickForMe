@@ -34,6 +34,14 @@ for (const [locale, content, expectedLabels] of [
   assert(!("situations" in content), `${locale}: old situations key must not be present`);
   assert(content.recommendation.startersAndSaladsButton === expectedLabels[0], `${locale}: nested starters/salads action mismatch`);
 }
+assert(
+  de.help.pickInput.points.includes("Wenn Du Dich für ein Gericht entschieden hast, kannst Du Dir dazu optional noch eine Vorspeise oder einen Salat empfehlen lassen."),
+  "de-DE: embedded starter/salad help text missing"
+);
+assert(
+  en.help.pickInput.points.includes("Once you have chosen a dish, you can optionally ask for a starter or salad as an additional course."),
+  "en-US: embedded starter/salad help text missing"
+);
 
 const mobileMode = read("apps/mobile/src/types/recommendationMode.ts");
 assert(mobileMode.includes('return mode === "starters_and_salads" ? ["starter", "salad"] : ["main"];'), "mobile mode payload mapping missing");
@@ -53,9 +61,11 @@ assert(!pickScreen.includes("<SituationSelector"), "PickScreen must not render t
 const useAnalyzeMenu = read("apps/mobile/src/hooks/useAnalyzeMenu.ts");
 assert(useAnalyzeMenu.includes("requestedDishRoles: RequestedDishRole[]"), "useAnalyzeMenu must accept requestedDishRoles");
 assert(!useAnalyzeMenu.includes("appetiteMood: situation"), "useAnalyzeMenu must not write mood into profile payload");
+assert(!useAnalyzeMenu.includes("preferredDishRole"), "top-level analyze hook must not send embedded role preference");
 
 const apiClient = read("apps/mobile/src/api/pickformeApi.ts");
 assert(apiClient.includes("requestedDishRoles: args.requestedDishRoles"), "mobile API payload must include requestedDishRoles");
+assert(apiClient.includes("preferredDishRole?: PreferredDishRole"), "mobile API payload must allow optional preferredDishRole");
 assert(!apiClient.includes("requestStarterPairings"), "mobile API client must not expose starter pairing call");
 assert(!apiClient.includes('"/api/starter-pairings"'), "mobile API client must not call starter-pairings");
 
@@ -65,22 +75,42 @@ assert(!recommendationCard.includes("requestStarterPairings"), "RecommendationCa
 assert(!recommendationCard.includes("targetDishId"), "RecommendationCard must not send targetDishId");
 assert(recommendationCard.includes("showStartersAndSaladsAction"), "RecommendationCard must gate nested action by main-mode prop");
 assert(recommendationCard.includes('requestedDishRoles: ["starter", "salad"]'), "RecommendationCard nested action must reuse starter/salad analyze roles");
+assert(recommendationCard.includes('preferredDishRole: "starter"'), "RecommendationCard nested action must prefer starters");
 assert(recommendationCard.includes("nestedLoadingDishIdsRef"), "RecommendationCard must guard fast double taps");
+assert(recommendationCard.includes("activeNestedDishIdRef"), "RecommendationCard must synchronously guard nested requests across different dishes");
+assert(recommendationCard.includes("activeNestedDishId === rec.dishId"), "RecommendationCard must bind nested active state to stable dishId");
+assert(recommendationCard.includes("activeDishId && activeDishId !== dishId"), "RecommendationCard must reject nested requests for inactive dishes");
+assert(recommendationCard.includes('currentStatus === "loaded"'), "RecommendationCard must not restart loaded nested analysis accidentally");
+assert(recommendationCard.includes("accessibilityState={{ disabled: Boolean(disabled) }}"), "RecommendationCard action disabled state must be accessible");
 
 const apiTypes = read("apps/api/src/types/api.ts");
 assert(apiTypes.includes('export type RequestedDishRole = "starter" | "salad" | "main";'), "API requested role type missing");
 assert(apiTypes.includes("requestedDishRoles?: RequestedDishRole[]"), "AnalyzeMenuRequest must include requestedDishRoles");
+assert(apiTypes.includes('PreferredDishRole = Extract<RequestedDishRole, "starter" | "salad">'), "API preferred role type missing");
 
 const analyzeRoute = read("apps/api/app/api/analyze-menu/route.ts");
 assert(analyzeRoute.includes("normalizeRequestedDishRoles(body.requestedDishRoles)"), "analyze route must normalize requested roles");
+assert(analyzeRoute.includes("normalizePreferredDishRole(body.preferredDishRole)"), "analyze route must normalize preferred role");
 assert(analyzeRoute.includes('return ["starter", "salad"];'), "analyze route must normalize starter/salad role space");
 assert(analyzeRoute.includes('return ["main"];'), "analyze route must default to main role space");
+assert(analyzeRoute.includes('mainAiInputMode: "extracted_text"'), "PDF fast path must mark extracted-text input mode");
+assert(analyzeRoute.includes('mainAiInputMode: "pdf_file_fallback"'), "PDF fallback must keep file-input mode");
+assert(analyzeRoute.includes("isExistingPdfTextQualityUsableForAnalysis"), "PDF fast path must reuse existing quality metrics");
 
 const mainAi = read("apps/api/src/ai/recommendMainDishesAI.ts");
 assert(mainAi.includes("Der aktive Rollenraum ist ausschliesslich starter und salad."), "Main AI starter/salad role rule missing");
 assert(mainAi.includes("Der aktive Rollenraum ist ausschliesslich main."), "Main AI main role rule missing");
 assert(mainAi.includes("keine_rollenfremde_auffuellung"), "Main AI must forbid role-foreign fill-up");
+assert(mainAi.includes("Optionale Rollenpraeferenz"), "Main AI optional starter preference rule missing");
+assert(mainAi.includes("Salate bleiben erlaubt"), "Main AI must keep salads allowed for embedded starter preference");
+assert(mainAi.includes("fuelle verbleibende Plaetze mit sicheren Salaten auf"), "Main AI must fill with safe salads when starters are insufficient");
 assert(mainAi.includes("verifyRecommendationSafetyAI"), "Safety verifier must remain active");
+assert(mainAi.includes('phase: "api.main_ai_request"'), "Main AI request timing diagnostic missing");
+assert(mainAi.includes("contentDiagnostics"), "Main AI request diagnostic must include input mode metadata");
+
+const twoStepUtils = read("apps/api/src/ai/twoStepRecommendationAIUtils.ts");
+assert(twoStepUtils.includes('source.mainAiInputMode !== "extracted_text"'), "extracted-text PDF mode must skip PDF file input");
+assert(twoStepUtils.includes("pdfFileInputIncluded"), "source content diagnostic must report PDF file input");
 
 const mapper = read("apps/api/src/recommendation/twoStepRecommendationMappers.ts");
 assert(mapper.includes("AI-Vorspeisen-/Salatempfehlung"), "mapper starter/salad category missing");

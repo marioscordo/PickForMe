@@ -476,6 +476,7 @@
       "points": [
         "Du kannst GustaroAI eine Speisekarte auf mehreren Wegen zeigen: Link einfügen, QR-Code scannen, Foto aufnehmen oder Speisekartentext einfügen. Bevor GustaroAI Dir passende Gerichte empfiehlt, kannst Du Deine Vorlieben noch einmal prüfen. Danach kommst Du direkt zurück zur Speisekartenanalyse - Dein Link, QR-Code, Foto oder Text bleibt erhalten.",
         "Mit „Was soll ich Dir empfehlen?“ wählst Du zwischen Vorspeisen und Salaten oder Hauptspeisen.",
+        "Wenn Du Dich für ein Gericht entschieden hast, kannst Du Dir dazu optional noch eine Vorspeise oder einen Salat empfehlen lassen.",
         "Diese Auswahl begrenzt den Gerichtsraum der Analyse - Dein Profil bleibt dabei weiterhin wichtig.",
         "Die Auswertung kann etwas Zeit in Anspruch nehmen, besonders bei längeren Speisekarten."
       ],

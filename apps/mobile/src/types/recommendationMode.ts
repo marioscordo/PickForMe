@@ -1,4 +1,5 @@
 export type RequestedDishRole = "starter" | "salad" | "main";
+export type PreferredDishRole = Extract<RequestedDishRole, "starter" | "salad">;
 
 export type RecommendationModeId = "starters_and_salads" | "main_course";
 

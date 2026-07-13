@@ -1,6 +1,7 @@
 import type { Situation, UserProfile } from "./profile";
 
 export type RequestedDishRole = "starter" | "salad" | "main";
+export type PreferredDishRole = Extract<RequestedDishRole, "starter" | "salad">;
 
 export type AnalyzeMenuRequest = {
   sourceKind: "text";
@@ -8,6 +9,7 @@ export type AnalyzeMenuRequest = {
   menuUrls?: string[];
   situation?: Situation;
   requestedDishRoles?: RequestedDishRole[];
+  preferredDishRole?: PreferredDishRole;
   diagnosticRunId?: string;
   profile: UserProfile;
   userLocale?: string;

@@ -88,6 +88,7 @@ function PremiumCardAction({
 }) {
   return (
     <Pressable
+      accessibilityState={{ disabled: Boolean(disabled) }}
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
@@ -153,6 +154,8 @@ export function RecommendationCard({
   const content = useMobileContent();
   const { profile } = useProfile();
   const nestedLoadingDishIdsRef = useRef(new Set<string>());
+  const activeNestedDishIdRef = useRef<string | null>(null);
+  const [activeNestedDishId, setActiveNestedDishId] = useState<string | null>(null);
   const [nestedRecommendationsByDishId, setNestedRecommendationsByDishId] = useState<Record<string, NestedRecommendationState>>({});
   const [restaurantIntroStatus, setRestaurantIntroStatus] = useState<RestaurantIntroStatus>("idle");
   const [restaurantIntroText, setRestaurantIntroText] = useState("");
@@ -241,6 +244,8 @@ export function RecommendationCard({
 
   useEffect(() => {
     nestedLoadingDishIdsRef.current.clear();
+    activeNestedDishIdRef.current = null;
+    setActiveNestedDishId(null);
     setNestedRecommendationsByDishId({});
     setRestaurantIntroStatus("idle");
     setRestaurantIntroText("");
@@ -286,12 +291,21 @@ export function RecommendationCard({
   }
 
   async function handleStartersAndSaladsSearch(dishId: string) {
+    const activeDishId = activeNestedDishIdRef.current;
     const currentStatus = nestedRecommendationsByDishId[dishId]?.status;
 
-    if (currentStatus === "loading" || nestedLoadingDishIdsRef.current.has(dishId)) {
+    if (activeDishId && activeDishId !== dishId) {
       return;
     }
 
+    if (currentStatus === "loading" || currentStatus === "loaded" || nestedLoadingDishIdsRef.current.has(dishId)) {
+      return;
+    }
+
+    if (!activeDishId) {
+      activeNestedDishIdRef.current = dishId;
+      setActiveNestedDishId(dishId);
+    }
     nestedLoadingDishIdsRef.current.add(dishId);
     setNestedRecommendationsByDishId((current) => ({
       ...current,
@@ -304,6 +318,7 @@ export function RecommendationCard({
       const data = await analyzeMenu({
         menuText,
         requestedDishRoles: ["starter", "salad"],
+        preferredDishRole: "starter",
         profile
       });
 
@@ -386,6 +401,11 @@ export function RecommendationCard({
           const showDescription = translatedDescription.length > 0 && translatedDescription !== translatedName;
           const isPrimaryRecommendation = index === 0;
           const nestedState = nestedRecommendationsByDishId[rec.dishId] ?? { status: "idle" };
+          const isNestedActiveDish = activeNestedDishId === rec.dishId;
+          const isOtherNestedDishActive = Boolean(activeNestedDishId && !isNestedActiveDish);
+          const nestedActionDisabled = nestedState.status === "loading" ||
+            nestedState.status === "loaded" ||
+            isOtherNestedDishActive;
 
           const priceText = typeof dishData.price === "number" ? formatEuroPrice(dishData.price) : "";
           return (
@@ -412,7 +432,7 @@ export function RecommendationCard({
                 {showStartersAndSaladsAction ? (
                   <View style={local.nestedActionBox}>
                     <PremiumCardAction
-                      disabled={nestedState.status === "loading"}
+                      disabled={nestedActionDisabled}
                       hero={isPrimaryRecommendation}
                       label={
                         nestedState.status === "loading"
