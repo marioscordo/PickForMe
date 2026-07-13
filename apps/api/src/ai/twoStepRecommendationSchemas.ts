@@ -6,13 +6,6 @@ export const TwoStepCommittedConfidenceSchema = z.enum(["high", "medium"]);
 
 const OptionalNullableStringSchema = z.string().trim().min(1).nullable().optional();
 
-export const SemanticEvidenceSafetyMatchSchema = z.object({
-  restrictionId: z.string().trim().min(1).optional(),
-  evidence: z.string().trim().min(1).optional(),
-  source: z.string().trim().min(1).optional(),
-  relation: z.string().trim().min(1).optional()
-}).passthrough();
-
 export const TwoStepProfileSafetySchema = z.object({
   hasKnownConflict: z.boolean(),
   uncertainForAllergy: z.boolean(),
@@ -41,8 +34,7 @@ export const MainDishAIRecommendationSchema = z.object({
   sourceCategoryOriginal: OptionalNullableStringSchema,
   reason: z.string().trim().min(1),
   confidence: TwoStepConfidenceSchema,
-  profileSafety: TwoStepProfileSafetySchema,
-  safetyMatches: z.array(SemanticEvidenceSafetyMatchSchema).optional()
+  profileSafety: TwoStepProfileSafetySchema
 });
 
 export const MainDishAISafeCandidateRecommendationPayloadSchema = z.object({
@@ -87,8 +79,7 @@ export const MainDishAISafeCandidateSchema = z.object({
   sourceCategoryOriginal: OptionalNullableStringSchema,
   confidence: TwoStepConfidenceSchema.optional(),
   profileSafety: TwoStepProfileSafetySchema.optional(),
-  recommendationPayload: MainDishAISafeCandidateRecommendationPayloadSchema.optional(),
-  safetyMatches: z.array(SemanticEvidenceSafetyMatchSchema).optional()
+  recommendationPayload: MainDishAISafeCandidateRecommendationPayloadSchema.optional()
 });
 
 export const MainDishAIResultSummarySchema = z.object({
@@ -134,8 +125,7 @@ export const StarterAIRecommendationSchema = z.object({
   sourceCategoryOriginal: OptionalNullableStringSchema,
   pairingReason: z.string().trim().min(1),
   confidence: TwoStepConfidenceSchema,
-  profileSafety: TwoStepProfileSafetySchema,
-  safetyMatches: z.array(SemanticEvidenceSafetyMatchSchema).optional()
+  profileSafety: TwoStepProfileSafetySchema
 });
 
 export const CommittedStarterRecommendationSchema = z.object({
@@ -186,7 +176,6 @@ export type TwoStepSourceKind = z.infer<typeof TwoStepSourceKindSchema>;
 export type TwoStepConfidence = z.infer<typeof TwoStepConfidenceSchema>;
 export type TwoStepCommittedConfidence = z.infer<typeof TwoStepCommittedConfidenceSchema>;
 export type TwoStepProfileSafety = z.infer<typeof TwoStepProfileSafetySchema>;
-export type SemanticEvidenceSafetyMatch = z.infer<typeof SemanticEvidenceSafetyMatchSchema>;
 export type TwoStepMenuSourceInput = z.infer<typeof TwoStepMenuSourceInputSchema>;
 export type MainDishAIRecommendation = z.infer<typeof MainDishAIRecommendationSchema>;
 export type MainDishAISafeCandidateRecommendationPayload = z.infer<typeof MainDishAISafeCandidateRecommendationPayloadSchema>;

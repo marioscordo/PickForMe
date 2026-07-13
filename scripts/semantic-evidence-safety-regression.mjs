@@ -12,8 +12,8 @@ const assert = (condition, message) => {
   }
 };
 
-function loadSemanticEvidenceModule() {
-  const sourcePath = path.resolve("apps/api/src/recommendation/semanticEvidenceSafetyGate.ts");
+function loadSafetyVerifierModule() {
+  const sourcePath = path.resolve("apps/api/src/recommendation/recommendationSafetyVerifier.ts");
   const source = fs.readFileSync(sourcePath, "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -37,296 +37,196 @@ function loadSemanticEvidenceModule() {
 }
 
 const {
-  applySemanticEvidenceSafetyGate,
-  buildSemanticEvidenceRestrictions,
-  rebuildMainDishRecommendationsFromSemanticSafeCandidates
-} = loadSemanticEvidenceModule();
+  buildRecommendationSafetyRestrictions,
+  filterSafeRecommendationCandidates,
+  validateRecommendationSafetyResponse
+} = loadSafetyVerifierModule();
 
-const restrictions = buildSemanticEvidenceRestrictions({
-  allergens: ["Walnuesse", "Muscheln"],
-  customExclusions: ["Sahne", "Schweinefleisch"]
+const restrictions = buildRecommendationSafetyRestrictions({
+  allergens: ["Walnuesse"],
+  customExclusions: ["Sahne"]
 });
 
-const byLabel = new Map(restrictions.map((restriction) => [restriction.label, restriction.id]));
-
-function candidate(nameOriginal, descriptionOriginal, match) {
-  const profileSafety = {
-    hasKnownConflict: false,
-    uncertainForAllergy: false,
-    conflictReason: null
-  };
-
+function candidate(id, nameOriginal, descriptionOriginal) {
   return {
+    id,
     nameOriginal,
-    descriptionOriginal,
-    scoreReason: `Score ${nameOriginal}`,
-    translatedName: `DE ${nameOriginal}`,
-    confidence: "medium",
-    profileSafety,
-    recommendationPayload: {
-      nameOriginal,
-      translatedName: `DE ${nameOriginal}`,
-      descriptionOriginal,
-      translatedDescription: `Beschreibung ${nameOriginal}`,
-      priceRaw: `${nameOriginal.length},00 EUR`,
-      sourceEvidence: descriptionOriginal,
-      sourceKind: "pdf",
-      sourceUrl: "https://test.invalid/menu.pdf",
-      sourceCategoryOriginal: "Mains",
-      reason: `Reason ${nameOriginal}`,
-      confidence: "medium",
-      profileSafety
-    },
-    safetyMatches: match ? [match] : undefined
+    descriptionOriginal
   };
 }
 
-function starterCandidate(nameOriginal, sourceEvidence, match) {
+function check(restrictionId, verdict, evidence = null, source = null) {
   return {
-    nameOriginal,
-    sourceEvidence,
-    safetyMatches: match ? [match] : undefined,
-    starterPayload: {
-      nameOriginal,
-      translatedName: `DE ${nameOriginal}`,
-      evidence: sourceEvidence
-    }
-  };
-}
-
-function withoutRecommendationPayload(item) {
-  const { recommendationPayload, ...rest } = item;
-  return rest;
-}
-
-function match(label, evidence, relation = "contains", source = "description") {
-  return {
-    restrictionId: byLabel.get(label),
+    restrictionId,
+    verdict,
     evidence,
-    source,
-    relation
+    source
   };
 }
 
-function gate(candidates) {
-  return applySemanticEvidenceSafetyGate({
+function response(items) {
+  return {
+    candidates: items
+  };
+}
+
+function resultFor(candidates, verifierResponse, activeRestrictions = restrictions) {
+  return filterSafeRecommendationCandidates({
+    restrictions: activeRestrictions,
     candidates,
-    restrictions
+    response: verifierResponse
   });
-}
-
-{
-  const result = gate([
-    candidate("Veggie Mousaka", "with a walnut & mushroom ragu", match("Walnuesse", "walnut"))
-  ]);
-
-  assert(result.candidates.length === 0, "Mira walnut candidate must be removed");
-  assert(result.removed[0]?.nameOriginal === "Veggie Mousaka", "Mira removed candidate name missing");
-}
-
-{
-  const result = gate([
-    starterCandidate("Beetroot salad", "beetroot, walnuts, dried figs", match("Walnuesse", "walnuts"))
-  ]);
-
-  assert(result.candidates.length === 0, "Mira beetroot salad starter with walnuts must be removed");
-  assert(result.removed[0]?.nameOriginal === "Beetroot salad", "Mira starter removed candidate name missing");
-}
-
-for (const [label, evidence, description] of [
-  ["Walnuesse", "walnuts", "beetroot, walnuts, dried figs"],
-  ["Sahne", "cream sauce", "pasta with cream sauce"],
-  ["Schweinefleisch", "pork", "slow cooked pork shoulder"],
-  ["Muscheln", "mussels", "fresh steamed mussels"],
-  ["Walnuesse", "καρύδια", "με αποξηραμένο σύκο, πορτοκάλι, καρύδια, μήλο"]
-]) {
-  const result = gate([candidate(`Candidate ${evidence}`, description, match(label, evidence))]);
-
-  assert(result.candidates.length === 0, `Expected visible evidence to block ${label} / ${evidence}`);
-}
-
-for (const [description, safetyMatch, expectedMessage] of [
-  ["plain tomato pasta", match("Walnuesse", "walnut"), "Hallucinated evidence must be ignored"],
-  ["with walnut", { ...match("Walnuesse", "walnut"), restrictionId: "unknown_0" }, "Unknown restriction ID must be ignored"],
-  ["without walnuts", match("Walnuesse", "walnuts", "free_from"), "free_from must not block"],
-  ["unclear walnut reference", match("Walnuesse", "walnut", "unknown"), "unknown relation must not block"],
-  ["traditional pesto", undefined, "Missing safetyMatches must not block"],
-  ["traditional pesto", { restrictionId: byLabel.get("Walnuesse"), evidence: "", source: "description", relation: "contains" }, "Incomplete match must not block"],
-  ["traditional pesto", match("Walnuesse", "walnut"), "Traditional pesto without visible nut evidence must not block"],
-  ["without walnuts", match("Walnuesse", "walnuts", "free_from"), "without walnuts with free_from must not block"]
-]) {
-  const result = gate([candidate(expectedMessage, description, safetyMatch)]);
-
-  assert(result.candidates.length === 1, expectedMessage);
-}
-
-{
-  const result = gate([{ ...candidate("Empty matches", "traditional pesto"), safetyMatches: [] }]);
-
-  assert(result.candidates.length === 1, "Empty safetyMatches array must not block");
 }
 
 {
   const candidates = [
-    candidate("A", "safe A"),
-    candidate("B", "walnut sauce", match("Walnuesse", "walnut")),
-    candidate("C", "safe C"),
-    candidate("D", "safe D")
+    candidate("candidate_0", "Veggie Mousaka", "walnut & mushroom ragu"),
+    candidate("candidate_1", "Chicken Fillet", "grilled chicken"),
+    candidate("candidate_2", "Seafood Pasta", "tomato sauce"),
+    candidate("candidate_3", "Pasta el greco", "tomato and feta")
   ];
-  const gated = gate(candidates);
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: gated.candidates
-  });
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "conflict", "walnut", "description"), check("exclusion_0", "no_visible_conflict")] },
+    { candidateId: "candidate_1", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] },
+    { candidateId: "candidate_2", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] },
+    { candidateId: "candidate_3", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] }
+  ]));
 
-  assert(recommendations.map((item) => item.nameOriginal).join(",") === "A,C,D", "Fourth candidate must move up without reranking");
-  assert(recommendations[2]?.reason === "Reason D", "Moved-up candidate must keep its own reason");
-  assert(recommendations[2]?.sourceEvidence === "safe D", "Moved-up candidate must keep its own evidence");
-  assert(recommendations[2]?.translatedName === "DE D", "Moved-up candidate must keep its own translation");
-}
-
-{
-  const gated = gate([
-    candidate("A", "safe A"),
-    candidate("B", "safe B"),
-    candidate("C", "walnut sauce", match("Walnuesse", "walnut"))
-  ]);
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: gated.candidates
-  });
-
-  assert(recommendations.length === 2, "Exactly two recommendations expected when two candidates remain");
-}
-
-{
-  const gated = gate([
-    candidate("A", "walnut sauce", match("Walnuesse", "walnut"))
-  ]);
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: gated.candidates
-  });
-
-  assert(gated.candidates.length === 0, "No safe candidate should remain");
-  assert(recommendations.length === 0, "No recommendation expected when no safe candidate remains");
+  assert(result.candidates.map((item) => item.nameOriginal).join(",") === "Chicken Fillet,Seafood Pasta,Pasta el greco", "Mira main candidate must be removed and next candidates must move up");
 }
 
 {
   const starters = [
-    starterCandidate("Beetroot salad", "beetroot, walnuts, dried figs", match("Walnuesse", "walnuts")),
-    starterCandidate("Greek salad", "tomato, cucumber, olives"),
-    starterCandidate("Tomato soup", "tomato soup")
+    candidate("starter_0", "Beetroot salad", "walnuts")
   ];
-  const gated = gate(starters);
+  const result = resultFor(starters, response([
+    { candidateId: "starter_0", checks: [check("allergen_0", "conflict", "walnuts", "description"), check("exclusion_0", "no_visible_conflict")] }
+  ]));
 
-  assert(gated.candidates[0]?.nameOriginal === "Greek salad", "Second safe starter must move up");
-  assert(gated.candidates[0]?.starterPayload.evidence === "tomato, cucumber, olives", "Moved-up starter must keep its own evidence");
-  assert(gated.candidates.map((item) => item.nameOriginal).join(",") === "Greek salad,Tomato soup", "Starter order must remain unchanged after removal");
+  assert(result.candidates.length === 0, "Mira beetroot salad starter must be removed");
+}
+
+for (const [description, evidence] of [
+  ["without walnuts", "without walnuts"],
+  ["nut-free", "nut-free"],
+  ["free from milk", "free from milk"]
+]) {
+  const candidates = [candidate("candidate_0", "Safe dish", description)];
+  const activeRestrictions = buildRecommendationSafetyRestrictions({ allergens: ["Walnuesse"] });
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "free_from", evidence, "description")] }
+  ]), activeRestrictions);
+
+  assert(result.candidates.length === 1, `${description} must not block when verifier returns free_from`);
 }
 
 {
-  const gated = gate([
-    starterCandidate("Beetroot salad", "beetroot, walnuts, dried figs", match("Walnuesse", "walnuts"))
-  ]);
+  const candidates = [candidate("candidate_0", "Dessert", "may contain walnuts")];
+  const activeRestrictions = buildRecommendationSafetyRestrictions({ allergens: ["Walnuesse"] });
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "conflict", "may contain walnuts", "description")] }
+  ]), activeRestrictions);
 
-  assert(gated.candidates.length === 0, "Unsafe starter without replacement must leave no starter candidate");
+  assert(result.candidates.length === 0, "may contain walnuts must block for allergens");
 }
 
 {
-  const gated = gate([
-    candidate("A", "safe A"),
-    candidate("B", "safe B"),
-    candidate("C", "safe C")
-  ]);
+  const candidates = [candidate("candidate_0", "Dish", "unclear sauce")];
+  const activeRestrictions = buildRecommendationSafetyRestrictions({ allergens: ["Walnuesse"] });
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "uncertain")] }
+  ]), activeRestrictions);
 
-  assert(gated.candidates.map((item) => item.nameOriginal).join(",") === "A,B,C", "Candidate order must remain unchanged");
+  assert(result.candidates.length === 0, "uncertain must fail closed");
+}
+
+{
+  const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict")] }
+  ]));
+
+  assert(result.candidates.length === 0, "missing restriction check must fail closed");
+}
+
+{
+  const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict"), check("allergen_0", "no_visible_conflict")] }
+  ]));
+
+  assert(result.candidates.length === 0, "duplicate restriction ID must fail closed");
+}
+
+{
+  const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
+  const validation = validateRecommendationSafetyResponse({
+    restrictions,
+    candidates,
+    response: response([
+      { candidateId: "unknown_candidate", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] }
+    ])
+  });
+
+  assert(validation[0]?.safe === false, "unknown candidate ID must not mark a real candidate safe");
+}
+
+{
+  const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] },
+    { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] }
+  ]));
+
+  assert(result.candidates.length === 0, "duplicate candidate ID must fail closed");
+}
+
+{
+  const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "conflict", "walnut", "description"), check("exclusion_0", "no_visible_conflict")] }
+  ]));
+
+  assert(result.candidates.length === 0, "hallucinated evidence must fail closed");
 }
 
 {
   const candidates = [
-    candidate("A", "safe A"),
-    candidate("Veggie Mousaka", "walnut & mushroom ragu", match("Walnuesse", "walnut")),
-    candidate("C", "safe C"),
-    candidate("D", "safe D")
+    candidate("candidate_0", "House Salad", "walnuts"),
+    candidate("candidate_1", "House Salad", "tomatoes")
   ];
-  const gated = gate(candidates);
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: gated.candidates
-  });
+  const activeRestrictions = buildRecommendationSafetyRestrictions({ allergens: ["Walnuesse"] });
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "conflict", "walnuts", "description")] },
+    { candidateId: "candidate_1", checks: [check("allergen_0", "no_visible_conflict")] }
+  ]), activeRestrictions);
 
-  assert(gated.removed[0]?.nameOriginal === "Veggie Mousaka", "Mira moved-up case must remove Veggie Mousaka");
-  assert(recommendations.map((item) => item.nameOriginal).join(",") === "A,C,D", "Mira moved-up case must return A,C,D");
-  assert(recommendations[2]?.reason === "Reason D", "Mira moved-up D must use D reason");
+  assert(result.candidates.map((item) => item.id).join(",") === "candidate_1", "duplicate names must be separated by candidate ID");
 }
 
 {
   const candidates = [
-    candidate("A", "safe A"),
-    withoutRecommendationPayload(candidate("B", "safe B")),
-    candidate("C", "safe C"),
-    candidate("D", "safe D")
+    candidate("candidate_0", "A", "safe A"),
+    candidate("candidate_1", "B", "walnut sauce"),
+    candidate("candidate_2", "C", "safe C"),
+    candidate("candidate_3", "D", "safe D")
   ];
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: candidates
-  });
+  const activeRestrictions = buildRecommendationSafetyRestrictions({ allergens: ["Walnuesse"] });
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict")] },
+    { candidateId: "candidate_1", checks: [check("allergen_0", "conflict", "walnut", "description")] },
+    { candidateId: "candidate_2", checks: [check("allergen_0", "no_visible_conflict")] },
+    { candidateId: "candidate_3", checks: [check("allergen_0", "no_visible_conflict")] }
+  ]), activeRestrictions);
 
-  assert(recommendations.map((item) => item.nameOriginal).join(",") === "A,C,D", "Candidate without payload must be skipped");
+  assert(result.candidates.map((item) => item.nameOriginal).join(",") === "A,C,D", "four-to-three order must remain stable");
 }
 
 {
-  const incomplete = candidate("B", "safe B");
-  incomplete.recommendationPayload = {
-    ...incomplete.recommendationPayload,
-    translatedName: undefined
-  };
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: [candidate("A", "safe A"), incomplete, candidate("C", "safe C")]
-  });
+  const candidates = [candidate("candidate_0", "A", "safe A")];
+  const result = resultFor(candidates, response([]), []);
 
-  assert(recommendations.map((item) => item.nameOriginal).join(",") === "A,C", "Candidate without translatedName must be skipped");
+  assert(result.candidates.length === 1, "no restrictions must keep candidates without verifier checks");
 }
 
-{
-  const candidates = [
-    { ...candidate("House Salad", "walnuts", match("Walnuesse", "walnuts")), recommendationPayload: { ...candidate("House Salad", "walnuts").recommendationPayload, reason: "Reason walnut salad" } },
-    { ...candidate("House Salad", "tomatoes"), recommendationPayload: { ...candidate("House Salad", "tomatoes").recommendationPayload, reason: "Reason tomato salad" } },
-    candidate("D", "safe D")
-  ];
-  const gated = gate(candidates);
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: gated.candidates
-  });
-
-  assert(gated.candidates.length === 2, "Only conflicting duplicate-name candidate must be removed");
-  assert(recommendations[0]?.reason === "Reason tomato salad", "Duplicate-name survivor must keep its own payload");
-}
-
-{
-  const candidates = [
-    candidate("Moussaka", "walnut ragu", match("Walnuesse", "walnut")),
-    candidate("Moussaka", "eggplant and tomato"),
-    candidate("Classic Mousaka", "safe classic")
-  ];
-  const gated = gate(candidates);
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: gated.candidates
-  });
-
-  assert(recommendations.map((item) => item.descriptionOriginal).join("|") === "eggplant and tomato|safe classic", "Same-name and similar-name candidates must not mix descriptions");
-}
-
-{
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: [candidate("A", "safe A"), candidate("B", "safe B"), candidate("C", "safe C")]
-  });
-
-  assert(recommendations.length === 3, "Three complete candidates must yield three recommendations");
-}
-
-{
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: [candidate("A", "safe A")]
-  });
-
-  assert(recommendations.length === 1, "One complete candidate must yield one recommendation");
-}
-
-console.log("semantic-evidence-safety-regression: ok");
+console.log("recommendation-safety-verifier-regression: ok");

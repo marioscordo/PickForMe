@@ -17,11 +17,11 @@ import {
   type MainDishAISafeCandidate,
   type TwoStepMenuSourceInput
 } from "./twoStepRecommendationSchemas";
+import { verifyRecommendationSafetyAI } from "./verifyRecommendationSafetyAI";
 import {
-  applySemanticEvidenceSafetyGate,
-  buildSemanticEvidenceRestrictions,
-  rebuildMainDishRecommendationsFromSemanticSafeCandidates
-} from "../recommendation/semanticEvidenceSafetyGate";
+  buildRecommendationSafetyRestrictions,
+  filterSafeRecommendationCandidates
+} from "../recommendation/recommendationSafetyVerifier";
 
 type MainDishAiDiagnosticRow = {
   index: number;
@@ -81,10 +81,10 @@ export async function recommendMainDishesAI({
 
   const response = await client.responses.create(request, signal ? { signal } : undefined);
   const parsed = MainDishAIResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
-  const semanticSafe = applyMainDishSemanticEvidenceSafety(parsed, profile);
-  logMainDishAiResponseDiagnostic(semanticSafe, runId);
+  const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, signal);
+  logMainDishAiResponseDiagnostic(verifierSafe, runId);
 
-  return semanticSafe.recommendations;
+  return verifierSafe.recommendations;
 }
 
 function logMainDishAiResponseDiagnostic(
@@ -160,7 +160,7 @@ function logMainDishAiResponseDiagnostic(
   })}`);
 }
 
-function applyMainDishSemanticEvidenceSafety(
+async function applyMainDishVerifierSafety(
   response: {
     allDishes: MainDishAIAnalyzedDish[];
     removedDishes: MainDishAIRemovedDish[];
@@ -168,43 +168,124 @@ function applyMainDishSemanticEvidenceSafety(
     recommendations: MainDishAIRecommendation[];
     resultSummary: MainDishAIResultSummary;
   },
-  profile: UserProfile
+  profile: UserProfile,
+  signal?: AbortSignal
 ) {
-  const restrictions = buildSemanticEvidenceRestrictions(profile);
-  const semanticGate = applySemanticEvidenceSafetyGate({
-    candidates: response.safeCandidates,
-    restrictions
-  });
+  const restrictions = buildRecommendationSafetyRestrictions(profile);
 
-  if (semanticGate.removed.length === 0) {
+  if (restrictions.length === 0 || response.safeCandidates.length === 0) {
     return response;
   }
 
-  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
-    safeCandidates: semanticGate.candidates
+  const candidates = response.safeCandidates.map((candidate, index) => ({
+    ...candidate,
+    id: `candidate_${index}`
+  }));
+  const verifierCandidates = candidates.map((candidate) => ({
+    id: candidate.id,
+    nameOriginal: candidate.nameOriginal,
+    descriptionOriginal: candidate.descriptionOriginal
+  }));
+  const verifierResponse = await verifyRecommendationSafetyAI({
+    restrictions,
+    candidates: verifierCandidates,
+    signal
+  }).catch(() => ({ candidates: [] }));
+  const verifierResult = filterSafeRecommendationCandidates({
+    restrictions,
+    candidates,
+    response: verifierResponse
+  });
+  const safeCandidates = verifierResult.candidates.map(({ id: _id, ...candidate }) => candidate);
+
+  if (safeCandidates.length === response.safeCandidates.length) {
+    return response;
+  }
+
+  const recommendations = rebuildMainDishRecommendationsFromSafeCandidates({
+    safeCandidates
   });
 
   return {
     ...response,
     removedDishes: [
       ...response.removedDishes,
-      ...semanticGate.removed.map((removed): MainDishAIRemovedDish => ({
-        nameOriginal: removed.nameOriginal,
-        matchedProfileValue: removed.restrictionLabel,
-        reason: `Semantischer sichtbarer Konflikt: ${removed.evidence} (${removed.restrictionId})`
-      }))
+      ...verifierResult.validation
+        .filter((result) => !result.safe)
+        .map((result): MainDishAIRemovedDish => ({
+          nameOriginal: candidates.find((candidate) => candidate.id === result.candidateId)?.nameOriginal ?? result.candidateId,
+          matchedProfileValue: "Safety-Verifier",
+          reason: "Nicht ausreichend sicher verifiziert."
+        }))
     ],
-    safeCandidates: semanticGate.candidates,
+    safeCandidates,
     recommendations,
     resultSummary: {
       ...response.resultSummary,
-      removedDishCount: response.resultSummary.removedDishCount + semanticGate.removed.length,
-      safeCandidateCount: semanticGate.candidates.length,
+      removedDishCount: response.resultSummary.removedDishCount + verifierResult.validation.filter((result) => !result.safe).length,
+      safeCandidateCount: safeCandidates.length,
       recommendationCount: recommendations.length,
       lessThanThreeReason: recommendations.length < 3
-        ? response.resultSummary.lessThanThreeReason ?? "Weniger als drei sichere Kandidaten nach semantischer Evidence-Pruefung."
+        ? response.resultSummary.lessThanThreeReason ?? "Weniger als drei sichere Kandidaten nach Safety-Verifier-Pruefung."
         : null
     }
+  };
+}
+
+function rebuildMainDishRecommendationsFromSafeCandidates({
+  safeCandidates
+}: {
+  safeCandidates: MainDishAISafeCandidate[];
+}): MainDishAIRecommendation[] {
+  const nextRecommendations: MainDishAIRecommendation[] = [];
+
+  for (const candidate of safeCandidates) {
+    const recommendation = buildRecommendationFromSafeCandidate(candidate);
+
+    if (!recommendation) {
+      continue;
+    }
+
+    nextRecommendations.push({
+      ...recommendation,
+      rank: nextRecommendations.length + 1
+    });
+
+    if (nextRecommendations.length >= 3) {
+      break;
+    }
+  }
+
+  return nextRecommendations;
+}
+
+function buildRecommendationFromSafeCandidate(candidate: MainDishAISafeCandidate): MainDishAIRecommendation | null {
+  const payload = candidate.recommendationPayload;
+
+  if (
+    !payload?.nameOriginal?.trim() ||
+    !payload.translatedName?.trim() ||
+    !payload.reason?.trim() ||
+    !payload.confidence ||
+    !payload.profileSafety
+  ) {
+    return null;
+  }
+
+  return {
+    rank: 0,
+    nameOriginal: payload.nameOriginal,
+    translatedName: payload.translatedName,
+    descriptionOriginal: payload.descriptionOriginal,
+    translatedDescription: payload.translatedDescription,
+    priceRaw: payload.priceRaw,
+    sourceEvidence: payload.sourceEvidence,
+    sourceKind: payload.sourceKind,
+    sourceUrl: payload.sourceUrl,
+    sourceCategoryOriginal: payload.sourceCategoryOriginal,
+    reason: payload.reason,
+    confidence: payload.confidence,
+    profileSafety: payload.profileSafety
   };
 }
 
@@ -234,13 +315,11 @@ function buildMainDishPrompt({
 }) {
   const activePreferences = getActivePreferenceValues(profile);
   const searchAssignment = buildActivePreferenceSearchAssignment(activePreferences);
-  const semanticEvidenceRestrictions = buildSemanticEvidenceRestrictions(profile);
   const structuredAssignment = buildStructuredMainDishAssignment({
     profile,
     situation,
     activePreferences,
     searchAssignment,
-    semanticEvidenceRestrictions,
     targetLocale
   });
 
@@ -287,13 +366,6 @@ function buildMainDishPrompt({
     "- Entferne Gerichte nur, wenn ein aktiver harter Profilwert im sichtbaren Gerichtsnamen oder in der sichtbaren Beschreibung erkennbar vorkommt.",
     "- Entferne kein Gericht wegen blosser Vermutung, unbekannter Zubereitung oder Formulierungen wie koennte enthalten.",
     "- Wenn kein sichtbarer Konflikt erkennbar ist, darf das Gericht nicht allein wegen Unsicherheit in removedDishes landen.",
-    "- Pruefe zusaetzlich sprachuebergreifend, ob eine aktive Einschraenkung in sichtbarem Gerichtsnamen oder sichtbarer Beschreibung semantisch genannt wird.",
-    "- Nutze dafuer ausschliesslich die restrictionIds aus semanticEvidenceRestrictions im strukturierten Auftrag.",
-    "- Beispiele fuer semantische sichtbare Konflikte: Walnuesse -> walnut, Sahne -> cream, Schweinefleisch -> pork, Muscheln -> mussels.",
-    "- Keine Zutatenvermutung, keine typische-Rezept-Annahme, keine Ableitung aus Kuechenstil, Gerichtstyp oder Herkunft.",
-    "- Fuer jeden semantischen Match muss safetyMatches restrictionId, evidence, source und relation enthalten.",
-    "- evidence muss ein kurzer exakter sichtbarer Textbeleg aus Name oder Beschreibung sein.",
-    "- relation ist contains, may_contain, free_from oder unknown. Verwende free_from fuer ausdruecklich freie Formulierungen wie without walnuts.",
     "- Wenn Sahne, Rahm, Cream oder Panna in Ausschluessen, Unvertraeglichkeiten oder Allergenen aktiv ist: kein Gericht mit Sahne, Sahnesosse, Sahnesauce, Rahm, Cream, Cream sauce oder Panna empfehlen.",
     "- Beispiel Modo Mio: Name Spaghetti al Tartufo wirkt unkritisch, aber die Beschreibung enthaelt Pecorino-Trueffel-Sahnesauce; bei Ausschluss Sahne muss dieses Gericht entfernt werden.",
     "- Nutze nur echte Hauptgerichte, die belegbar in der Speisekarte vorkommen.",
@@ -378,15 +450,7 @@ function buildMainDishPrompt({
     '          "conflictReason": null,',
     '          "checkedAgainst": ["aktive harte Profilwerte"]',
     "        }",
-    "      },",
-    '      "safetyMatches": [',
-    "        {",
-    '          "restrictionId": "allergen_0",',
-    '          "evidence": "exakter sichtbarer Textbeleg",',
-    '          "source": "name | description",',
-    '          "relation": "contains | may_contain | free_from | unknown"',
-    "        }",
-    "      ]",
+    "      }",
     "    }",
     "  ],",
     '  "recommendations": [',
@@ -408,15 +472,7 @@ function buildMainDishPrompt({
     '        "uncertainForAllergy": false,',
     '        "conflictReason": null,',
     '        "checkedAgainst": ["aktive harte Profilwerte"]',
-    "      },",
-    '      "safetyMatches": [',
-    "        {",
-    '          "restrictionId": "allergen_0",',
-    '          "evidence": "exakter sichtbarer Textbeleg",',
-    '          "source": "name | description",',
-    '          "relation": "contains | may_contain | free_from | unknown"',
-    "        }",
-    "      ]",
+    "      }",
     "    }",
     "  ],",
     '  "resultSummary": {',
@@ -460,14 +516,12 @@ function buildStructuredMainDishAssignment({
   situation,
   activePreferences,
   searchAssignment,
-  semanticEvidenceRestrictions,
   targetLocale
 }: {
   profile: UserProfile;
   situation?: Situation;
   activePreferences: string[];
   searchAssignment: ActivePreferenceSearchAssignment;
-  semanticEvidenceRestrictions: ReturnType<typeof buildSemanticEvidenceRestrictions>;
   targetLocale: string;
 }) {
   const hardExclusions = uniqueValues(arrayValue(profile.customExclusions));
@@ -481,7 +535,6 @@ function buildStructuredMainDishAssignment({
         allergene: hardAllergens,
         ausgabesprache: targetLocale
       },
-      semanticEvidenceRestrictions,
       situation: {
         modus: situation || profile.appetiteMood || "nicht angegeben"
       },
@@ -517,7 +570,7 @@ function buildStructuredMainDishAssignment({
       },
       speisekarte: "siehe Quellenkontext/Speisekartentext oder angehaengte Speisekartendateien"
     },
-    auftrag: "Analysiere zuerst alle erkennbaren Hauptgerichte, entferne Gerichte mit aktiven Ausschluessen oder Allergenen, dokumentiere sichtbare semantische Konfliktbelege in safetyMatches, bilde daraus sichere Kandidaten und waehle erst danach genau 3 Empfehlungen, wenn mindestens 3 sichere Hauptgerichte vorhanden sind."
+    auftrag: "Analysiere zuerst alle erkennbaren Hauptgerichte, entferne Gerichte mit aktiven Ausschluessen oder Allergenen, bilde daraus sichere Kandidaten und waehle erst danach genau 3 Empfehlungen, wenn mindestens 3 sichere Hauptgerichte vorhanden sind."
   };
 }
 

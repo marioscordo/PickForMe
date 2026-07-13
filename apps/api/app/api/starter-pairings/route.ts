@@ -11,10 +11,11 @@ import {
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { gatekeepStarterRecommendation } from "../../../src/recommendation/gatekeeper";
+import { verifyRecommendationSafetyAI } from "../../../src/ai/verifyRecommendationSafetyAI";
 import {
-  applySemanticEvidenceSafetyGate,
-  buildSemanticEvidenceRestrictions
-} from "../../../src/recommendation/semanticEvidenceSafetyGate";
+  buildRecommendationSafetyRestrictions,
+  filterSafeRecommendationCandidates
+} from "../../../src/recommendation/recommendationSafetyVerifier";
 import { mapGatekeptStarterRecommendationToRecommendation } from "../../../src/recommendation/twoStepRecommendationMappers";
 import { sanitizeProfileForRecommendation } from "../../../src/profile/profileInputPolicy";
 import {
@@ -182,13 +183,12 @@ async function addGatekeptStarterPairingsForSource({
 
     const gatekeeperStartedAt = Date.now();
     const gatekeeperResult = gatekeepStarterRecommendation(starterRecommendation);
-    const semanticEvidenceResult = gatekeeperResult.accepted
-      ? applySemanticEvidenceSafetyGate({
-          candidates: [gatekeeperResult.accepted],
-          restrictions: buildSemanticEvidenceRestrictions(profile)
+    const acceptedStarter = gatekeeperResult.accepted
+      ? await verifyStarterSafety({
+          starter: gatekeeperResult.accepted,
+          profile
         })
       : null;
-    const acceptedStarter = semanticEvidenceResult?.candidates[0] ?? null;
     logGatekeeperStarter({
       phase: "gatekeeper",
       sourceKind,
@@ -196,7 +196,7 @@ async function addGatekeptStarterPairingsForSource({
       hasTargetMainDish,
       gatekeeperAccepted: Boolean(gatekeeperResult.accepted),
       gatekeeperRejected: Boolean(gatekeeperResult.rejected),
-      semanticEvidenceRejected: semanticEvidenceResult?.removed.length ? true : undefined,
+      safetyVerifierRejected: gatekeeperResult.accepted && !acceptedStarter ? true : undefined,
       durationMs: Date.now() - gatekeeperStartedAt
     });
 
@@ -221,6 +221,41 @@ async function addGatekeptStarterPairingsForSource({
   }
 
   return result;
+}
+
+async function verifyStarterSafety({
+  starter,
+  profile
+}: {
+  starter: NonNullable<ReturnType<typeof gatekeepStarterRecommendation>["accepted"]>;
+  profile: AnalyzeMenuRequest["profile"];
+}) {
+  const restrictions = buildRecommendationSafetyRestrictions(profile);
+
+  if (restrictions.length === 0) {
+    return starter;
+  }
+
+  const candidates = [{
+    ...starter,
+    id: "starter_0",
+    descriptionOriginal: starter.sourceEvidence
+  }];
+  const verifierResponse = await verifyRecommendationSafetyAI({
+    restrictions,
+    candidates: candidates.map((candidate) => ({
+      id: candidate.id,
+      nameOriginal: candidate.nameOriginal,
+      descriptionOriginal: candidate.descriptionOriginal
+    }))
+  }).catch(() => ({ candidates: [] }));
+  const verifierResult = filterSafeRecommendationCandidates({
+    restrictions,
+    candidates,
+    response: verifierResponse
+  });
+
+  return verifierResult.candidates[0] ?? null;
 }
 
 async function addStarterPairingsForSource({
