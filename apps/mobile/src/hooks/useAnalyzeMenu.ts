@@ -4,10 +4,10 @@ import { PickForMeApiError } from "../api/apiClient";
 import { analyzeMenu } from "../api/pickformeApi";
 import { useMobileContent } from "../content/useMobileContent";
 import type { MobileContent } from "../content/mobileContent";
-import type { Situation } from "../types/profile";
+import type { RequestedDishRole } from "../types/recommendationMode";
 import type { AnalyzeData } from "../types/recommendations";
 
-function getAnalyzeMenuErrorMessage(error: unknown, content: MobileContent): string {
+export function getAnalyzeMenuErrorMessage(error: unknown, content: MobileContent): string {
   if (!(error instanceof PickForMeApiError)) {
     if (error instanceof Error && error.message.includes("nicht eingeloggt")) {
       return content.analysisErrors.auth;
@@ -71,6 +71,8 @@ export function useAnalyzeMenu() {
   const [result, setResult] = useState<AnalyzeData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [lastResponseReceivedAt, setLastResponseReceivedAt] = useState<number | null>(null);
+  const [lastDiagnosticRunId, setLastDiagnosticRunId] = useState("");
   const requestIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -92,9 +94,16 @@ export function useAnalyzeMenu() {
     setResult(null);
     setError("");
     setLoading(false);
+    setLastResponseReceivedAt(null);
+    setLastDiagnosticRunId("");
   }, [profileFingerprint]);
 
-  async function run(menuText: string, situation: Situation, menuUrls?: string[]) {
+  async function run(
+    menuText: string,
+    requestedDishRoles: RequestedDishRole[],
+    menuUrls?: string[],
+    diagnostics?: { linkConfirmedAt?: number }
+  ) {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
     abortControllerRef.current?.abort();
@@ -121,23 +130,44 @@ export function useAnalyzeMenu() {
     setLoading(true);
 
     try {
+      const diagnosticRunId = createMobileAnalyzeRunId();
+      const requestStartedAt = Date.now();
+      logDevAnalyzeTiming({
+        runId: diagnosticRunId,
+        phase: "mobile.link_confirmed_to_request_start",
+        durationMs: diagnostics?.linkConfirmedAt ? requestStartedAt - diagnostics.linkConfirmedAt : 0,
+        success: true
+      });
       const data = await analyzeMenu({
         menuText,
         menuUrls,
-        situation,
-        profile: {
-          ...profileForRequest,
-          appetiteMood: situation
-        },
+        requestedDishRoles,
+        profile: profileForRequest,
+        diagnosticRunId,
         signal: abortController.signal
+      });
+      const responseReceivedAt = Date.now();
+      logDevAnalyzeTiming({
+        runId: diagnosticRunId,
+        phase: "mobile.request_duration",
+        durationMs: responseReceivedAt - requestStartedAt,
+        success: true
       });
 
       if (requestIdRef.current !== requestId) {
         return;
       }
 
+      setLastDiagnosticRunId(diagnosticRunId);
+      setLastResponseReceivedAt(responseReceivedAt);
       setResult(data);
     } catch (e) {
+      logDevAnalyzeTiming({
+        phase: "mobile.request_duration",
+        durationMs: 0,
+        success: false,
+        errorClass: e instanceof Error ? e.name : typeof e
+      });
       if (requestIdRef.current !== requestId) {
         return;
       }
@@ -162,12 +192,16 @@ export function useAnalyzeMenu() {
     setError("");
     setResult(null);
     setLoading(false);
+    setLastResponseReceivedAt(null);
+    setLastDiagnosticRunId("");
   }
 
   return {
     result,
     loading,
     error,
+    lastResponseReceivedAt,
+    lastDiagnosticRunId,
     run,
     reset
   };
@@ -178,4 +212,21 @@ function isAbortError(error: unknown) {
     error !== null &&
     "name" in error &&
     (error as { name?: unknown }).name === "AbortError";
+}
+
+function createMobileAnalyzeRunId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function logDevAnalyzeTiming(fields: Record<string, string | number | boolean | undefined | null>) {
+  if (!__DEV__) {
+    return;
+  }
+
+  const payload = Object.entries(fields)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${String(value).replace(/\s+/g, "_")}`)
+    .join(" ");
+
+  console.info(`[GUSTARO_DEV_ANALYZE_TIMING] ${payload}`);
 }

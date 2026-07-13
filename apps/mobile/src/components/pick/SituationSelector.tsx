@@ -1,7 +1,7 @@
 import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMobileContent } from "../../content/useMobileContent";
-import type { Situation } from "../../types/profile";
+import type { RecommendationModeId, RecommendationModeOption } from "../../types/recommendationMode";
 
 const BASE_WIDTH = 393;
 
@@ -20,37 +20,33 @@ function fs(value: number) {
   return Math.round(value * clamp(scale, 0.94, 1.03));
 }
 
-type SituationOption = {
-  value: Situation;
-  label: string;
-};
-
-export function SituationSelector({
-  situation,
-  setSituation
+export function RecommendationModeSelector({
+  mode,
+  setMode
 }: {
-  situation: Situation;
-  setSituation: (value: Situation) => void;
+  mode: RecommendationModeId;
+  setMode: (value: RecommendationModeId) => void;
 }) {
   const content = useMobileContent();
-  const options = content.situations as SituationOption[];
+  const options = content.recommendationModes as RecommendationModeOption[];
 
   return (
-    <View style={local.grid}>
+    <View style={local.stack}>
       {options.map((option) => {
-        const active = situation === option.value;
+        const active = mode === option.value;
 
         return (
           <Pressable
-            key={option.value}
+            accessibilityLabel={option.label}
             accessibilityRole="button"
+            key={option.value}
+            onPress={() => setMode(option.value)}
             style={[local.option, active && local.optionActive]}
-            onPress={() => setSituation(option.value)}
           >
             <View style={[local.optionIcon, active ? local.optionIconActive : null]}>
-              <SituationIcon value={option.value} active={active} />
+              <RecommendationModeIcon value={option.value} active={active} />
             </View>
-            <Text style={[local.optionText, active && local.optionTextActive]} numberOfLines={2}>{option.label}</Text>
+            <Text style={[local.optionText, active && local.optionTextActive]}>{option.label}</Text>
           </Pressable>
         );
       })}
@@ -58,24 +54,12 @@ export function SituationSelector({
   );
 }
 
-function SituationIcon({ value, active }: { value: Situation; active: boolean }) {
+function RecommendationModeIcon({ value, active }: { value: RecommendationModeId; active: boolean }) {
   const color = active ? premiumPalette.surface : premiumPalette.gold;
+  const name = value === "starters_and_salads" ? "food-variant" : "silverware-fork-knife";
 
-  if (value === "richtig_hunger") {
-    return <MaterialCommunityIcons color={color} name="silverware-fork-knife" size={s(19)} />;
-  }
-
-  if (value === "leicht") {
-    return <MaterialCommunityIcons color={color} name="leaf" size={s(19)} />;
-  }
-
-  if (value === "neues_probieren") {
-    return <Feather color={color} name="star" size={s(18)} />;
-  }
-
-  return <Feather color={color} name="shield" size={s(18)} />;
+  return <MaterialCommunityIcons color={color} name={name} size={s(19)} />;
 }
-
 
 const premiumPalette = {
   surface: "#FFFDF8",
@@ -83,14 +67,11 @@ const premiumPalette = {
   olive: "#1F3B24",
   oliveDeep: "#182C1B",
   gold: "#C6A04A",
-  border: "#E4D4B6",
-  textSoft: "#6F6A61"
+  border: "#E4D4B6"
 };
 
 const local = StyleSheet.create({
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  stack: {
     gap: s(10)
   },
   option: {
@@ -99,17 +80,16 @@ const local = StyleSheet.create({
     borderColor: premiumPalette.border,
     borderRadius: s(22),
     borderWidth: 1,
-    flexBasis: "48%",
     flexDirection: "row",
-    flexGrow: 1,
-    gap: s(7),
+    gap: s(10),
     minHeight: s(58),
-    paddingHorizontal: s(10),
+    paddingHorizontal: s(14),
     paddingVertical: s(10),
     shadowColor: "#6F5522",
     shadowOffset: { width: 0, height: s(5) },
     shadowOpacity: 0.05,
-    shadowRadius: s(10)
+    shadowRadius: s(10),
+    width: "100%"
   },
   optionActive: {
     backgroundColor: premiumPalette.olive,
@@ -138,9 +118,9 @@ const local = StyleSheet.create({
     color: premiumPalette.oliveDeep,
     flex: 1,
     flexShrink: 1,
-    fontSize: fs(14),
-    fontWeight: "700",
-    lineHeight: fs(18),
+    fontSize: fs(15),
+    fontWeight: "800",
+    lineHeight: fs(20),
     minWidth: 0
   },
   optionTextActive: {

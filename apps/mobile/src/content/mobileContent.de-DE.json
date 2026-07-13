@@ -21,7 +21,7 @@
     "pasteTab": "Einfügen",
     "linkAccepted": "Link wurde übernommen.",
     "qrTab": "QR-Code",
-    "moodTitle": "Wonach ist Dir heute?",
+    "moodTitle": "Was soll ich Dir empfehlen?",
     "loadingTitle": "Ich suche Dir etwas Gutes raus",
     "loadingSteps": [
       "Ich lese kurz die Speisekarte ...",
@@ -36,7 +36,7 @@
     "reviewPreferences": "Vorlieben prüfen",
     "openMenu": "Speisekarte öffnen",
     "photoMenuButton": "Speisekarte fotografieren",
-    "moodHint": "Wähle, wonach Dir gerade ist.",
+    "moodHint": "Wähle, ob ich Vorspeisen und Salate oder Hauptspeisen betrachten soll.",
     "profileHintTitle": "Profil noch leer",
     "profileHintText": "Aktiviere in Deinem Profil mindestens einen Chip für Vorlieben, Ausschlüsse, Unverträglichkeiten oder Allergien, damit GustaroAI persönlicher empfehlen kann.",
     "profileHintAction": "Zum Profil"
@@ -98,22 +98,14 @@
     "accountDeleteFailed": "Account und Daten konnten gerade nicht gelöscht werden. Bitte versuche es später noch einmal.",
     "missingProvider": "useAuth muss innerhalb von AuthProvider genutzt werden."
   },
-  "situations": [
+  "recommendationModes": [
     {
-      "value": "leicht",
-      "label": "Einzel-\ngerichte"
+      "value": "starters_and_salads",
+      "label": "Vorspeisen und Salate"
     },
     {
-      "value": "richtig_hunger",
-      "label": "Vor- und Hauptspeise"
-    },
-    {
-      "value": "neues_probieren",
-      "label": "Etwas Neues"
-    },
-    {
-      "value": "sicher",
-      "label": "Auf Nummer sicher"
+      "value": "main_course",
+      "label": "Hauptspeise"
     }
   ],
   "recommendation": {
@@ -130,18 +122,12 @@
     "unsafeTitle": "Ich kann Dir daraus nichts verlässlich empfehlen",
     "unsafeText": "Zeig mir bitte eine klarere Speisekarte oder füge den Speisekartentext ein.",
     "resetButton": "Neue Speisekarte zeigen",
-    "fallbackDishName": "Gericht",
-    "starterLabel": "Dazu als Vorspeise",
-    "starterSearchButton": "Passende Vorspeise suchen?",
-    "starterSearchLoading": "Ich suche eine passende Vorspeise...",
-    "starterSearchError": "Ich kann die Vorspeise gerade nicht sicher raussuchen.",
-    "starterSearchEmpty": "Ich kann gerade keine sichere Vorspeise automatisch auswählen. Öffne bitte die Speisekarte, um selbst eine Vorspeise zu wählen.",
-    "starterRetryText": "Die Vorspeisensuche war gerade nicht erfolgreich. Möchtest Du es erneut versuchen?",
-    "starterRetryYes": "Ja",
-    "starterRetryNo": "Nein",
-    "acceptButton": "Das nehme ich",
-    "ratingTitle": "Hat das gut gepasst?",
-    "savedText": "Merke ich mir: {rating} von 5 Sternen."
+    "startersAndSaladsButton": "Vorspeisen und Salate",
+    "startersAndSaladsLoading": "Ich suche Vorspeisen und Salate ...",
+    "startersAndSaladsRetry": "Erneut versuchen",
+    "startersAndSaladsTitle": "Vorspeisen und Salate",
+    "startersAndSaladsEmpty": "Ich finde dazu gerade keine sichere Vorspeisen- oder Salatempfehlung.",
+    "fallbackDishName": "Gericht"
   },
   "profileScreen": {
     "title": "Profil",
@@ -489,8 +475,8 @@
       "title": "Speisekarte zeigen",
       "points": [
         "Du kannst GustaroAI eine Speisekarte auf mehreren Wegen zeigen: Link einfügen, QR-Code scannen, Foto aufnehmen oder Speisekartentext einfügen. Bevor GustaroAI Dir passende Gerichte empfiehlt, kannst Du Deine Vorlieben noch einmal prüfen. Danach kommst Du direkt zurück zur Speisekartenanalyse - Dein Link, QR-Code, Foto oder Text bleibt erhalten.",
-        "Mit „Wonach ist Dir heute?“ sagst Du GustaroAI, ob Du Einzelgerichte, eine Vor- und Hauptspeise, etwas Neues oder eine sichere Wahl möchtest.",
-        "Diese Auswahl beeinflusst, welche Gerichte GustaroAI bevorzugt - Dein Profil bleibt dabei weiterhin wichtig.",
+        "Mit „Was soll ich Dir empfehlen?“ wählst Du zwischen Vorspeisen und Salaten oder Hauptspeisen.",
+        "Diese Auswahl begrenzt den Gerichtsraum der Analyse - Dein Profil bleibt dabei weiterhin wichtig.",
         "Die Auswertung kann etwas Zeit in Anspruch nehmen, besonders bei längeren Speisekarten."
       ],
       "tip": "Je klarer die Speisekarte lesbar ist, desto besser kann GustaroAI auswählen."
@@ -499,8 +485,7 @@
       "title": "Deine Empfehlung",
       "points": [
         "Empfehlung 1 ist GustaroAIs beste Wahl aus der erkannten Speisekarte.",
-        "Speisekarten sind nicht immer vollständig lesbar. Deshalb kann es vorkommen, dass nicht alle Gerichte oder Vorspeisen erkannt werden.",
-        "Wenn keine passende Vorspeise gefunden wird, liegt das oft an unvollständigen oder schwer lesbaren Speisekartendaten.",
+        "Speisekarten sind nicht immer vollständig lesbar. Deshalb kann es vorkommen, dass nicht alle Gerichte erkannt werden.",
         "„Neue Speisekarte zeigen“ verwirft die aktuelle Empfehlung und startet den Weg zu einer neuen Analyse.",
         "Wenn Du unsicher bist, kannst Du die Original-Speisekarte öffnen und selbst nachprüfen."
       ],

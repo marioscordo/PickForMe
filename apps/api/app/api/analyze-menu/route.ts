@@ -27,7 +27,7 @@ import { gatekeepMainDishRecommendations } from "../../../src/recommendation/gat
 import { mapGatekeptMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
 import { blockReasonForRecommendation } from "../../../src/profile/profileRules";
 import { sanitizeProfileForRecommendation } from "../../../src/profile/profileInputPolicy";
-import type { AnalyzeMenuRequest } from "../../../src/types/api";
+import type { AnalyzeMenuRequest, RequestedDishRole } from "../../../src/types/api";
 import type { MenuExtractionResult } from "../../../src/menu/extraction/types";
 import type { RestaurantDescriptionResult } from "../../../src/restaurant/extractRestaurantDescription";
 import type { Dish } from "../../../src/types/menu";
@@ -86,11 +86,24 @@ const SECOND_LEVEL_DOMAIN_SUFFIXES = new Set([
 ]);
 
 export async function POST(request: Request) {
+  let requestRunId = createAnalyzeRunId();
+  const requestStartedAt = Date.now();
+
   try {
+    logDevAnalyzeTiming({
+      runId: requestRunId,
+      phase: "api.request_received",
+      durationMs: 0
+    });
+
     await requireUser(request);
 
+    const validationStartedAt = Date.now();
     const body = (await request.json()) as AnalyzeMenuRequest;
+    requestRunId = normalizeDiagnosticRunId(body.diagnosticRunId) ?? requestRunId;
     const outputLocale = normalizeTargetLocale(body.profile.outputLocale);
+    const requestedDishRoles = normalizeRequestedDishRoles(body.requestedDishRoles);
+    const legacySituation = body.situation ?? "leicht";
     const profile = sanitizeProfileForRecommendation({
       ...body.profile,
       outputLocale
@@ -103,6 +116,13 @@ export async function POST(request: Request) {
     if (!body.menuText || body.menuText.trim().length < 20) {
       throw new AppError(400, "MENU_TOO_SHORT", "Bitte zuerst eine Speisekarte einfügen.");
     }
+
+    logDevAnalyzeTiming({
+      runId: requestRunId,
+      phase: "api.validation",
+      durationMs: Date.now() - validationStartedAt,
+      success: true
+    });
 
     const rawMenuText = body.menuText.trim();
 
@@ -147,11 +167,19 @@ export async function POST(request: Request) {
     const directPdfUrl = !dynamicMenuText && inputLooksLikeUrl && looksLikePdfUrl(rawMenuText)
       ? canonicalizePdfSourceUrl(rawMenuText)
       : null;
+    const sourceFetchStartedAt = Date.now();
     const linkedPdfMenu = !dynamicMenuText && inputLooksLikeUrl && !directPdfUrl ? await findLinkedPdfMenu(rawMenuText) : null;
     const selectedPdfMenu = await selectPdfMenuForAnalysis({
       providedPdfMenuUrls,
       directPdfUrl,
-      linkedPdfMenu
+      linkedPdfMenu,
+      runId: requestRunId
+    });
+    logDevAnalyzeTiming({
+      runId: requestRunId,
+      phase: "api.source_fetch",
+      durationMs: Date.now() - sourceFetchStartedAt,
+      success: true
     });
     const pdfMenuUrls = selectedPdfMenu?.urls ?? [];
     const pdfMenuUrl = pdfMenuUrls[0];
@@ -178,6 +206,7 @@ export async function POST(request: Request) {
           responseMode: "ai_pdf",
           profile,
           situation: body.situation,
+          requestedDishRoles,
           outputLocale,
           restaurantDescription,
           localizedRestaurantDescription,
@@ -188,7 +217,9 @@ export async function POST(request: Request) {
           extraPayload: {
             ...sourceInputAllergenWarningPayload
           },
-          timeoutMs: PDF_AI_TIMEOUT_MS
+          timeoutMs: PDF_AI_TIMEOUT_MS,
+          requestStartedAt,
+          runId: requestRunId
         });
       } catch (pdfAiError) {
         const message = pdfAiError instanceof Error ? pdfAiError.message : "";
@@ -249,6 +280,7 @@ export async function POST(request: Request) {
           responseMode: "ai_image",
           profile,
           situation: body.situation,
+          requestedDishRoles,
           outputLocale,
           restaurantDescription,
           localizedRestaurantDescription,
@@ -258,7 +290,9 @@ export async function POST(request: Request) {
           extraPayload: {
             ...sourceInputAllergenWarningPayload
           },
-          timeoutMs: 45000
+          timeoutMs: 45000,
+          requestStartedAt,
+          runId: requestRunId
         });
       } catch (imageAiError) {
         if (imageAiError instanceof AppError) {
@@ -368,6 +402,7 @@ export async function POST(request: Request) {
         responseMode: "ai",
         profile,
         situation: body.situation,
+        requestedDishRoles,
         outputLocale,
         restaurantDescription,
         localizedRestaurantDescription,
@@ -378,7 +413,9 @@ export async function POST(request: Request) {
           ...textAllergenWarningPayload,
           ...buildMenuExtractionPayload(htmlMenuExtraction)
         },
-        timeoutMs: TEXT_AI_TIMEOUT_MS
+        timeoutMs: TEXT_AI_TIMEOUT_MS,
+        requestStartedAt,
+        runId: requestRunId
       });
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : "";
@@ -557,7 +594,7 @@ export async function POST(request: Request) {
     const recommendations = recommendDishes({
       dishes,
       profile,
-      situation: body.situation
+      situation: legacySituation
     });
 
     if (recommendations.length === 0) {
@@ -654,6 +691,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   responseMode,
   profile,
   situation,
+  requestedDishRoles,
   outputLocale,
   restaurantDescription,
   localizedRestaurantDescription,
@@ -662,12 +700,15 @@ async function analyzeMenuWithTwoStepMainFlow({
   htmlMenuExtraction,
   starterCandidateSourceUrls = [],
   extraPayload = {},
-  timeoutMs
+  timeoutMs,
+  requestStartedAt,
+  runId
 }: {
   source: TwoStepMenuSourceInput;
   responseMode: TwoStepAnalyzeResponseMode;
   profile: AnalyzeMenuRequest["profile"];
   situation?: AnalyzeMenuRequest["situation"];
+  requestedDishRoles: RequestedDishRole[];
   outputLocale: string;
   restaurantDescription: RestaurantDescriptionResult | null;
   localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null;
@@ -677,9 +718,10 @@ async function analyzeMenuWithTwoStepMainFlow({
   starterCandidateSourceUrls?: string[];
   extraPayload?: Record<string, unknown>;
   timeoutMs: number;
+  requestStartedAt: number;
+  runId: string;
 }) {
   const flowStartedAt = Date.now();
-  const runId = createAnalyzeRunId();
   const sourceKind = source.kind;
   const sourceCount = getTwoStepMainSourceCount(source);
   const searchSpace = prepareRecommendationSearchSpace({
@@ -711,6 +753,7 @@ async function analyzeMenuWithTwoStepMainFlow({
         source: augmentedSourceForMainAi,
         profile,
         situation,
+        requestedDishRoles,
         userLocale: outputLocale,
         runId,
         signal
@@ -744,6 +787,14 @@ async function analyzeMenuWithTwoStepMainFlow({
 
   const gatekeeperStartedAt = Date.now();
   const gatekeeperResult = gatekeepMainDishRecommendations(proposedMainDishes);
+  const gatekeeperDurationMs = Date.now() - gatekeeperStartedAt;
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.gatekeeper",
+    durationMs: gatekeeperDurationMs,
+    candidateCount: proposedMainDishes.length,
+    success: true
+  });
   logTwoStepMain({
     phase: "gatekeeper",
     runId,
@@ -752,11 +803,19 @@ async function analyzeMenuWithTwoStepMainFlow({
     sourceCount,
     gatekeeperAcceptedCount: gatekeeperResult.accepted.length,
     gatekeeperRejectedCount: gatekeeperResult.rejected.length,
-    durationMs: Date.now() - gatekeeperStartedAt
+    durationMs: gatekeeperDurationMs
   });
 
   const mapperStartedAt = Date.now();
-  const mapped = mapGatekeptMainRecommendationsToAnalyzeData(gatekeeperResult.accepted);
+  const mapped = mapGatekeptMainRecommendationsToAnalyzeData(gatekeeperResult.accepted, requestedDishRoles);
+  const mapperDurationMs = Date.now() - mapperStartedAt;
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.mapper",
+    durationMs: mapperDurationMs,
+    candidateCount: gatekeeperResult.accepted.length,
+    success: true
+  });
   logTwoStepMain({
     phase: "mapper",
     runId,
@@ -765,7 +824,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     sourceCount,
     mapperRecommendationCount: mapped.recommendations.length,
     mapperTranslatedNameCount: countDisplaySafeRecommendationTranslations(mapped.recommendations, mapped.dishes),
-    durationMs: Date.now() - mapperStartedAt
+    durationMs: mapperDurationMs
   });
 
   if (mapped.recommendations.length === 0) {
@@ -810,7 +869,8 @@ async function analyzeMenuWithTwoStepMainFlow({
     runId
   });
 
-  return NextResponse.json({
+  const responseSerializationStartedAt = Date.now();
+  const response = NextResponse.json({
     ok: true,
     data: {
       mode: responseMode,
@@ -821,12 +881,35 @@ async function analyzeMenuWithTwoStepMainFlow({
       ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
     }
   });
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.response_serialization",
+    durationMs: Date.now() - responseSerializationStartedAt,
+    success: true
+  });
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.total",
+    durationMs: Date.now() - requestStartedAt,
+    success: true
+  });
+
+  return response;
 }
 
 type TwoStepMainLogValue = string | number | boolean | null | undefined;
 
 function createAnalyzeRunId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeDiagnosticRunId(value: unknown) {
+  if (process.env.NODE_ENV === "production" || typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return /^[a-z0-9-]{8,48}$/i.test(trimmed) ? trimmed : undefined;
 }
 
 async function augmentPdfSourceWithExtractedText({
@@ -867,12 +950,26 @@ async function augmentPdfSourceWithExtractedText({
   const extractedTexts: string[] = [];
 
   for (const pdfUrl of pdfUrls) {
+    const pdfExtractStartedAt = Date.now();
     try {
       const extractedText = await loadMenuTextFromUrl(pdfUrl);
+      logDevAnalyzeTiming({
+        runId,
+        phase: "api.pdf_download_extract",
+        durationMs: Date.now() - pdfExtractStartedAt,
+        success: true
+      });
       if (extractedText.trim()) {
         extractedTexts.push(extractedText.trim());
       }
     } catch (error) {
+      logDevAnalyzeTiming({
+        runId,
+        phase: "api.pdf_download_extract",
+        durationMs: Date.now() - pdfExtractStartedAt,
+        success: false,
+        errorClass: error instanceof Error ? error.name : typeof error
+      });
       if (process.env.NODE_ENV !== "production") {
         console.warn("GustaroAI PDF text augmentation failed.", {
           runId,
@@ -887,6 +984,13 @@ async function augmentPdfSourceWithExtractedText({
     .map((text, index) => [`PDF-Textauszug ${index + 1}:`, text].join("\n"))
     .join("\n\n")
     .slice(0, PDF_TEXT_AUGMENT_CHAR_LIMIT);
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.pdf_compact_or_augment",
+    durationMs: Date.now() - startedAt,
+    candidateCount: extractedTexts.length,
+    success: supplementalText.trim().length > 0
+  });
 
   logTwoStepMain({
     phase: "pdf-text-augment",
@@ -934,6 +1038,19 @@ function logAnalyzePerf(fields: Record<string, TwoStepMainLogValue>) {
     .join(" ");
 
   console.info(`[GUSTARO_ANALYZE_PERF] ${payload}`);
+}
+
+function logDevAnalyzeTiming(fields: Record<string, TwoStepMainLogValue>) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  const payload = Object.entries(fields)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${formatTwoStepMainLogValue(value)}`)
+    .join(" ");
+
+  console.info(`[GUSTARO_DEV_ANALYZE_TIMING] ${payload}`);
 }
 
 function logTwoStepMainError({
@@ -1688,7 +1805,7 @@ function buildFallbackConciergeHero({
     return "Diese Karte ist japanisch gepraegt. Die Empfehlungen orientieren sich deshalb zuerst an diesem klaren Kuechenstil.";
   }
 
-  return "Diese Karte ist breit aufgestellt. Die Auswahl konzentriert sich zuerst auf die klarsten Hauptoptionen und gleicht sie danach mit Deinem Profil ab.";
+  return "Diese Karte ist breit aufgestellt. Die Auswahl konzentriert sich zuerst auf die klarsten passenden Optionen und gleicht sie danach mit Deinem Profil ab.";
 }
 
 function buildRestaurantContextHero(text: string) {
@@ -2329,11 +2446,13 @@ function extractEmbeddedPdfCandidates(html: string, baseUrl: string): MenuSource
 async function selectPdfMenuForAnalysis({
   providedPdfMenuUrls,
   directPdfUrl,
-  linkedPdfMenu
+  linkedPdfMenu,
+  runId
 }: {
   providedPdfMenuUrls: string[];
   directPdfUrl: string | null;
   linkedPdfMenu: LinkedPdfMenu | null;
+  runId?: string;
 }): Promise<LinkedPdfMenu | null> {
   const candidates = [
     ...(directPdfUrl
@@ -2370,7 +2489,15 @@ async function selectPdfMenuForAnalysis({
     return null;
   }
 
+  const rankingStartedAt = Date.now();
   const rankedCandidates = await rankMenuSourceCandidatesByQuality(candidates);
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.pdf_source_quality",
+    durationMs: Date.now() - rankingStartedAt,
+    candidateCount: candidates.length,
+    success: true
+  });
   const selected = rankedCandidates[0];
   const selectedSource = candidates.find((candidate) => candidate.url === selected?.url);
 
@@ -2536,6 +2663,19 @@ function uniqueStrings(values: string[]) {
     seen.add(key);
     return true;
   });
+}
+
+function normalizeRequestedDishRoles(values?: RequestedDishRole[]): RequestedDishRole[] {
+  const allowed = new Set<RequestedDishRole>(["starter", "salad", "main"]);
+  const roles = Array.isArray(values)
+    ? values.filter((value): value is RequestedDishRole => allowed.has(value))
+    : [];
+
+  if (roles.includes("starter") || roles.includes("salad")) {
+    return ["starter", "salad"];
+  }
+
+  return ["main"];
 }
 
 function extractLinkedMenuSourceCandidates(

@@ -21,7 +21,7 @@
     "pasteTab": "Paste",
     "linkAccepted": "Link accepted.",
     "qrTab": "QR Code",
-    "moodTitle": "What are you in the mood for?",
+    "moodTitle": "What should I recommend?",
     "loadingTitle": "I am finding something good for you",
     "loadingSteps": [
       "I am reading the menu ...",
@@ -36,7 +36,7 @@
     "reviewPreferences": "Review preferences",
     "openMenu": "Open menu",
     "photoMenuButton": "Photograph menu",
-    "moodHint": "Choose what you feel like today.",
+    "moodHint": "Choose whether I should look at starters and salads or main courses.",
     "profileHintTitle": "Profile still empty",
     "profileHintText": "Activate at least one chip for preferences, exclusions, intolerances, or allergies in your profile so GustaroAI can recommend more personally.",
     "profileHintAction": "Go to profile"
@@ -98,22 +98,14 @@
     "accountDeleteFailed": "Account and data could not be deleted right now. Please try again later.",
     "missingProvider": "useAuth must be used inside AuthProvider."
   },
-  "situations": [
+  "recommendationModes": [
     {
-      "value": "leicht",
-      "label": "Single dishes"
+      "value": "starters_and_salads",
+      "label": "Starters and salads"
     },
     {
-      "value": "richtig_hunger",
-      "label": "Starter and main course"
-    },
-    {
-      "value": "neues_probieren",
-      "label": "Something new"
-    },
-    {
-      "value": "sicher",
-      "label": "Play it safe"
+      "value": "main_course",
+      "label": "Main course"
     }
   ],
   "recommendation": {
@@ -130,18 +122,12 @@
     "unsafeTitle": "I cannot recommend anything from this reliably",
     "unsafeText": "Please show me a clearer menu or paste the menu text.",
     "resetButton": "Show a new menu",
-    "fallbackDishName": "Dish",
-    "starterLabel": "As a starter",
-    "starterSearchButton": "Find a matching starter?",
-    "starterSearchLoading": "I am looking for a matching starter...",
-    "starterSearchError": "I cannot safely choose a starter right now.",
-    "starterSearchEmpty": "I cannot choose a safe starter automatically right now. Please open the menu to choose a starter yourself.",
-    "starterRetryText": "The starter search wasn’t successful just now. Would you like to try again?",
-    "starterRetryYes": "Yes",
-    "starterRetryNo": "No",
-    "acceptButton": "I will take this",
-    "ratingTitle": "Did that fit well?",
-    "savedText": "I will remember this: {rating} out of 5 stars."
+    "startersAndSaladsButton": "Starters and salads",
+    "startersAndSaladsLoading": "I am finding starters and salads ...",
+    "startersAndSaladsRetry": "Try again",
+    "startersAndSaladsTitle": "Starters and salads",
+    "startersAndSaladsEmpty": "I cannot find a safe starter or salad recommendation here right now.",
+    "fallbackDishName": "Dish"
   },
   "profileScreen": {
     "title": "Profile",
@@ -489,8 +475,8 @@
       "title": "Show menu",
       "points": [
         "You can show GustaroAI a menu in several ways: paste a link, scan a QR code, take a photo, or paste menu text. Before GustaroAI recommends dishes for you, you can quickly review your preferences. Afterwards, you return directly to the menu analysis - your link, QR code, photo, or text stays in place.",
-        "With 'What are you in the mood for?' you tell GustaroAI whether you want single dishes, a starter and main course, something new, or a safer choice.",
-        "This influences which dishes GustaroAI prefers - your profile still remains important.",
+        "With 'What should I recommend?' you choose between starters and salads or main courses.",
+        "This limits the dish space for the analysis - your profile still remains important.",
         "The analysis can take a little time, especially with longer menus."
       ],
       "tip": "The clearer the menu is, the better GustaroAI can choose."
@@ -499,8 +485,7 @@
       "title": "Your recommendation",
       "points": [
         "Recommendation 1 is GustaroAI's best choice from the recognized menu.",
-        "Menus are not always fully readable. Some dishes or starters may not be detected.",
-        "If no matching starter is found, this is often due to incomplete or difficult-to-read menu data.",
+        "Menus are not always fully readable. Some dishes may not be detected.",
         "'Show new menu' discards the current recommendation and starts the path to a new analysis.",
         "If you are unsure, you can open the original menu and check it yourself."
       ],

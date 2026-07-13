@@ -1,4 +1,5 @@
-import type { Dish } from "../types/menu";
+import type { Dish, DishRoleTag } from "../types/menu";
+import type { RequestedDishRole } from "../types/api";
 import type { Recommendation, StarterPairing } from "../types/recommendations";
 import {
   CommittedMainDishRecommendationSchema,
@@ -65,8 +66,10 @@ export function mapCommittedMainRecommendationsToAnalyzeData(
 }
 
 export function mapGatekeptMainRecommendationsToAnalyzeData(
-  values: unknown[]
+  values: unknown[],
+  requestedDishRoles: RequestedDishRole[] = ["main"]
 ): TwoStepAnalyzeDataParts {
+  const roleMetadata = buildRequestedDishRoleMetadata(requestedDishRoles);
   const accepted = values
     .map((value) => MainDishAIRecommendationSchema.safeParse(value))
     .filter((result) => result.success)
@@ -84,17 +87,17 @@ export function mapGatekeptMainRecommendationsToAnalyzeData(
       ...(translatedDescription ? { description: translatedDescription } : {}),
       ...(descriptionOriginal ? { descriptionOriginal } : {}),
       price: parseOptionalPrice(item.priceRaw),
-      category: "AI-Hauptempfehlung",
+      category: roleMetadata.category,
       itemType: "dish",
       sourceFormat: "ai",
       sourceCategoryOriginal: normalizeOptionalString(item.sourceCategoryOriginal),
       sourceUrl: normalizeOptionalString(item.sourceUrl),
-      dishRole: "main",
-      dishRoles: ["main"],
-      primaryRole: "main",
+      dishRole: roleMetadata.dishRole,
+      dishRoles: roleMetadata.dishRoles,
+      primaryRole: roleMetadata.primaryRole,
       roleConfidence: confidenceToRoleConfidence(item.confidence),
       roleEvidence: evidence,
-      isMainCourseCandidate: true,
+      isMainCourseCandidate: roleMetadata.primaryRole === "main",
       isSafeRecommendationCandidate: true,
       sourceLine: buildFullSourceLine({
         nameOriginal: item.nameOriginal,
@@ -186,6 +189,26 @@ function isGatekeeperSafeStarterRecommendation(value: StarterAIRecommendation) {
   return value.confidence !== "low" &&
     value.profileSafety.hasKnownConflict === false &&
     value.profileSafety.uncertainForAllergy === false;
+}
+
+function buildRequestedDishRoleMetadata(values: RequestedDishRole[]) {
+  const includesStarterOrSalad = values.includes("starter") || values.includes("salad");
+
+  if (includesStarterOrSalad) {
+    return {
+      category: "AI-Vorspeisen-/Salatempfehlung",
+      dishRole: "starter" as const,
+      dishRoles: ["starter", "salad"] satisfies DishRoleTag[],
+      primaryRole: "starter" as const
+    };
+  }
+
+  return {
+    category: "AI-Hauptempfehlung",
+    dishRole: "main" as const,
+    dishRoles: ["main"] satisfies DishRoleTag[],
+    primaryRole: "main" as const
+  };
 }
 
 function normalizeOptionalString(value: string | null | undefined) {

@@ -9,7 +9,7 @@ import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { PhotoMenuCamera } from "../../components/pick/PhotoMenuCamera";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
 import { RecommendationCard } from "../../components/pick/RecommendationCard";
-import { SituationSelector } from "../../components/pick/SituationSelector";
+import { RecommendationModeSelector } from "../../components/pick/SituationSelector";
 import { ActionButton } from "../../components/ui/ActionButton";
 import { GustaroHelp } from "../../components/ui/GustaroHelp";
 import { Surface } from "../../components/ui/Surface";
@@ -17,7 +17,8 @@ import { profileFeatures } from "../../config/profileFeatures";
 import { useMobileContent } from "../../content/useMobileContent";
 import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
 import { premiumColors, radius, spacing, typography } from "../../theme/tokens";
-import type { Situation, UserProfile } from "../../types/profile";
+import { DEFAULT_RECOMMENDATION_MODE, requestedDishRolesForMode, type RecommendationModeId } from "../../types/recommendationMode";
+import type { UserProfile } from "../../types/profile";
 
 type PickScreenProps = {
   onGoHome?: () => void;
@@ -59,7 +60,7 @@ export function PickScreen({
   const loadingSteps = content.pick.loadingSteps;
   const [menuText, setMenuText] = useState("");
   const [menuInputOrigin, setMenuInputOrigin] = useState<MenuInputOrigin>("empty");
-  const [situation, setSituation] = useState<Situation>("leicht");
+  const [recommendationMode, setRecommendationMode] = useState<RecommendationModeId>(DEFAULT_RECOMMENDATION_MODE);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showPhotoCamera, setShowPhotoCamera] = useState(false);
   const [photoMenuLoading, setPhotoMenuLoading] = useState(false);
@@ -76,6 +77,7 @@ export function PickScreen({
   const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
   const linkAcceptedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const linkConfirmedAtRef = useRef<number | null>(null);
   const allergyWarningParagraphs = content.allergyWarning.message.split("\n\n");
 
   useEffect(() => {
@@ -104,6 +106,25 @@ export function PickScreen({
       setEntryScrollToMoodKey((current) => current + 1);
     }
   }, [returnToMoodKey]);
+
+  useEffect(() => {
+    if (!analyze.result || !analyze.lastResponseReceivedAt || !__DEV__) {
+      return;
+    }
+
+    const responseReceivedAt = analyze.lastResponseReceivedAt;
+    const runId = analyze.lastDiagnosticRunId;
+    const frame = requestAnimationFrame(() => {
+      console.info("[GUSTARO_DEV_ANALYZE_TIMING]", [
+        runId ? `runId=${runId}` : "",
+        `phase=mobile.response_to_render_complete`,
+        `durationMs=${Date.now() - responseReceivedAt}`,
+        "success=true"
+      ].filter(Boolean).join(" "));
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [analyze.lastDiagnosticRunId, analyze.lastResponseReceivedAt, analyze.result]);
 
   function normalizeMenuUrl(value: string) {
     const trimmed = value.trim();
@@ -144,6 +165,7 @@ export function PickScreen({
     setMenuInputOrigin(value.trim() ? "manual" : "empty");
 
     if (normalizeMenuUrl(value)) {
+      linkConfirmedAtRef.current = Date.now();
       Keyboard.dismiss();
       setLinkAcceptedVisible(true);
       if (linkAcceptedTimerRef.current) {
@@ -155,6 +177,7 @@ export function PickScreen({
       }, 2200);
       setEntryScrollToMoodKey((current) => current + 1);
     } else {
+      linkConfirmedAtRef.current = null;
       setLinkAcceptedVisible(false);
     }
   }
@@ -175,7 +198,9 @@ export function PickScreen({
   function startAnalyze() {
     logAnalyzeSource(menuText, undefined, "startAnalyze");
     setLastAnalyzedMenuUrl(normalizeMenuUrl(menuText));
-    analyze.run(menuText, situation);
+    analyze.run(menuText, requestedDishRolesForMode(recommendationMode), undefined, {
+      linkConfirmedAt: linkConfirmedAtRef.current ?? undefined
+    });
   }
 
   function startAnalyzeWithExtractedMenuText(value: string) {
@@ -191,7 +216,7 @@ export function PickScreen({
     }
 
     logAnalyzeSource(value, [], "photo");
-    analyze.run(value, situation, []);
+    analyze.run(value, requestedDishRolesForMode(recommendationMode), []);
   }
 
   function resetAnalysisState() {
@@ -253,7 +278,9 @@ export function PickScreen({
       pendingConfirmedMenuTextRef.current = null;
       if (pendingMenuText) {
         logAnalyzeSource(pendingMenuText, undefined, "allergyConfirmed");
-        analyze.run(pendingMenuText, situation);
+        analyze.run(pendingMenuText, requestedDishRolesForMode(recommendationMode), undefined, {
+          linkConfirmedAt: linkConfirmedAtRef.current ?? undefined
+        });
         return;
       }
       startAnalyze();
@@ -290,7 +317,7 @@ export function PickScreen({
         <RecommendationCard
           result={analyze.result}
           menuText={menuText}
-          situation={situation}
+          showStartersAndSaladsAction={recommendationMode === "main_course"}
           onReset={resetAnalysisState}
           openMenuLabel={lastAnalyzedMenuUrl ? content.pick.openMenu : undefined}
           onOpenMenu={lastAnalyzedMenuUrl ? openAnalyzedMenu : undefined}
@@ -448,7 +475,7 @@ export function PickScreen({
             <Text style={local.cardHint}>{content.pick.moodHint}</Text>
           </View>
         </View>
-        <SituationSelector situation={situation} setSituation={setSituation} />
+        <RecommendationModeSelector mode={recommendationMode} setMode={setRecommendationMode} />
       </View>
 
       {analyze.loading ? (

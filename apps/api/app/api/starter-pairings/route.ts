@@ -57,8 +57,9 @@ export async function POST(request: Request) {
 
     const targetRecommendations = selectTargetRecommendations(body.recommendations, body.targetDishId);
     targetRecommendationsForRetry = targetRecommendations;
+    const situation = body.situation;
 
-    if (body.situation !== "richtig_hunger" || targetRecommendations.length === 0) {
+    if (situation !== "richtig_hunger" || targetRecommendations.length === 0) {
       return NextResponse.json({
         ok: true,
         data: {
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
         menuText,
         dishes: body.dishes,
         recommendations: targetRecommendations,
-        situation: body.situation,
+        situation,
         profile,
         userLocale: outputLocale
       }),
@@ -122,7 +123,7 @@ async function addGatekeptStarterPairingsForSource({
   menuText: string;
   dishes: Dish[];
   recommendations: Recommendation[];
-  situation: AnalyzeMenuRequest["situation"];
+  situation: NonNullable<AnalyzeMenuRequest["situation"]>;
   profile: AnalyzeMenuRequest["profile"];
   userLocale: string;
 }) {

@@ -13,10 +13,12 @@ import type {
 export async function verifyRecommendationSafetyAI({
   restrictions,
   candidates,
+  runId,
   signal
 }: {
   restrictions: RecommendationSafetyRestriction[];
   candidates: RecommendationSafetyCandidate[];
+  runId?: string;
   signal?: AbortSignal;
 }): Promise<RecommendationSafetyVerifierResponse> {
   if (restrictions.length === 0 || candidates.length === 0) {
@@ -29,8 +31,9 @@ export async function verifyRecommendationSafetyAI({
   }
 
   const client = createTwoStepOpenAIClient();
+  const model = getTwoStepModelForSource({ kind: "text" });
   const request: ResponseCreateParamsNonStreaming = {
-    model: getTwoStepModelForSource({ kind: "text" }),
+    model,
     input: [
       {
         role: "user",
@@ -44,8 +47,45 @@ export async function verifyRecommendationSafetyAI({
     ]
   };
 
+  const startedAt = Date.now();
   const response = await client.responses.create(request, signal ? { signal } : undefined);
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.safety_verifier_openai_request",
+    durationMs: Date.now() - startedAt,
+    model,
+    candidateCount: candidates.length,
+    restrictionCount: restrictions.length,
+    sdkRetries: "not_exposed",
+    inputTokens: getUsageValue(response.usage, "input_tokens"),
+    outputTokens: getUsageValue(response.usage, "output_tokens"),
+    success: true
+  });
   return JSON.parse(stripJsonFence(response.output_text ?? "{}")) as RecommendationSafetyVerifierResponse;
+}
+
+type DevTimingValue = string | number | boolean | null | undefined;
+
+function logDevAnalyzeTiming(fields: Record<string, DevTimingValue>) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  const payload = Object.entries(fields)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${String(value).replace(/\s+/g, "_")}`)
+    .join(" ");
+
+  console.info(`[GUSTARO_DEV_ANALYZE_TIMING] ${payload}`);
+}
+
+function getUsageValue(usage: unknown, key: "input_tokens" | "output_tokens") {
+  if (!usage || typeof usage !== "object" || !(key in usage)) {
+    return undefined;
+  }
+
+  const value = (usage as Record<string, unknown>)[key];
+  return typeof value === "number" ? value : undefined;
 }
 
 function buildSafetyVerifierPrompt({

@@ -1,33 +1,24 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
-import { PickForMeApiError } from "../../api/apiClient";
-import { requestRestaurantIntro, requestStarterPairings } from "../../api/pickformeApi";
+import { analyzeMenu, requestRestaurantIntro } from "../../api/pickformeApi";
 import { DEFAULT_OUTPUT_LOCALE, resolveOutputLocale } from "../../config/outputLocales";
-import { formatContent } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
+import { getAnalyzeMenuErrorMessage } from "../../hooks/useAnalyzeMenu";
 import { premiumColors, radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Dish } from "../../types/menu";
-import type { Situation } from "../../types/profile";
 import type { AnalyzeData, Recommendation } from "../../types/recommendations";
 import { Surface } from "../ui/Surface";
 
-type RecommendationFeedback = {
-  dishNameOriginal: string;
-  translatedName?: string;
-  rating: 1 | 2 | 3 | 4 | 5;
-  accepted: boolean;
-  createdAt: string;
-};
-
-type ProfileWithFeedback = {
-  recommendationFeedback?: RecommendationFeedback[];
-};
-
-type StarterRequestStatus = "loading" | "error" | "empty" | "retryable" | "dismissed";
 type RestaurantIntroStatus = "idle" | "loading" | "loaded" | "error";
-type PremiumActionTone = "primary" | "secondary";
+type NestedRecommendationStatus = "idle" | "loading" | "loaded" | "error";
+type PremiumActionTone = "secondary";
+type NestedRecommendationState = {
+  error?: string;
+  result?: AnalyzeData;
+  status: NestedRecommendationStatus;
+};
 
 function buildDisplayTranslation(originalName: string, translatedName?: string) {
   const cleaned = translatedName?.trim() ?? "";
@@ -41,28 +32,6 @@ function buildDisplayTranslation(originalName: string, translatedName?: string) 
 
 function formatEuroPrice(price: number) {
   return `${price.toFixed(2).replace(".", ",")} €`;
-}
-
-function formatDisplayPrice(rawPrice?: string | null) {
-  const cleaned = rawPrice?.trim() ?? "";
-
-  if (!cleaned || isTechnicalPricePlaceholder(cleaned)) {
-    return "";
-  }
-
-  if (/€|\bEUR\b/i.test(cleaned)) {
-    return cleaned.replace(/\s*€\s*/g, " €").replace(/\s+/g, " ").trim();
-  }
-
-  if (/^\d{1,4}(?:[.,]\d{1,2})?$/.test(cleaned)) {
-    return `${cleaned.replace(".", ",")} €`;
-  }
-
-  return cleaned;
-}
-
-function isTechnicalPricePlaceholder(value: string) {
-  return /^(?:null|undefined|n\/a|nan)$/i.test(value.trim());
 }
 
 function normalizeRestaurantIntroText(value: string) {
@@ -124,8 +93,7 @@ function PremiumCardAction({
       onPress={onPress}
       style={(state) => [
         local.premiumAction,
-        tone === "primary" ? local.premiumActionPrimary : local.premiumActionSecondary,
-        hero && tone === "primary" ? local.premiumActionPrimaryHero : null,
+        local.premiumActionSecondary,
         hero && tone === "secondary" ? local.premiumActionSecondaryHero : null,
         state.pressed && !disabled ? local.premiumActionPressed : null,
         disabled ? local.premiumActionDisabled : null
@@ -134,7 +102,7 @@ function PremiumCardAction({
       <Text
         style={[
           local.premiumActionText,
-          tone === "primary" ? local.premiumActionPrimaryText : local.premiumActionSecondaryText
+          local.premiumActionSecondaryText
         ]}
       >
         {label}
@@ -170,34 +138,32 @@ function PremiumFooterAction({
 export function RecommendationCard({
   result,
   menuText,
-  situation,
+  showStartersAndSaladsAction = false,
   onReset,
   openMenuLabel,
   onOpenMenu
 }: {
   result: AnalyzeData;
   menuText: string;
-  situation: Situation;
+  showStartersAndSaladsAction?: boolean;
   onReset: () => void;
   openMenuLabel?: string;
   onOpenMenu?: () => void;
 }) {
   const content = useMobileContent();
-  const { profile, setProfile } = useProfile();
-  const [selectedDishId, setSelectedDishId] = useState<string | null>(null);
-  const [recommendationsWithStarters, setRecommendationsWithStarters] = useState<Recommendation[] | null>(null);
-  const [starterRequestStatusByDishId, setStarterRequestStatusByDishId] = useState<Record<string, StarterRequestStatus>>({});
+  const { profile } = useProfile();
+  const nestedLoadingDishIdsRef = useRef(new Set<string>());
+  const [nestedRecommendationsByDishId, setNestedRecommendationsByDishId] = useState<Record<string, NestedRecommendationState>>({});
   const [restaurantIntroStatus, setRestaurantIntroStatus] = useState<RestaurantIntroStatus>("idle");
   const [restaurantIntroText, setRestaurantIntroText] = useState("");
   const [restaurantIntroVisible, setRestaurantIntroVisible] = useState(false);
 
   const dishesById = useMemo(() => new Map(result.dishes.map((dish) => [dish.id, dish])), [result.dishes]);
-  const visibleRecommendations = recommendationsWithStarters ?? result.recommendations;
+  const visibleRecommendations = result.recommendations;
 
   const safeRecommendations = visibleRecommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
-  const isStarterSearchRunning = Object.values(starterRequestStatusByDishId).some((status) => status === "loading");
   const restaurantIntroLocale = resolveOutputLocale(profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE);
   const cachedRestaurantIntro = normalizeRestaurantIntroText(restaurantIntroText);
   const restaurantIntroParagraphs = useMemo(
@@ -273,16 +239,9 @@ export function RecommendationCard({
     </Surface>
   ) : null;
 
-  const feedbackByName = new Map(
-    (((profile as ProfileWithFeedback).recommendationFeedback ?? []) as RecommendationFeedback[]).map((item) => [
-      item.dishNameOriginal.toLowerCase(),
-      item
-    ])
-  );
-
   useEffect(() => {
-    setRecommendationsWithStarters(null);
-    setStarterRequestStatusByDishId({});
+    nestedLoadingDishIdsRef.current.clear();
+    setNestedRecommendationsByDishId({});
     setRestaurantIntroStatus("idle");
     setRestaurantIntroText("");
     setRestaurantIntroVisible(false);
@@ -326,74 +285,46 @@ export function RecommendationCard({
     setRestaurantIntroStatus("idle");
   }
 
-  async function handleStarterSearch(recommendation: Recommendation) {
-    if (isStarterSearchRunning) {
+  async function handleStartersAndSaladsSearch(dishId: string) {
+    const currentStatus = nestedRecommendationsByDishId[dishId]?.status;
+
+    if (currentStatus === "loading" || nestedLoadingDishIdsRef.current.has(dishId)) {
       return;
     }
 
-    setStarterRequestStatusByDishId((current) => ({
+    nestedLoadingDishIdsRef.current.add(dishId);
+    setNestedRecommendationsByDishId((current) => ({
       ...current,
-      [recommendation.dishId]: "loading"
+      [dishId]: {
+        status: "loading"
+      }
     }));
 
     try {
-      const data = await requestStarterPairings({
+      const data = await analyzeMenu({
         menuText,
-        situation,
-        profile,
-        targetDishId: recommendation.dishId,
-        result: {
-          ...result,
-          recommendations: visibleRecommendations
-        }
+        requestedDishRoles: ["starter", "salad"],
+        profile
       });
 
-      if (data.starterRetryableError) {
-        setStarterRequestStatusByDishId((current) => ({
-          ...current,
-          [recommendation.dishId]: "retryable"
-        }));
-        return;
-      }
-
-      const updatedRecommendation = data.recommendations.find((item) => item.dishId === recommendation.dishId);
-
-      if (!updatedRecommendation?.starter) {
-        setStarterRequestStatusByDishId((current) => ({
-          ...current,
-          [recommendation.dishId]: "empty"
-        }));
-        return;
-      }
-
-      setRecommendationsWithStarters((current) =>
-        (current ?? result.recommendations).map((item) =>
-          item.dishId === recommendation.dishId
-            ? {
-                ...item,
-                starter: updatedRecommendation.starter
-              }
-            : item
-        )
-      );
-      setStarterRequestStatusByDishId((current) => {
-        const next = { ...current };
-        delete next[recommendation.dishId];
-        return next;
-      });
-    } catch (error) {
-      setStarterRequestStatusByDishId((current) => ({
+      setNestedRecommendationsByDishId((current) => ({
         ...current,
-        [recommendation.dishId]: isRetryableStarterError(error) ? "retryable" : "error"
+        [dishId]: {
+          result: data,
+          status: "loaded"
+        }
       }));
+    } catch (error) {
+      setNestedRecommendationsByDishId((current) => ({
+        ...current,
+        [dishId]: {
+          error: getAnalyzeMenuErrorMessage(error, content),
+          status: "error"
+        }
+      }));
+    } finally {
+      nestedLoadingDishIdsRef.current.delete(dishId);
     }
-  }
-
-  function dismissStarterRetry(dishId: string) {
-    setStarterRequestStatusByDishId((current) => ({
-      ...current,
-      [dishId]: "dismissed"
-    }));
   }
 
   if (safeRecommendations.length === 0) {
@@ -434,28 +365,6 @@ export function RecommendationCard({
     );
   }
 
-  function saveRating(originalName: string, translatedName: string | undefined, rating: 1 | 2 | 3 | 4 | 5) {
-    const nextItem: RecommendationFeedback = {
-      dishNameOriginal: originalName,
-      translatedName,
-      rating,
-      accepted: true,
-      createdAt: new Date().toISOString()
-    };
-
-    setProfile((currentProfile) => {
-      const existing = ((currentProfile as ProfileWithFeedback).recommendationFeedback ?? []) as RecommendationFeedback[];
-      const withoutSameDish = existing.filter(
-        (item) => item.dishNameOriginal.toLowerCase() !== originalName.toLowerCase()
-      );
-
-      return {
-        ...currentProfile,
-        recommendationFeedback: [...withoutSameDish, nextItem].slice(-30)
-      } as typeof currentProfile;
-    });
-  }
-
   return (
     <View style={local.resultRoot}>
       {topBox}
@@ -475,26 +384,10 @@ export function RecommendationCard({
           const showTranslation = translatedName.length > 0;
           const translatedDescription = typeof dishData.description === "string" ? dishData.description.trim() : "";
           const showDescription = translatedDescription.length > 0 && translatedDescription !== translatedName;
-          const starter = rec.starter;
-          const starterTranslation = starter
-            ? buildDisplayTranslation(starter.nameOriginal, starter.translatedName)
-            : "";
-          const starterPriceText = starter ? formatDisplayPrice(starter.priceRaw) : "";
-          const starterRequestStatus = starterRequestStatusByDishId[rec.dishId];
-          const shouldShowStarterButton = situation !== "leicht" &&
-            !starter &&
-            starterRequestStatus !== "empty" &&
-            starterRequestStatus !== "retryable" &&
-            starterRequestStatus !== "dismissed";
-          const shouldShowStarterAction = shouldShowStarterButton ||
-            starterRequestStatus === "empty" ||
-            starterRequestStatus === "retryable";
           const isPrimaryRecommendation = index === 0;
+          const nestedState = nestedRecommendationsByDishId[rec.dishId] ?? { status: "idle" };
 
           const priceText = typeof dishData.price === "number" ? formatEuroPrice(dishData.price) : "";
-          const existingFeedback = feedbackByName.get(originalName.toLowerCase());
-          const isSelected = selectedDishId === dish.id || Boolean(existingFeedback);
-
           return (
             <Surface key={dish.id} style={[local.card, isPrimaryRecommendation ? local.primaryCard : local.secondaryCard]}>
               <View style={[local.rankBubble, isPrimaryRecommendation ? local.rankBubblePrimary : local.rankBubbleSecondary]}>
@@ -516,101 +409,26 @@ export function RecommendationCard({
 
                 {priceText ? <Text style={[local.price, isPrimaryRecommendation && local.pricePrimary]}>{priceText}</Text> : null}
 
-                {starter ? (
-                  <View style={[local.starterBox, isPrimaryRecommendation ? local.starterBoxPrimary : local.starterBoxSecondary]}>
-                    <Text style={local.starterLabel}>{content.recommendation.starterLabel}</Text>
-                    <Text style={local.starterName}>{starter.nameOriginal}</Text>
-                    {starterTranslation ? (
-                      <Text style={local.starterTranslation}>{starterTranslation}</Text>
-                    ) : null}
-                    {starterPriceText ? (
-                      <Text style={local.starterPrice}>{starterPriceText}</Text>
-                    ) : null}
+                {showStartersAndSaladsAction ? (
+                  <View style={local.nestedActionBox}>
+                    <PremiumCardAction
+                      disabled={nestedState.status === "loading"}
+                      hero={isPrimaryRecommendation}
+                      label={
+                        nestedState.status === "loading"
+                          ? content.recommendation.startersAndSaladsLoading
+                          : nestedState.status === "error"
+                            ? content.recommendation.startersAndSaladsRetry
+                            : content.recommendation.startersAndSaladsButton
+                      }
+                      onPress={() => handleStartersAndSaladsSearch(rec.dishId)}
+                      tone="secondary"
+                    />
                   </View>
                 ) : null}
 
-                {shouldShowStarterAction ? (
-                  <View style={local.starterActionBox}>
-                    {starterRequestStatus === "error" ? (
-                      <Text style={local.starterActionText}>{content.recommendation.starterSearchError}</Text>
-                    ) : null}
-                    {starterRequestStatus === "empty" ? (
-                      <View style={local.starterEmptyHintBox}>
-                        <Text style={local.starterActionText}>{content.recommendation.starterSearchEmpty}</Text>
-                      </View>
-                    ) : null}
-                    {starterRequestStatus === "retryable" ? (
-                      <View style={local.starterRetryBox}>
-                        <Text style={local.starterActionText}>{content.recommendation.starterRetryText}</Text>
-                        <PremiumCardAction
-                          disabled={isStarterSearchRunning}
-                          label={content.recommendation.starterRetryYes}
-                          onPress={() => handleStarterSearch(rec)}
-                          tone="secondary"
-                          hero={isPrimaryRecommendation}
-                        />
-                        <PremiumCardAction
-                          disabled={isStarterSearchRunning}
-                          label={content.recommendation.starterRetryNo}
-                          onPress={() => dismissStarterRetry(rec.dishId)}
-                          tone="secondary"
-                          hero={isPrimaryRecommendation}
-                        />
-                      </View>
-                    ) : null}
-                    {shouldShowStarterButton ? (
-                      <PremiumCardAction
-                        disabled={isStarterSearchRunning}
-                        label={
-                          starterRequestStatus === "loading"
-                            ? content.recommendation.starterSearchLoading
-                            : content.recommendation.starterSearchButton
-                        }
-                        onPress={() => handleStarterSearch(rec)}
-                        tone="secondary"
-                        hero={isPrimaryRecommendation}
-                      />
-                    ) : null}
-                  </View>
-                ) : null}
+                {renderNestedRecommendations(nestedState, isPrimaryRecommendation)}
 
-                <PremiumCardAction
-                  label={content.recommendation.acceptButton}
-                  onPress={() => setSelectedDishId(dish.id)}
-                  tone="primary"
-                  hero={isPrimaryRecommendation}
-                />
-
-                {isSelected ? (
-                  <View style={[local.ratingBox, isPrimaryRecommendation && local.ratingBoxPrimary]}>
-                    <Text style={local.ratingTitle}>{content.recommendation.ratingTitle}</Text>
-
-                    <View style={local.starRow}>
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const active = existingFeedback ? star <= existingFeedback.rating : false;
-
-                        return (
-                          <Pressable
-                            key={star}
-                            onPress={() =>
-                              saveRating(originalName, showTranslation ? translatedName : undefined, star as 1 | 2 | 3 | 4 | 5)
-                            }
-                          >
-                            <Text style={[local.star, active && local.starActive]}>
-                              {active ? "★" : "☆"}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-
-                    {existingFeedback ? (
-                      <Text style={local.savedText}>
-                        {formatContent(content.recommendation.savedText, { rating: existingFeedback.rating })}
-                      </Text>
-                    ) : null}
-                  </View>
-                ) : null}
               </View>
             </Surface>
           );
@@ -620,14 +438,71 @@ export function RecommendationCard({
       {renderFooterActions()}
     </View>
   );
-}
 
-function isRetryableStarterError(error: unknown) {
-  return error instanceof PickForMeApiError &&
-    (error.code === "TEMPORARY_AI_ERROR" ||
-      error.code === "AI_RATE_LIMIT" ||
-      error.code === "STARTER_PAIRING_TIMEOUT" ||
-      error.code === "STARTER_PAIRING_UNAVAILABLE");
+  function renderNestedRecommendations(state: NestedRecommendationState, isPrimaryRecommendation: boolean) {
+    if (state.status === "idle" || state.status === "loading") {
+      return null;
+    }
+
+    if (state.status === "error") {
+      return (
+        <View style={[local.nestedResultBox, isPrimaryRecommendation ? local.nestedResultBoxPrimary : null]}>
+          <Text style={local.nestedResultTitle}>{content.recommendation.startersAndSaladsTitle}</Text>
+          <Text style={local.nestedResultText}>{state.error ?? content.analysisErrors.generic}</Text>
+        </View>
+      );
+    }
+
+    const nestedResult = state.result;
+    const nestedDishesById = new Map(nestedResult?.dishes.map((item) => [item.id, item]) ?? []);
+    const nestedRecommendations = (nestedResult?.recommendations ?? [])
+      .map((recommendation) => ({ recommendation, dish: nestedDishesById.get(recommendation.dishId) }))
+      .filter((item): item is { recommendation: Recommendation; dish: Dish } => Boolean(item.dish));
+
+    if (nestedRecommendations.length === 0) {
+      return (
+        <View style={[local.nestedResultBox, isPrimaryRecommendation ? local.nestedResultBoxPrimary : null]}>
+          <Text style={local.nestedResultTitle}>{content.recommendation.startersAndSaladsTitle}</Text>
+          <Text style={local.nestedResultText}>{content.recommendation.startersAndSaladsEmpty}</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={[local.nestedResultBox, isPrimaryRecommendation ? local.nestedResultBoxPrimary : null]}>
+        <Text style={local.nestedResultTitle}>{content.recommendation.startersAndSaladsTitle}</Text>
+        <View style={local.nestedResultList}>
+          {nestedRecommendations.map(({ recommendation, dish }, nestedIndex) => {
+            const nestedDish = dish as Dish & {
+              name?: string;
+              nameOriginal?: string;
+              description?: string;
+              price?: number;
+            };
+            const originalName = nestedDish.nameOriginal ?? nestedDish.name ?? content.recommendation.fallbackDishName;
+            const translatedName = buildDisplayTranslation(originalName, recommendation.translatedName);
+            const translatedDescription = typeof nestedDish.description === "string" ? nestedDish.description.trim() : "";
+
+            return (
+              <View key={dish.id} style={local.nestedResultItem}>
+                <Text style={local.nestedResultRank}>{nestedIndex + 1}</Text>
+                <View style={local.nestedResultCopy}>
+                  <Text style={local.nestedDishName}>{originalName}</Text>
+                  {translatedName ? <Text style={local.nestedDishMeta}>{translatedName}</Text> : null}
+                  {translatedDescription && translatedDescription !== translatedName ? (
+                    <Text style={local.nestedDishDescription}>{translatedDescription}</Text>
+                  ) : null}
+                  {typeof nestedDish.price === "number" ? (
+                    <Text style={local.nestedDishPrice}>{formatEuroPrice(nestedDish.price)}</Text>
+                  ) : null}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
 }
 
 const local = StyleSheet.create({
@@ -903,72 +778,90 @@ const local = StyleSheet.create({
     marginTop: spacing.sm
   },
 
-  starterBox: {
-    backgroundColor: "transparent",
-    borderRadius: 0,
-    borderTopWidth: 1,
-    marginTop: spacing.lg,
-    paddingTop: spacing.lg
-  },
-
-  starterBoxPrimary: {
-    borderColor: "rgba(200, 168, 90, 0.32)",
-    marginTop: spacing.lg
-  },
-
-  starterBoxSecondary: {
-    borderColor: "rgba(231, 222, 210, 0.68)",
+  nestedActionBox: {
     marginTop: spacing.md
   },
 
-  starterLabel: {
+  nestedResultBox: {
+    backgroundColor: "rgba(247, 241, 231, 0.52)",
+    borderColor: "rgba(200, 168, 90, 0.24)",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginTop: spacing.lg,
+    padding: spacing.lg
+  },
+
+  nestedResultBoxPrimary: {
+    backgroundColor: "rgba(247, 241, 231, 0.68)",
+    borderColor: "rgba(200, 168, 90, 0.34)"
+  },
+
+  nestedResultTitle: {
     color: premiumColors.olive,
-    fontSize: 13,
-    fontWeight: "800",
-    lineHeight: 18,
+    fontSize: 14,
+    fontWeight: "900",
+    lineHeight: 19,
     marginBottom: spacing.sm
   },
 
-  starterName: {
-    color: premiumColors.text,
-    fontSize: 16,
-    fontWeight: "900",
-    lineHeight: 21
+  nestedResultText: {
+    color: premiumColors.textMuted,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 19
   },
 
-  starterTranslation: {
-    color: premiumColors.textMuted,
+  nestedResultList: {
+    gap: spacing.md
+  },
+
+  nestedResultItem: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+
+  nestedResultRank: {
+    color: premiumColors.gold,
+    fontSize: 13,
+    fontWeight: "900",
+    lineHeight: 18,
+    minWidth: 18
+  },
+
+  nestedResultCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+
+  nestedDishName: {
+    color: premiumColors.text,
     fontSize: 14,
+    fontWeight: "900",
+    lineHeight: 19
+  },
+
+  nestedDishMeta: {
+    color: premiumColors.textMuted,
+    fontSize: 13,
     fontWeight: "600",
-    lineHeight: 20,
+    lineHeight: 18,
     marginTop: spacing.xxs
   },
 
-  starterPrice: {
-    color: premiumColors.gold,
-    fontSize: 15,
-    fontWeight: "900",
-    marginTop: spacing.sm
-  },
-
-  starterActionBox: {
-    marginTop: spacing.lg
-  },
-
-  starterEmptyHintBox: {
-    paddingBottom: spacing.sm
-  },
-
-  starterRetryBox: {
-    paddingBottom: spacing.sm
-  },
-
-  starterActionText: {
+  nestedDishDescription: {
     color: premiumColors.textMuted,
-    fontSize: typography.body.fontSize,
-    fontWeight: "600",
-    lineHeight: typography.body.lineHeight,
-    marginBottom: spacing.sm
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 18,
+    marginTop: spacing.xxs
+  },
+
+  nestedDishPrice: {
+    color: premiumColors.bordeaux,
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: spacing.xs
   },
 
   premiumAction: {
@@ -979,20 +872,6 @@ const local = StyleSheet.create({
     marginTop: spacing.md,
     paddingHorizontal: spacing.xl,
     paddingVertical: 15
-  },
-
-  premiumActionPrimary: {
-    backgroundColor: premiumColors.olive,
-    borderColor: premiumColors.olive,
-    shadowColor: premiumColors.olive,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14
-  },
-
-  premiumActionPrimaryHero: {
-    marginTop: spacing.lg,
-    paddingVertical: 17
   },
 
   premiumActionSecondary: {
@@ -1021,58 +900,10 @@ const local = StyleSheet.create({
     textAlign: "center"
   },
 
-  premiumActionPrimaryText: {
-    color: premiumColors.surface
-  },
-
   premiumActionSecondaryText: {
     color: premiumColors.textMuted,
     fontSize: 14,
     fontWeight: "800"
-  },
-
-  ratingBox: {
-    backgroundColor: "rgba(250, 247, 241, 0.86)",
-    borderColor: premiumColors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    marginTop: spacing.md,
-    padding: spacing.md
-  },
-
-  ratingBoxPrimary: {
-    borderColor: "rgba(200, 168, 90, 0.32)"
-  },
-
-  ratingTitle: {
-    color: premiumColors.text,
-    fontSize: typography.label.fontSize,
-    fontWeight: "800",
-    lineHeight: typography.label.lineHeight,
-    marginBottom: spacing.xs
-  },
-
-  starRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginBottom: spacing.xs
-  },
-
-  star: {
-    color: premiumColors.textMuted,
-    fontSize: 28,
-    fontWeight: "800"
-  },
-
-  starActive: {
-    color: premiumColors.gold
-  },
-
-  savedText: {
-    color: premiumColors.textMuted,
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 18
   },
 
   footerActions: {

@@ -6,15 +6,15 @@ import { resolveGuiLanguageFromDevice } from "../content/guiLanguage";
 import { profileFeatures } from "../config/profileFeatures";
 import { filterControlledProfileValues } from "../profile/profileInputPolicy";
 import type { UserProfile } from "../types/profile";
-import type { AnalyzeData, RestaurantIntroData, StarterPairingsData } from "../types/recommendations";
-
-type Situation = "richtig_hunger" | "leicht" | "neues_probieren" | "sicher";
+import type { RequestedDishRole } from "../types/recommendationMode";
+import type { AnalyzeData, RestaurantIntroData } from "../types/recommendations";
 
 type AnalyzeMenuMobileArgs = {
   menuText: string;
   menuUrls?: string[];
-  situation: Situation;
+  requestedDishRoles: RequestedDishRole[];
   profile: UserProfile;
+  diagnosticRunId?: string;
   signal?: AbortSignal;
 };
 
@@ -22,11 +22,6 @@ type ExtractMenuTextFromPhotoArgs = {
   imageBase64: string;
   mimeType: "image/jpeg" | "image/png";
   signal?: AbortSignal;
-};
-
-type RequestStarterPairingsMobileArgs = AnalyzeMenuMobileArgs & {
-  result: AnalyzeData;
-  targetDishId: string;
 };
 
 type RequestRestaurantIntroMobileArgs = {
@@ -39,7 +34,8 @@ type AnalyzeMenuApiBody = {
   sourceKind: "text";
   menuText: string;
   menuUrls?: string[];
-  situation: Situation;
+  requestedDishRoles: RequestedDishRole[];
+  diagnosticRunId?: string;
   profile: UserProfile;
   userLocale: string;
 };
@@ -121,7 +117,8 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
     sourceKind: "text",
     menuText: args.menuText,
     ...(args.menuUrls?.length ? { menuUrls: args.menuUrls } : {}),
-    situation: args.situation,
+    requestedDishRoles: args.requestedDishRoles,
+    ...(args.diagnosticRunId ? { diagnosticRunId: args.diagnosticRunId } : {}),
     profile: sanitizeProfileForApi(args.profile),
     userLocale: resolveGuiLanguageFromDevice()
   };
@@ -140,27 +137,6 @@ export function extractMenuTextFromPhoto(args: ExtractMenuTextFromPhotoArgs) {
   return apiPost<{ menuText: string }, ExtractMenuTextFromPhotoBody>("/api/menu-photo-text", body, {
     signal: args.signal
   });
-}
-
-export function requestStarterPairings(args: RequestStarterPairingsMobileArgs) {
-  const body = {
-    sourceKind: "text" as const,
-    menuText: args.menuText,
-    situation: args.situation,
-    profile: sanitizeProfileForApi(args.profile),
-    dishes: args.result.dishes,
-    starterCandidateDishes: args.result.starterCandidateDishes,
-    recommendations: args.result.recommendations,
-    targetDishId: args.targetDishId
-  };
-
-  return apiPost<StarterPairingsData, typeof body>(
-    "/api/starter-pairings",
-    body,
-    {
-      signal: args.signal
-    }
-  );
 }
 
 export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {

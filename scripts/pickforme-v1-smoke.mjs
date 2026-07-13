@@ -20,8 +20,7 @@ const PROFILE = {
   hiddenPreferences: [],
   hiddenExclusions: [],
   hiddenIntolerances: [],
-  hiddenExceptions: [],
-  recommendationFeedback: []
+  hiddenExceptions: []
 };
 
 const TEXT_MENU = `
