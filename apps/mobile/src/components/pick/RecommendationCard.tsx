@@ -9,6 +9,7 @@ import { getAnalyzeMenuErrorMessage } from "../../hooks/useAnalyzeMenu";
 import { premiumColors, radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Dish } from "../../types/menu";
 import type { AnalyzeData, Recommendation } from "../../types/recommendations";
+import { AnalysisLoadingBox } from "./AnalysisLoadingBox";
 import { Surface } from "../ui/Surface";
 
 type RestaurantIntroStatus = "idle" | "loading" | "loaded" | "error";
@@ -155,6 +156,7 @@ export function RecommendationCard({
   const { profile } = useProfile();
   const nestedLoadingDishIdsRef = useRef(new Set<string>());
   const activeNestedDishIdRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
   const [activeNestedDishId, setActiveNestedDishId] = useState<string | null>(null);
   const [nestedRecommendationsByDishId, setNestedRecommendationsByDishId] = useState<Record<string, NestedRecommendationState>>({});
   const [restaurantIntroStatus, setRestaurantIntroStatus] = useState<RestaurantIntroStatus>("idle");
@@ -242,6 +244,10 @@ export function RecommendationCard({
     </Surface>
   ) : null;
 
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
   useEffect(() => {
     nestedLoadingDishIdsRef.current.clear();
     activeNestedDishIdRef.current = null;
@@ -322,6 +328,10 @@ export function RecommendationCard({
         profile
       });
 
+      if (!mountedRef.current || activeNestedDishIdRef.current !== dishId) {
+        return;
+      }
+
       setNestedRecommendationsByDishId((current) => ({
         ...current,
         [dishId]: {
@@ -330,6 +340,10 @@ export function RecommendationCard({
         }
       }));
     } catch (error) {
+      if (!mountedRef.current || activeNestedDishIdRef.current !== dishId) {
+        return;
+      }
+
       setNestedRecommendationsByDishId((current) => ({
         ...current,
         [dishId]: {
@@ -403,6 +417,7 @@ export function RecommendationCard({
           const nestedState = nestedRecommendationsByDishId[rec.dishId] ?? { status: "idle" };
           const isNestedActiveDish = activeNestedDishId === rec.dishId;
           const isOtherNestedDishActive = Boolean(activeNestedDishId && !isNestedActiveDish);
+          const showNestedLoadingBox = isNestedActiveDish && nestedState.status === "loading";
           const nestedActionDisabled = nestedState.status === "loading" ||
             nestedState.status === "loaded" ||
             isOtherNestedDishActive;
@@ -435,9 +450,7 @@ export function RecommendationCard({
                       disabled={nestedActionDisabled}
                       hero={isPrimaryRecommendation}
                       label={
-                        nestedState.status === "loading"
-                          ? content.recommendation.startersAndSaladsLoading
-                          : nestedState.status === "error"
+                        nestedState.status === "error"
                             ? content.recommendation.startersAndSaladsRetry
                             : content.recommendation.startersAndSaladsButton
                       }
@@ -445,6 +458,14 @@ export function RecommendationCard({
                       tone="secondary"
                     />
                   </View>
+                ) : null}
+
+                {showNestedLoadingBox ? (
+                  <AnalysisLoadingBox
+                    steps={content.pick.loadingSteps}
+                    style={local.nestedLoadingBox}
+                    title={content.pick.loadingTitle}
+                  />
                 ) : null}
 
                 {renderNestedRecommendations(nestedState, isPrimaryRecommendation)}
@@ -800,6 +821,13 @@ const local = StyleSheet.create({
 
   nestedActionBox: {
     marginTop: spacing.md
+  },
+
+  nestedLoadingBox: {
+    borderRadius: radius.lg,
+    marginBottom: 0,
+    marginTop: spacing.md,
+    padding: spacing.lg
   },
 
   nestedResultBox: {

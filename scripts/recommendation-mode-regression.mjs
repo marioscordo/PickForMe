@@ -64,17 +64,24 @@ assert(pickScreen.includes("requestedDishRolesForMode(recommendationMode)"), "Pi
 assert(!pickScreen.includes("setSituation"), "PickScreen must not keep active situation state");
 assert(!pickScreen.includes("<SituationSelector"), "PickScreen must not render the old situation selector");
 assert(!pickScreen.includes("linkAccepted"), "PickScreen must not render the old temporary link accepted hint");
-assert(pickScreen.includes("ANALYSIS_LOADING_STEP_INTERVAL_MS = 10000"), "PickScreen loading steps must stay visible for 10 seconds");
-assert(pickScreen.includes("(current + 1) % loadingSteps.length"), "PickScreen loading steps must cycle without empty text");
-assert(pickScreen.includes("loadingTrackWidth"), "PickScreen loading animation must use measured width");
-assert(pickScreen.includes("Math.max(loadingTrackWidth - s(56), 0)"), "PickScreen loading animation must span the available track width");
+assert(pickScreen.includes("<AnalysisLoadingBox"), "PickScreen must use the shared analysis loading box");
+assert(pickScreen.includes("steps={loadingSteps}"), "PickScreen must pass localized loading steps to the shared loading box");
 assert(!pickScreen.includes("content.pick.menuReady"), "PickScreen must not render a persistent menu ready box");
 assert(!pickScreen.includes("buildMenuReadyText"), "PickScreen must not keep menu ready restaurant formatting logic");
 const reviewButtonIndex = pickScreen.indexOf("content.pick.reviewPreferences");
 const mainButtonIndex = pickScreen.indexOf("content.pick.mainButtonLoading");
-const loadingBoxIndex = pickScreen.indexOf("content.pick.loadingTitle");
+const loadingBoxIndex = pickScreen.indexOf("<AnalysisLoadingBox");
 assert(reviewButtonIndex > 0 && mainButtonIndex > reviewButtonIndex, "PickScreen must place review preferences above the main analyze button");
 assert(loadingBoxIndex > mainButtonIndex, "PickScreen must place the loading box below the main analyze button");
+
+const analysisLoadingBox = read("apps/mobile/src/components/pick/AnalysisLoadingBox.tsx");
+assert(analysisLoadingBox.includes("ANALYSIS_LOADING_STEP_INTERVAL_MS = 10000"), "shared loading box steps must stay visible for 10 seconds");
+assert(analysisLoadingBox.includes("(current + 1) % steps.length"), "shared loading box steps must cycle without empty text");
+assert(analysisLoadingBox.includes("return () => clearInterval(timer);"), "shared loading box must clean up its timer");
+assert(analysisLoadingBox.includes("loadingTrackWidth"), "shared loading box animation must use measured width");
+assert(analysisLoadingBox.includes("Math.max(loadingTrackWidth - s(56), 0)"), "shared loading box animation must span the available track width");
+assert(!analysisLoadingBox.includes("magnifier"), "shared loading box must not introduce a magnifier animation");
+assert(!analysisLoadingBox.includes("menuLine"), "shared loading box must not introduce animated menu lines");
 
 const useAnalyzeMenu = read("apps/mobile/src/hooks/useAnalyzeMenu.ts");
 assert(useAnalyzeMenu.includes("requestedDishRoles: RequestedDishRole[]"), "useAnalyzeMenu must accept requestedDishRoles");
@@ -96,7 +103,13 @@ assert(recommendationCard.includes('requestedDishRoles: ["starter", "salad"]'), 
 assert(recommendationCard.includes('preferredDishRole: "starter"'), "RecommendationCard nested action must prefer starters");
 assert(recommendationCard.includes("nestedLoadingDishIdsRef"), "RecommendationCard must guard fast double taps");
 assert(recommendationCard.includes("activeNestedDishIdRef"), "RecommendationCard must synchronously guard nested requests across different dishes");
+assert(recommendationCard.includes("mountedRef"), "RecommendationCard must guard nested request state updates after unmount");
 assert(recommendationCard.includes("activeNestedDishId === rec.dishId"), "RecommendationCard must bind nested active state to stable dishId");
+assert(recommendationCard.includes('isNestedActiveDish && nestedState.status === "loading"'), "RecommendationCard must show nested loading only for the active loading dish");
+assert(recommendationCard.includes("activeNestedDishIdRef.current !== dishId"), "RecommendationCard must ignore stale nested responses after active context reset");
+assert(recommendationCard.includes("<AnalysisLoadingBox"), "RecommendationCard must render the shared loading box for nested analysis");
+assert(recommendationCard.includes("steps={content.pick.loadingSteps}"), "RecommendationCard nested loading box must use localized loading steps");
+assert(recommendationCard.includes("title={content.pick.loadingTitle}"), "RecommendationCard nested loading box must use the localized loading title");
 assert(recommendationCard.includes("activeDishId && activeDishId !== dishId"), "RecommendationCard must reject nested requests for inactive dishes");
 assert(recommendationCard.includes('currentStatus === "loaded"'), "RecommendationCard must not restart loaded nested analysis accidentally");
 assert(recommendationCard.includes("accessibilityState={{ disabled: Boolean(disabled) }}"), "RecommendationCard action disabled state must be accessible");
@@ -139,6 +152,7 @@ const activeMobileFiles = [
   "apps/mobile/src/screens/pick/PickScreen.tsx",
   "apps/mobile/src/hooks/useAnalyzeMenu.ts",
   "apps/mobile/src/api/pickformeApi.ts",
+  "apps/mobile/src/components/pick/AnalysisLoadingBox.tsx",
   "apps/mobile/src/components/pick/SituationSelector.tsx",
   "apps/mobile/src/components/pick/RecommendationCard.tsx",
   "apps/mobile/src/content/mobileContent.de-DE.json",

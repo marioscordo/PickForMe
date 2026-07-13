@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Animated, Dimensions, Easing, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Dimensions, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { extractMenuTextFromPhoto, logAllergyWarningConfirmation } from "../../api/pickformeApi";
@@ -10,9 +10,9 @@ import { PhotoMenuCamera } from "../../components/pick/PhotoMenuCamera";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
 import { RecommendationCard } from "../../components/pick/RecommendationCard";
 import { RecommendationModeSelector } from "../../components/pick/SituationSelector";
+import { AnalysisLoadingBox } from "../../components/pick/AnalysisLoadingBox";
 import { ActionButton } from "../../components/ui/ActionButton";
 import { GustaroHelp } from "../../components/ui/GustaroHelp";
-import { Surface } from "../../components/ui/Surface";
 import { profileFeatures } from "../../config/profileFeatures";
 import { useMobileContent } from "../../content/useMobileContent";
 import { useAnalyzeMenu } from "../../hooks/useAnalyzeMenu";
@@ -30,8 +30,6 @@ type PickScreenProps = {
 type MenuInputOrigin = "empty" | "manual" | "qr" | "photo";
 
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
-const ANALYSIS_LOADING_STEP_INTERVAL_MS = 10000;
-const LOADING_SWEEP_DURATION_MS = 2600;
 const RESULT_BOTTOM_SCROLL_INSET = 0;
 const ENTRY_BOTTOM_SCROLL_INSET = 190;
 const BASE_WIDTH = 393;
@@ -71,56 +69,12 @@ export function PickScreen({
   const [entryScrollToTopKey, setEntryScrollToTopKey] = useState(0);
   const [moodSectionY, setMoodSectionY] = useState(0);
   const analyze = useAnalyzeMenu();
-  const [loadingStepIndex, setLoadingStepIndex] = useState(0);
-  const [loadingTrackWidth, setLoadingTrackWidth] = useState(0);
   const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
   const [showAllergyWarning, setShowAllergyWarning] = useState(false);
   const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
   const linkConfirmedAtRef = useRef<number | null>(null);
-  const loadingSweepProgress = useRef(new Animated.Value(0)).current;
   const allergyWarningParagraphs = content.allergyWarning.message.split("\n\n");
-
-  useEffect(() => {
-    if (!analyze.loading) {
-      setLoadingStepIndex(0);
-      return;
-    }
-
-    setLoadingStepIndex(0);
-    const timer = setInterval(() => {
-      setLoadingStepIndex((current) =>
-        loadingSteps.length > 0 ? (current + 1) % loadingSteps.length : 0
-      );
-    }, ANALYSIS_LOADING_STEP_INTERVAL_MS);
-
-    return () => clearInterval(timer);
-  }, [analyze.loading, loadingSteps.length]);
-
-  useEffect(() => {
-    if (!analyze.loading || loadingTrackWidth <= 0) {
-      loadingSweepProgress.stopAnimation();
-      loadingSweepProgress.setValue(0);
-      return;
-    }
-
-    loadingSweepProgress.setValue(0);
-    const animation = Animated.loop(
-      Animated.timing(loadingSweepProgress, {
-        toValue: 1,
-        duration: LOADING_SWEEP_DURATION_MS,
-        easing: Easing.inOut(Easing.cubic),
-        useNativeDriver: true
-      })
-    );
-
-    animation.start();
-
-    return () => {
-      animation.stop();
-      loadingSweepProgress.stopAnimation();
-    };
-  }, [analyze.loading, loadingSweepProgress, loadingTrackWidth]);
 
   useEffect(() => {
     if (returnToMoodKey > 0) {
@@ -236,7 +190,6 @@ export function PickScreen({
     setMenuText("");
     setMenuInputOrigin("empty");
     setLastAnalyzedMenuUrl("");
-    setLoadingStepIndex(0);
     setEntryScrollToActionKey(0);
     setEntryScrollToMoodKey(0);
     setEntryScrollToTopKey((current) => current + 1);
@@ -517,28 +470,10 @@ export function PickScreen({
       </Pressable>
 
       {analyze.loading ? (
-        <Surface tone="soft" style={local.feedbackCard}>
-          <Text style={local.loadingTitle}>{content.pick.loadingTitle}</Text>
-          <Text style={local.loadingText}>{loadingSteps[loadingStepIndex]}</Text>
-          <View
-            onLayout={(event) => setLoadingTrackWidth(event.nativeEvent.layout.width)}
-            style={local.loadingTrack}
-          >
-            <Animated.View
-              style={[
-                local.loadingSweep,
-                {
-                  transform: [{
-                    translateX: loadingSweepProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, Math.max(loadingTrackWidth - s(56), 0)]
-                    })
-                  }]
-                }
-              ]}
-            />
-          </View>
-        </Surface>
+        <AnalysisLoadingBox
+          steps={loadingSteps}
+          title={content.pick.loadingTitle}
+        />
       ) : null}
 
       {analyze.error ? (
@@ -912,45 +847,6 @@ const local = StyleSheet.create({
     fontWeight: "700",
     lineHeight: fs(20),
     marginTop: s(10)
-  },
-
-  feedbackCard: {
-    backgroundColor: "rgba(255, 253, 248, 0.86)",
-    borderColor: "rgba(200, 168, 90, 0.24)",
-    borderRadius: radius.hero,
-    marginBottom: spacing.lg,
-    padding: s(20)
-  },
-
-  loadingTitle: {
-    color: premiumColors.olive,
-    fontSize: typography.label.fontSize,
-    fontWeight: typography.label.fontWeight,
-    lineHeight: typography.label.lineHeight,
-    marginBottom: spacing.xs
-  },
-
-  loadingText: {
-    color: premiumColors.textMuted,
-    fontSize: typography.body.fontSize,
-    fontWeight: "600",
-    lineHeight: typography.body.lineHeight,
-    marginBottom: spacing.md
-  },
-
-  loadingTrack: {
-    backgroundColor: "rgba(116, 109, 100, 0.14)",
-    borderRadius: radius.pill,
-    height: s(8),
-    overflow: "hidden",
-    width: "100%"
-  },
-
-  loadingSweep: {
-    backgroundColor: premiumColors.gold,
-    borderRadius: radius.pill,
-    height: "100%",
-    width: s(56)
   },
 
   feedbackErrorCard: {
