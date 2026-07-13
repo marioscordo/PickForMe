@@ -17,6 +17,11 @@ import {
   type MainDishAISafeCandidate,
   type TwoStepMenuSourceInput
 } from "./twoStepRecommendationSchemas";
+import {
+  applySemanticEvidenceSafetyGate,
+  buildSemanticEvidenceRestrictions,
+  rebuildMainDishRecommendationsFromSemanticSafeCandidates
+} from "../recommendation/semanticEvidenceSafetyGate";
 
 type MainDishAiDiagnosticRow = {
   index: number;
@@ -76,9 +81,10 @@ export async function recommendMainDishesAI({
 
   const response = await client.responses.create(request, signal ? { signal } : undefined);
   const parsed = MainDishAIResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
-  logMainDishAiResponseDiagnostic(parsed, runId);
+  const semanticSafe = applyMainDishSemanticEvidenceSafety(parsed, profile);
+  logMainDishAiResponseDiagnostic(semanticSafe, runId);
 
-  return parsed.recommendations;
+  return semanticSafe.recommendations;
 }
 
 function logMainDishAiResponseDiagnostic(
@@ -154,6 +160,54 @@ function logMainDishAiResponseDiagnostic(
   })}`);
 }
 
+function applyMainDishSemanticEvidenceSafety(
+  response: {
+    allDishes: MainDishAIAnalyzedDish[];
+    removedDishes: MainDishAIRemovedDish[];
+    safeCandidates: MainDishAISafeCandidate[];
+    recommendations: MainDishAIRecommendation[];
+    resultSummary: MainDishAIResultSummary;
+  },
+  profile: UserProfile
+) {
+  const restrictions = buildSemanticEvidenceRestrictions(profile);
+  const semanticGate = applySemanticEvidenceSafetyGate({
+    candidates: response.safeCandidates,
+    restrictions
+  });
+
+  if (semanticGate.removed.length === 0) {
+    return response;
+  }
+
+  const recommendations = rebuildMainDishRecommendationsFromSemanticSafeCandidates({
+    safeCandidates: semanticGate.candidates
+  });
+
+  return {
+    ...response,
+    removedDishes: [
+      ...response.removedDishes,
+      ...semanticGate.removed.map((removed): MainDishAIRemovedDish => ({
+        nameOriginal: removed.nameOriginal,
+        matchedProfileValue: removed.restrictionLabel,
+        reason: `Semantischer sichtbarer Konflikt: ${removed.evidence} (${removed.restrictionId})`
+      }))
+    ],
+    safeCandidates: semanticGate.candidates,
+    recommendations,
+    resultSummary: {
+      ...response.resultSummary,
+      removedDishCount: response.resultSummary.removedDishCount + semanticGate.removed.length,
+      safeCandidateCount: semanticGate.candidates.length,
+      recommendationCount: recommendations.length,
+      lessThanThreeReason: recommendations.length < 3
+        ? response.resultSummary.lessThanThreeReason ?? "Weniger als drei sichere Kandidaten nach semantischer Evidence-Pruefung."
+        : null
+    }
+  };
+}
+
 function hasDiagnosticValue(value: string | null | undefined) {
   return Boolean(value?.trim());
 }
@@ -180,11 +234,13 @@ function buildMainDishPrompt({
 }) {
   const activePreferences = getActivePreferenceValues(profile);
   const searchAssignment = buildActivePreferenceSearchAssignment(activePreferences);
+  const semanticEvidenceRestrictions = buildSemanticEvidenceRestrictions(profile);
   const structuredAssignment = buildStructuredMainDishAssignment({
     profile,
     situation,
     activePreferences,
     searchAssignment,
+    semanticEvidenceRestrictions,
     targetLocale
   });
 
@@ -231,6 +287,13 @@ function buildMainDishPrompt({
     "- Entferne Gerichte nur, wenn ein aktiver harter Profilwert im sichtbaren Gerichtsnamen oder in der sichtbaren Beschreibung erkennbar vorkommt.",
     "- Entferne kein Gericht wegen blosser Vermutung, unbekannter Zubereitung oder Formulierungen wie koennte enthalten.",
     "- Wenn kein sichtbarer Konflikt erkennbar ist, darf das Gericht nicht allein wegen Unsicherheit in removedDishes landen.",
+    "- Pruefe zusaetzlich sprachuebergreifend, ob eine aktive Einschraenkung in sichtbarem Gerichtsnamen oder sichtbarer Beschreibung semantisch genannt wird.",
+    "- Nutze dafuer ausschliesslich die restrictionIds aus semanticEvidenceRestrictions im strukturierten Auftrag.",
+    "- Beispiele fuer semantische sichtbare Konflikte: Walnuesse -> walnut, Sahne -> cream, Schweinefleisch -> pork, Muscheln -> mussels.",
+    "- Keine Zutatenvermutung, keine typische-Rezept-Annahme, keine Ableitung aus Kuechenstil, Gerichtstyp oder Herkunft.",
+    "- Fuer jeden semantischen Match muss safetyMatches restrictionId, evidence, source und relation enthalten.",
+    "- evidence muss ein kurzer exakter sichtbarer Textbeleg aus Name oder Beschreibung sein.",
+    "- relation ist contains, may_contain, free_from oder unknown. Verwende free_from fuer ausdruecklich freie Formulierungen wie without walnuts.",
     "- Wenn Sahne, Rahm, Cream oder Panna in Ausschluessen, Unvertraeglichkeiten oder Allergenen aktiv ist: kein Gericht mit Sahne, Sahnesosse, Sahnesauce, Rahm, Cream, Cream sauce oder Panna empfehlen.",
     "- Beispiel Modo Mio: Name Spaghetti al Tartufo wirkt unkritisch, aber die Beschreibung enthaelt Pecorino-Trueffel-Sahnesauce; bei Ausschluss Sahne muss dieses Gericht entfernt werden.",
     "- Nutze nur echte Hauptgerichte, die belegbar in der Speisekarte vorkommen.",
@@ -282,7 +345,48 @@ function buildMainDishPrompt({
     "    {",
     '      "nameOriginal": "sicherer Kandidat",',
     '      "descriptionOriginal": "vollstaendige sichtbare Originalbeschreibung falls vorhanden, sonst null",',
-    '      "scoreReason": "kurze Bewertung anhand Vorlieben und Situation in der Zielsprache"',
+    '      "scoreReason": "kurze Bewertung anhand Vorlieben und Situation in der Zielsprache",',
+    '      "translatedName": "Anzeigeuebersetzung fuer moegliches Nachruecken, falls sicher belegbar",',
+    '      "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
+    '      "priceRaw": "Preis falls sichtbar, sonst null oder weglassen",',
+    '      "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
+    '      "sourceKind": "pdf | html | image | text | unknown",',
+    '      "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
+    '      "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
+    '      "confidence": "high | medium | low",',
+    '      "profileSafety": {',
+    '        "hasKnownConflict": false,',
+    '        "uncertainForAllergy": false,',
+    '        "conflictReason": null,',
+    '        "checkedAgainst": ["aktive harte Profilwerte"]',
+    "      },",
+    '      "recommendationPayload": {',
+    '        "nameOriginal": "derselbe Originalname dieses sicheren Kandidaten",',
+    '        "translatedName": "display-sichere nutzerseitige Anzeigeuebersetzung in der Zielsprache",',
+    '        "descriptionOriginal": "vollstaendige Originalbeschreibung falls sichtbar, sonst null",',
+    '        "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
+    '        "priceRaw": "Preis falls sichtbar, sonst null oder weglassen",',
+    '        "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
+    '        "sourceKind": "pdf | html | image | text | unknown",',
+    '        "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
+    '        "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
+    '        "reason": "kurze profilbezogene Begruendung fuer genau diesen Kandidaten in der Zielsprache",',
+    '        "confidence": "high | medium | low",',
+    '        "profileSafety": {',
+    '          "hasKnownConflict": false,',
+    '          "uncertainForAllergy": false,',
+    '          "conflictReason": null,',
+    '          "checkedAgainst": ["aktive harte Profilwerte"]',
+    "        }",
+    "      },",
+    '      "safetyMatches": [',
+    "        {",
+    '          "restrictionId": "allergen_0",',
+    '          "evidence": "exakter sichtbarer Textbeleg",',
+    '          "source": "name | description",',
+    '          "relation": "contains | may_contain | free_from | unknown"',
+    "        }",
+    "      ]",
     "    }",
     "  ],",
     '  "recommendations": [',
@@ -304,7 +408,15 @@ function buildMainDishPrompt({
     '        "uncertainForAllergy": false,',
     '        "conflictReason": null,',
     '        "checkedAgainst": ["aktive harte Profilwerte"]',
-    "      }",
+    "      },",
+    '      "safetyMatches": [',
+    "        {",
+    '          "restrictionId": "allergen_0",',
+    '          "evidence": "exakter sichtbarer Textbeleg",',
+    '          "source": "name | description",',
+    '          "relation": "contains | may_contain | free_from | unknown"',
+    "        }",
+    "      ]",
     "    }",
     "  ],",
     '  "resultSummary": {',
@@ -348,12 +460,14 @@ function buildStructuredMainDishAssignment({
   situation,
   activePreferences,
   searchAssignment,
+  semanticEvidenceRestrictions,
   targetLocale
 }: {
   profile: UserProfile;
   situation?: Situation;
   activePreferences: string[];
   searchAssignment: ActivePreferenceSearchAssignment;
+  semanticEvidenceRestrictions: ReturnType<typeof buildSemanticEvidenceRestrictions>;
   targetLocale: string;
 }) {
   const hardExclusions = uniqueValues(arrayValue(profile.customExclusions));
@@ -367,6 +481,7 @@ function buildStructuredMainDishAssignment({
         allergene: hardAllergens,
         ausgabesprache: targetLocale
       },
+      semanticEvidenceRestrictions,
       situation: {
         modus: situation || profile.appetiteMood || "nicht angegeben"
       },
@@ -402,7 +517,7 @@ function buildStructuredMainDishAssignment({
       },
       speisekarte: "siehe Quellenkontext/Speisekartentext oder angehaengte Speisekartendateien"
     },
-    auftrag: "Analysiere zuerst alle erkennbaren Hauptgerichte, entferne Gerichte mit aktiven Ausschluessen oder Allergenen, bilde daraus sichere Kandidaten und waehle erst danach genau 3 Empfehlungen, wenn mindestens 3 sichere Hauptgerichte vorhanden sind."
+    auftrag: "Analysiere zuerst alle erkennbaren Hauptgerichte, entferne Gerichte mit aktiven Ausschluessen oder Allergenen, dokumentiere sichtbare semantische Konfliktbelege in safetyMatches, bilde daraus sichere Kandidaten und waehle erst danach genau 3 Empfehlungen, wenn mindestens 3 sichere Hauptgerichte vorhanden sind."
   };
 }
 

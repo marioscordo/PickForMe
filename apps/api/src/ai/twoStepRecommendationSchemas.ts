@@ -6,6 +6,13 @@ export const TwoStepCommittedConfidenceSchema = z.enum(["high", "medium"]);
 
 const OptionalNullableStringSchema = z.string().trim().min(1).nullable().optional();
 
+export const SemanticEvidenceSafetyMatchSchema = z.object({
+  restrictionId: z.string().trim().min(1).optional(),
+  evidence: z.string().trim().min(1).optional(),
+  source: z.string().trim().min(1).optional(),
+  relation: z.string().trim().min(1).optional()
+}).passthrough();
+
 export const TwoStepProfileSafetySchema = z.object({
   hasKnownConflict: z.boolean(),
   uncertainForAllergy: z.boolean(),
@@ -34,7 +41,23 @@ export const MainDishAIRecommendationSchema = z.object({
   sourceCategoryOriginal: OptionalNullableStringSchema,
   reason: z.string().trim().min(1),
   confidence: TwoStepConfidenceSchema,
-  profileSafety: TwoStepProfileSafetySchema
+  profileSafety: TwoStepProfileSafetySchema,
+  safetyMatches: z.array(SemanticEvidenceSafetyMatchSchema).optional()
+});
+
+export const MainDishAISafeCandidateRecommendationPayloadSchema = z.object({
+  nameOriginal: z.string().trim().min(1).optional(),
+  translatedName: z.string().trim().min(1).optional(),
+  descriptionOriginal: OptionalNullableStringSchema,
+  translatedDescription: OptionalNullableStringSchema,
+  priceRaw: OptionalNullableStringSchema,
+  sourceEvidence: OptionalNullableStringSchema,
+  sourceKind: TwoStepSourceKindSchema.optional(),
+  sourceUrl: OptionalNullableStringSchema,
+  sourceCategoryOriginal: OptionalNullableStringSchema,
+  reason: z.string().trim().min(1).optional(),
+  confidence: TwoStepConfidenceSchema.optional(),
+  profileSafety: TwoStepProfileSafetySchema.optional()
 });
 
 export const MainDishAIAnalyzedDishSchema = z.object({
@@ -54,7 +77,18 @@ export const MainDishAIRemovedDishSchema = z.object({
 export const MainDishAISafeCandidateSchema = z.object({
   nameOriginal: z.string().trim().min(1),
   descriptionOriginal: OptionalNullableStringSchema,
-  scoreReason: z.string().trim().min(1)
+  scoreReason: z.string().trim().min(1),
+  translatedName: z.string().trim().min(1).optional(),
+  translatedDescription: OptionalNullableStringSchema,
+  priceRaw: OptionalNullableStringSchema,
+  sourceEvidence: OptionalNullableStringSchema,
+  sourceKind: TwoStepSourceKindSchema.optional(),
+  sourceUrl: OptionalNullableStringSchema,
+  sourceCategoryOriginal: OptionalNullableStringSchema,
+  confidence: TwoStepConfidenceSchema.optional(),
+  profileSafety: TwoStepProfileSafetySchema.optional(),
+  recommendationPayload: MainDishAISafeCandidateRecommendationPayloadSchema.optional(),
+  safetyMatches: z.array(SemanticEvidenceSafetyMatchSchema).optional()
 });
 
 export const MainDishAIResultSummarySchema = z.object({
@@ -151,8 +185,10 @@ export type TwoStepSourceKind = z.infer<typeof TwoStepSourceKindSchema>;
 export type TwoStepConfidence = z.infer<typeof TwoStepConfidenceSchema>;
 export type TwoStepCommittedConfidence = z.infer<typeof TwoStepCommittedConfidenceSchema>;
 export type TwoStepProfileSafety = z.infer<typeof TwoStepProfileSafetySchema>;
+export type SemanticEvidenceSafetyMatch = z.infer<typeof SemanticEvidenceSafetyMatchSchema>;
 export type TwoStepMenuSourceInput = z.infer<typeof TwoStepMenuSourceInputSchema>;
 export type MainDishAIRecommendation = z.infer<typeof MainDishAIRecommendationSchema>;
+export type MainDishAISafeCandidateRecommendationPayload = z.infer<typeof MainDishAISafeCandidateRecommendationPayloadSchema>;
 export type MainDishAIAnalyzedDish = z.infer<typeof MainDishAIAnalyzedDishSchema>;
 export type MainDishAIRemovedDish = z.infer<typeof MainDishAIRemovedDishSchema>;
 export type MainDishAISafeCandidate = z.infer<typeof MainDishAISafeCandidateSchema>;
