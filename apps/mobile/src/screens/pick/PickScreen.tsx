@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Dimensions, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Animated, Dimensions, Easing, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { extractMenuTextFromPhoto, logAllergyWarningConfirmation } from "../../api/pickformeApi";
@@ -30,7 +30,8 @@ type PickScreenProps = {
 type MenuInputOrigin = "empty" | "manual" | "qr" | "photo";
 
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
-const ANALYSIS_LOADING_STEP_INTERVAL_MS = 1500;
+const ANALYSIS_LOADING_STEP_INTERVAL_MS = 10000;
+const LOADING_SWEEP_DURATION_MS = 2600;
 const RESULT_BOTTOM_SCROLL_INSET = 0;
 const ENTRY_BOTTOM_SCROLL_INSET = 190;
 const BASE_WIDTH = 393;
@@ -69,15 +70,15 @@ export function PickScreen({
   const [entryScrollToMoodKey, setEntryScrollToMoodKey] = useState(0);
   const [entryScrollToTopKey, setEntryScrollToTopKey] = useState(0);
   const [moodSectionY, setMoodSectionY] = useState(0);
-  const [linkAcceptedVisible, setLinkAcceptedVisible] = useState(false);
   const analyze = useAnalyzeMenu();
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
+  const [loadingTrackWidth, setLoadingTrackWidth] = useState(0);
   const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
   const [showAllergyWarning, setShowAllergyWarning] = useState(false);
   const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
-  const linkAcceptedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linkConfirmedAtRef = useRef<number | null>(null);
+  const loadingSweepProgress = useRef(new Animated.Value(0)).current;
   const allergyWarningParagraphs = content.allergyWarning.message.split("\n\n");
 
   useEffect(() => {
@@ -86,20 +87,40 @@ export function PickScreen({
       return;
     }
 
+    setLoadingStepIndex(0);
     const timer = setInterval(() => {
       setLoadingStepIndex((current) =>
-        Math.min(current + 1, loadingSteps.length - 1)
+        loadingSteps.length > 0 ? (current + 1) % loadingSteps.length : 0
       );
     }, ANALYSIS_LOADING_STEP_INTERVAL_MS);
 
     return () => clearInterval(timer);
   }, [analyze.loading, loadingSteps.length]);
 
-  useEffect(() => () => {
-    if (linkAcceptedTimerRef.current) {
-      clearTimeout(linkAcceptedTimerRef.current);
+  useEffect(() => {
+    if (!analyze.loading || loadingTrackWidth <= 0) {
+      loadingSweepProgress.stopAnimation();
+      loadingSweepProgress.setValue(0);
+      return;
     }
-  }, []);
+
+    loadingSweepProgress.setValue(0);
+    const animation = Animated.loop(
+      Animated.timing(loadingSweepProgress, {
+        toValue: 1,
+        duration: LOADING_SWEEP_DURATION_MS,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true
+      })
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+      loadingSweepProgress.stopAnimation();
+    };
+  }, [analyze.loading, loadingSweepProgress, loadingTrackWidth]);
 
   useEffect(() => {
     if (returnToMoodKey > 0) {
@@ -167,18 +188,9 @@ export function PickScreen({
     if (normalizeMenuUrl(value)) {
       linkConfirmedAtRef.current = Date.now();
       Keyboard.dismiss();
-      setLinkAcceptedVisible(true);
-      if (linkAcceptedTimerRef.current) {
-        clearTimeout(linkAcceptedTimerRef.current);
-      }
-      linkAcceptedTimerRef.current = setTimeout(() => {
-        setLinkAcceptedVisible(false);
-        linkAcceptedTimerRef.current = null;
-      }, 2200);
       setEntryScrollToMoodKey((current) => current + 1);
     } else {
       linkConfirmedAtRef.current = null;
-      setLinkAcceptedVisible(false);
     }
   }
 
@@ -478,20 +490,53 @@ export function PickScreen({
         <RecommendationModeSelector mode={recommendationMode} setMode={setRecommendationMode} />
       </View>
 
+      {onOpenProfilePreferences ? (
+        <Pressable
+          accessibilityRole="button"
+          disabled={analyze.loading}
+          onPress={onOpenProfilePreferences}
+          style={({ pressed }) => [
+            local.reviewPreferencesButton,
+            analyze.loading ? local.reviewPreferencesButtonDisabled : null,
+            pressed ? local.reviewPreferencesButtonPressed : null
+          ]}
+        >
+          <Feather color={premiumPalette.gold} name="user-check" size={s(18)} />
+          <Text style={local.reviewPreferencesButtonText}>{content.pick.reviewPreferences}</Text>
+        </Pressable>
+      ) : null}
+
+      <Pressable
+        accessibilityRole="button"
+        disabled={analyze.loading}
+        onPress={handleAnalyze}
+        style={[local.mainButton, analyze.loading && local.mainButtonDisabled]}
+      >
+        <MaterialCommunityIcons color={premiumPalette.surface} name="room-service-outline" size={s(25)} />
+        <Text style={local.mainButtonText}>{analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}</Text>
+      </Pressable>
+
       {analyze.loading ? (
         <Surface tone="soft" style={local.feedbackCard}>
           <Text style={local.loadingTitle}>{content.pick.loadingTitle}</Text>
           <Text style={local.loadingText}>{loadingSteps[loadingStepIndex]}</Text>
-          <View style={local.loadingDots}>
-            {loadingSteps.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  local.loadingDot,
-                  index === loadingStepIndex && local.loadingDotActive
-                ]}
-              />
-            ))}
+          <View
+            onLayout={(event) => setLoadingTrackWidth(event.nativeEvent.layout.width)}
+            style={local.loadingTrack}
+          >
+            <Animated.View
+              style={[
+                local.loadingSweep,
+                {
+                  transform: [{
+                    translateX: loadingSweepProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, Math.max(loadingTrackWidth - s(56), 0)]
+                    })
+                  }]
+                }
+              ]}
+            />
           </View>
         </Surface>
       ) : null}
@@ -513,39 +558,6 @@ export function PickScreen({
             </View>
           ) : null}
         </>
-      ) : null}
-
-      <Pressable
-        accessibilityRole="button"
-        disabled={analyze.loading}
-        onPress={handleAnalyze}
-        style={[local.mainButton, analyze.loading && local.mainButtonDisabled]}
-      >
-        <MaterialCommunityIcons color={premiumPalette.surface} name="room-service-outline" size={s(25)} />
-        <Text style={local.mainButtonText}>{analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}</Text>
-      </Pressable>
-
-      {onOpenProfilePreferences ? (
-        <Pressable
-          accessibilityRole="button"
-          disabled={analyze.loading}
-          onPress={onOpenProfilePreferences}
-          style={({ pressed }) => [
-            local.reviewPreferencesButton,
-            analyze.loading ? local.reviewPreferencesButtonDisabled : null,
-            pressed ? local.reviewPreferencesButtonPressed : null
-          ]}
-        >
-          <Feather color={premiumPalette.gold} name="user-check" size={s(18)} />
-          <Text style={local.reviewPreferencesButtonText}>{content.pick.reviewPreferences}</Text>
-        </Pressable>
-      ) : null}
-
-      {linkAcceptedVisible ? (
-        <Surface tone="soft" style={local.linkAcceptedCard}>
-          <Feather color={premiumPalette.gold} name="check-circle" size={s(18)} />
-          <Text style={local.linkAcceptedText}>{content.pick.linkAccepted}</Text>
-        </Surface>
       ) : null}
 
       <Modal
@@ -902,24 +914,6 @@ const local = StyleSheet.create({
     marginTop: s(10)
   },
 
-  linkAcceptedCard: {
-    alignItems: "center",
-    borderColor: "rgba(198, 160, 74, 0.28)",
-    borderRadius: s(18),
-    flexDirection: "row",
-    gap: s(9),
-    marginBottom: s(14),
-    paddingHorizontal: s(16),
-    paddingVertical: s(12)
-  },
-
-  linkAcceptedText: {
-    color: premiumPalette.oliveDeep,
-    fontSize: fs(15),
-    fontWeight: "800",
-    lineHeight: fs(20)
-  },
-
   feedbackCard: {
     backgroundColor: "rgba(255, 253, 248, 0.86)",
     borderColor: "rgba(200, 168, 90, 0.24)",
@@ -944,21 +938,19 @@ const local = StyleSheet.create({
     marginBottom: spacing.md
   },
 
-  loadingDots: {
-    flexDirection: "row",
-    gap: spacing.xs
-  },
-
-  loadingDot: {
-    backgroundColor: "rgba(116, 109, 100, 0.18)",
-    height: 7,
+  loadingTrack: {
+    backgroundColor: "rgba(116, 109, 100, 0.14)",
     borderRadius: radius.pill,
-    width: 7
+    height: s(8),
+    overflow: "hidden",
+    width: "100%"
   },
 
-  loadingDotActive: {
+  loadingSweep: {
     backgroundColor: premiumColors.gold,
-    width: 18
+    borderRadius: radius.pill,
+    height: "100%",
+    width: s(56)
   },
 
   feedbackErrorCard: {

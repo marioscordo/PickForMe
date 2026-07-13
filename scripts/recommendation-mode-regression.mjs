@@ -42,6 +42,12 @@ assert(
   en.help.pickInput.points.includes("Once you have chosen a dish, you can optionally ask for a starter or salad as an additional course."),
   "en-US: embedded starter/salad help text missing"
 );
+assert(!("menuReady" in de.pick), "de-DE: menu ready box text must be removed");
+assert(!("menuReady" in en.pick), "en-US: menu ready box text must be removed");
+assert(!("menuReadyAtRestaurant" in de.pick), "de-DE: dynamic restaurant ready text must be removed");
+assert(!("menuReadyAtRestaurant" in en.pick), "en-US: dynamic restaurant ready text must be removed");
+assert(!("linkAccepted" in de.pick), "de-DE: old link accepted text must be removed");
+assert(!("linkAccepted" in en.pick), "en-US: old link accepted text must be removed");
 
 const mobileMode = read("apps/mobile/src/types/recommendationMode.ts");
 assert(mobileMode.includes('return mode === "starters_and_salads" ? ["starter", "salad"] : ["main"];'), "mobile mode payload mapping missing");
@@ -57,6 +63,18 @@ const pickScreen = read("apps/mobile/src/screens/pick/PickScreen.tsx");
 assert(pickScreen.includes("requestedDishRolesForMode(recommendationMode)"), "PickScreen must send requested dish roles");
 assert(!pickScreen.includes("setSituation"), "PickScreen must not keep active situation state");
 assert(!pickScreen.includes("<SituationSelector"), "PickScreen must not render the old situation selector");
+assert(!pickScreen.includes("linkAccepted"), "PickScreen must not render the old temporary link accepted hint");
+assert(pickScreen.includes("ANALYSIS_LOADING_STEP_INTERVAL_MS = 10000"), "PickScreen loading steps must stay visible for 10 seconds");
+assert(pickScreen.includes("(current + 1) % loadingSteps.length"), "PickScreen loading steps must cycle without empty text");
+assert(pickScreen.includes("loadingTrackWidth"), "PickScreen loading animation must use measured width");
+assert(pickScreen.includes("Math.max(loadingTrackWidth - s(56), 0)"), "PickScreen loading animation must span the available track width");
+assert(!pickScreen.includes("content.pick.menuReady"), "PickScreen must not render a persistent menu ready box");
+assert(!pickScreen.includes("buildMenuReadyText"), "PickScreen must not keep menu ready restaurant formatting logic");
+const reviewButtonIndex = pickScreen.indexOf("content.pick.reviewPreferences");
+const mainButtonIndex = pickScreen.indexOf("content.pick.mainButtonLoading");
+const loadingBoxIndex = pickScreen.indexOf("content.pick.loadingTitle");
+assert(reviewButtonIndex > 0 && mainButtonIndex > reviewButtonIndex, "PickScreen must place review preferences above the main analyze button");
+assert(loadingBoxIndex > mainButtonIndex, "PickScreen must place the loading box below the main analyze button");
 
 const useAnalyzeMenu = read("apps/mobile/src/hooks/useAnalyzeMenu.ts");
 assert(useAnalyzeMenu.includes("requestedDishRoles: RequestedDishRole[]"), "useAnalyzeMenu must accept requestedDishRoles");
