@@ -24,6 +24,7 @@ export type UserProfile = {
   hiddenAllergens?: string[];
   deletedPreferences?: string[];
   deletedExclusions?: string[];
+  recommendationFeedback?: RecommendationFeedback[];
 };
 
 

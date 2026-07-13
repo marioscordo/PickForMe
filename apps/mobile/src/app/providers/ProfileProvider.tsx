@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { DEFAULT_OUTPUT_LOCALE } from "../../config/outputLocales";
 import { filterControlledProfileValues } from "../../profile/profileInputPolicy";
-import type { UserProfile } from "../../types/profile";
+import type { RecommendationFeedback, UserProfile } from "../../types/profile";
 
 const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";
 
@@ -126,7 +126,8 @@ function normalizeProfile(profile: Partial<UserProfile>): UserProfile {
     hiddenExclusions: stringArray(profile.hiddenExclusions),
     hiddenAllergens: stringArray(profile.hiddenAllergens),
     deletedPreferences: stringArray(profile.deletedPreferences),
-    deletedExclusions: stringArray(profile.deletedExclusions)
+    deletedExclusions: stringArray(profile.deletedExclusions),
+    recommendationFeedback: recommendationFeedbackArray(profile.recommendationFeedback)
   };
 }
 
@@ -142,6 +143,49 @@ function stringArray(values: unknown) {
 
 function isAppetiteMood(value: unknown): value is UserProfile["appetiteMood"] {
   return value === "richtig_hunger" || value === "leicht" || value === "neues_probieren" || value === "sicher";
+}
+
+function recommendationFeedbackArray(values: unknown): RecommendationFeedback[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((item): RecommendationFeedback | null => {
+      if (typeof item !== "object" || item === null) {
+        return null;
+      }
+
+      const feedback = item as Partial<RecommendationFeedback>;
+      const dishNameOriginal = typeof feedback.dishNameOriginal === "string"
+        ? feedback.dishNameOriginal.trim()
+        : "";
+      const translatedName = typeof feedback.translatedName === "string" && feedback.translatedName.trim()
+        ? feedback.translatedName.trim()
+        : undefined;
+      const rating = feedback.rating;
+      const createdAt = typeof feedback.createdAt === "string" && feedback.createdAt.trim()
+        ? feedback.createdAt
+        : new Date(0).toISOString();
+
+      if (!dishNameOriginal || !isRating(rating)) {
+        return null;
+      }
+
+      return {
+        dishNameOriginal,
+        translatedName,
+        rating,
+        accepted: feedback.accepted === true,
+        createdAt
+      };
+    })
+    .filter((item): item is RecommendationFeedback => Boolean(item))
+    .slice(-30);
+}
+
+function isRating(value: unknown): value is RecommendationFeedback["rating"] {
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5;
 }
 
 function uniqueValues(values: string[]) {
