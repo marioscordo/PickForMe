@@ -58,7 +58,7 @@ assert(hook.includes('case "NO_SAFE_RECOMMENDATIONS"'), "safety no-recommendatio
 assert(hook.includes('case "ANALYSIS_NOT_SAFE"'), "safety analysis-not-safe error must stay explicit");
 assert(hook.includes("error.status && error.status >= 500"), "unexpected server errors must not use safety title");
 assert(analyzeRoute.includes("isTemporaryConnectionError"), "analyze route must classify temporary DNS/connect/OpenAI connection errors");
-assert(analyzeRoute.includes('503,\n            "CONNECTION_ERROR"'), "temporary connection errors must return HTTP 503");
+assert(/503,\s*"CONNECTION_ERROR"/.test(analyzeRoute), "temporary connection errors must return HTTP 503");
 assert(analyzeRoute.includes("{ retryable: true }"), "temporary connection errors must be marked retryable");
 assert(analyzeRoute.includes("pdfAiError instanceof SyntaxError"), "invalid PDF AI JSON must be treated as technical error");
 assert(analyzeRoute.includes("aiError instanceof SyntaxError"), "invalid text AI JSON must be treated as technical error");

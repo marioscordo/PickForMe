@@ -12,7 +12,7 @@ export type RecommendationSafetyCandidate = {
   descriptionOriginal?: string | null;
 };
 
-export type RecommendationSafetyVerdict = "conflict" | "no_visible_conflict" | "free_from" | "uncertain";
+export type RecommendationSafetyVerdict = "safe" | "conflict" | "uncertain";
 export type RecommendationSafetyEvidenceSource = "name" | "description";
 
 export type RecommendationSafetyCheck = {
@@ -140,7 +140,7 @@ export function validateRecommendationSafetyResponse({
         break;
       }
 
-      if (verdict === "conflict" || verdict === "free_from") {
+      if (verdict === "conflict") {
         const evidence = check.evidence?.trim();
         const source = normalizeSource(check.source);
 
@@ -215,9 +215,8 @@ export function candidateContainsEvidence(
 
 function normalizeVerdict(value: string | undefined): RecommendationSafetyVerdict | null {
   if (
+    value === "safe" ||
     value === "conflict" ||
-    value === "no_visible_conflict" ||
-    value === "free_from" ||
     value === "uncertain"
   ) {
     return value;

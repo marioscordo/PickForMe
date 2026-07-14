@@ -86,10 +86,10 @@ function resultFor(candidates, verifierResponse, activeRestrictions = restrictio
     candidate("candidate_3", "Pasta el greco", "tomato and feta")
   ];
   const result = resultFor(candidates, response([
-    { candidateId: "candidate_0", checks: [check("allergen_0", "conflict", "walnut", "description"), check("exclusion_0", "no_visible_conflict")] },
-    { candidateId: "candidate_1", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] },
-    { candidateId: "candidate_2", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] },
-    { candidateId: "candidate_3", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] }
+    { candidateId: "candidate_0", checks: [check("allergen_0", "conflict", "walnut", "description"), check("exclusion_0", "safe")] },
+    { candidateId: "candidate_1", checks: [check("allergen_0", "safe"), check("exclusion_0", "safe")] },
+    { candidateId: "candidate_2", checks: [check("allergen_0", "safe"), check("exclusion_0", "safe")] },
+    { candidateId: "candidate_3", checks: [check("allergen_0", "safe"), check("exclusion_0", "safe")] }
   ]));
 
   assert(result.candidates.map((item) => item.nameOriginal).join(",") === "Chicken Fillet,Seafood Pasta,Pasta el greco", "Mira main candidate must be removed and next candidates must move up");
@@ -100,7 +100,7 @@ function resultFor(candidates, verifierResponse, activeRestrictions = restrictio
     candidate("starter_0", "Beetroot salad", "walnuts")
   ];
   const result = resultFor(starters, response([
-    { candidateId: "starter_0", checks: [check("allergen_0", "conflict", "walnuts", "description"), check("exclusion_0", "no_visible_conflict")] }
+    { candidateId: "starter_0", checks: [check("allergen_0", "conflict", "walnuts", "description"), check("exclusion_0", "safe")] }
   ]));
 
   assert(result.candidates.length === 0, "Mira beetroot salad starter must be removed");
@@ -114,10 +114,10 @@ for (const [description, evidence] of [
   const candidates = [candidate("candidate_0", "Safe dish", description)];
   const activeRestrictions = buildRecommendationSafetyRestrictions({ allergens: ["Walnuesse"] });
   const result = resultFor(candidates, response([
-    { candidateId: "candidate_0", checks: [check("allergen_0", "free_from", evidence, "description")] }
+    { candidateId: "candidate_0", checks: [check("allergen_0", "safe", evidence, "description")] }
   ]), activeRestrictions);
 
-  assert(result.candidates.length === 1, `${description} must not block when verifier returns free_from`);
+  assert(result.candidates.length === 1, `${description} must not block when verifier returns safe`);
 }
 
 {
@@ -142,8 +142,18 @@ for (const [description, evidence] of [
 
 {
   const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
+  const activeRestrictions = buildRecommendationSafetyRestrictions({ allergens: ["Walnuesse"] });
   const result = resultFor(candidates, response([
     { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict")] }
+  ]), activeRestrictions);
+
+  assert(result.candidates.length === 0, "unsupported verifier verdicts must fail closed");
+}
+
+{
+  const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
+  const result = resultFor(candidates, response([
+    { candidateId: "candidate_0", checks: [check("allergen_0", "safe")] }
   ]));
 
   assert(result.candidates.length === 0, "missing restriction check must fail closed");
@@ -152,7 +162,7 @@ for (const [description, evidence] of [
 {
   const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
   const result = resultFor(candidates, response([
-    { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict"), check("allergen_0", "no_visible_conflict")] }
+    { candidateId: "candidate_0", checks: [check("allergen_0", "safe"), check("allergen_0", "safe")] }
   ]));
 
   assert(result.candidates.length === 0, "duplicate restriction ID must fail closed");
@@ -164,7 +174,7 @@ for (const [description, evidence] of [
     restrictions,
     candidates,
     response: response([
-      { candidateId: "unknown_candidate", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] }
+      { candidateId: "unknown_candidate", checks: [check("allergen_0", "safe"), check("exclusion_0", "safe")] }
     ])
   });
 
@@ -174,8 +184,8 @@ for (const [description, evidence] of [
 {
   const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
   const result = resultFor(candidates, response([
-    { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] },
-    { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict"), check("exclusion_0", "no_visible_conflict")] }
+    { candidateId: "candidate_0", checks: [check("allergen_0", "safe"), check("exclusion_0", "safe")] },
+    { candidateId: "candidate_0", checks: [check("allergen_0", "safe"), check("exclusion_0", "safe")] }
   ]));
 
   assert(result.candidates.length === 0, "duplicate candidate ID must fail closed");
@@ -184,7 +194,7 @@ for (const [description, evidence] of [
 {
   const candidates = [candidate("candidate_0", "Dish", "plain tomato")];
   const result = resultFor(candidates, response([
-    { candidateId: "candidate_0", checks: [check("allergen_0", "conflict", "walnut", "description"), check("exclusion_0", "no_visible_conflict")] }
+    { candidateId: "candidate_0", checks: [check("allergen_0", "conflict", "walnut", "description"), check("exclusion_0", "safe")] }
   ]));
 
   assert(result.candidates.length === 0, "hallucinated evidence must fail closed");
@@ -198,7 +208,7 @@ for (const [description, evidence] of [
   const activeRestrictions = buildRecommendationSafetyRestrictions({ allergens: ["Walnuesse"] });
   const result = resultFor(candidates, response([
     { candidateId: "candidate_0", checks: [check("allergen_0", "conflict", "walnuts", "description")] },
-    { candidateId: "candidate_1", checks: [check("allergen_0", "no_visible_conflict")] }
+    { candidateId: "candidate_1", checks: [check("allergen_0", "safe")] }
   ]), activeRestrictions);
 
   assert(result.candidates.map((item) => item.id).join(",") === "candidate_1", "duplicate names must be separated by candidate ID");
@@ -213,10 +223,10 @@ for (const [description, evidence] of [
   ];
   const activeRestrictions = buildRecommendationSafetyRestrictions({ allergens: ["Walnuesse"] });
   const result = resultFor(candidates, response([
-    { candidateId: "candidate_0", checks: [check("allergen_0", "no_visible_conflict")] },
+    { candidateId: "candidate_0", checks: [check("allergen_0", "safe")] },
     { candidateId: "candidate_1", checks: [check("allergen_0", "conflict", "walnut", "description")] },
-    { candidateId: "candidate_2", checks: [check("allergen_0", "no_visible_conflict")] },
-    { candidateId: "candidate_3", checks: [check("allergen_0", "no_visible_conflict")] }
+    { candidateId: "candidate_2", checks: [check("allergen_0", "safe")] },
+    { candidateId: "candidate_3", checks: [check("allergen_0", "safe")] }
   ]), activeRestrictions);
 
   assert(result.candidates.map((item) => item.nameOriginal).join(",") === "A,C,D", "four-to-three order must remain stable");

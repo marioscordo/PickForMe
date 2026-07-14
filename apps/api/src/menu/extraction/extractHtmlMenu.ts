@@ -125,6 +125,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
   const fragments: string[] = [];
   const items: MenuExtractionItem[] = [];
   let pending: PendingHtmlDish | null = null;
+  let pendingInlineDescriptionItemIndex: number | null = null;
   let currentCategory: string | undefined;
   let currentSourceSectionOriginal: string | undefined;
 
@@ -179,6 +180,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
   for (const line of lines) {
     if (isNoiseLine(line)) {
       pending = null;
+      pendingInlineDescriptionItemIndex = null;
       continue;
     }
 
@@ -195,13 +197,22 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
     const standalonePrice = line.match(PRICE_LINE_PATTERN)?.[0];
 
     if (standalonePrice) {
+      if (isDuplicateInlinePriceMetadata(items[pendingInlineDescriptionItemIndex ?? -1], standalonePrice)) {
+        continue;
+      }
+
+      const itemIndex = items.length;
       finishPending(standalonePrice, line);
+      pendingInlineDescriptionItemIndex = items.length > itemIndex && !items[itemIndex]?.description
+        ? itemIndex
+        : null;
       continue;
     }
 
     const inlinePrice = extractLastPrice(line);
 
     if (inlinePrice) {
+      pendingInlineDescriptionItemIndex = null;
       const namePart = line.slice(0, inlinePrice.index).trim();
 
       if (namePart.length >= 3 && !isNoiseLine(namePart)) {
@@ -217,6 +228,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
         if (isSafeDishTitle(title) && !isPackageOrDrinkOfferTitle(title)) {
           const classification = classifyHtmlMenuCategory(currentCategory);
 
+          const itemIndex = items.length;
           items.push({
             title,
             description,
@@ -229,6 +241,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
             confidence: 0.85,
             sourceText: line
           });
+          pendingInlineDescriptionItemIndex = description ? null : itemIndex;
         }
       }
 
@@ -240,18 +253,21 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       currentSourceSectionOriginal = line;
       currentCategory = undefined;
       pending = null;
+      pendingInlineDescriptionItemIndex = null;
       continue;
     }
 
     if (isCategoryLine(line)) {
       currentCategory = line;
       pending = null;
+      pendingInlineDescriptionItemIndex = null;
       continue;
     }
 
     const numberedTitle = parseNumberedTitle(line);
 
     if (numberedTitle) {
+      pendingInlineDescriptionItemIndex = null;
       const title = cleanDishTitle(numberedTitle);
 
       pending = isSafeDishTitle(title)
@@ -268,12 +284,39 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
     }
 
     if (pending) {
+      pendingInlineDescriptionItemIndex = null;
       if (!isLikelyDescriptionNoise(line)) {
         pending.descriptionParts.push(line);
         pending.sourceParts.push(line);
       }
 
       continue;
+    }
+
+    if (pendingInlineDescriptionItemIndex !== null) {
+      const pendingInlineItem = items[pendingInlineDescriptionItemIndex];
+      let consumedInlineDescription = false;
+
+      if (
+        pendingInlineItem &&
+        pendingInlineItem.category === currentCategory &&
+        pendingInlineItem.sourceSectionOriginal === currentSourceSectionOriginal &&
+        isInlineDescriptionFollower(line)
+      ) {
+        const description = cleanDescription(line);
+        items[pendingInlineDescriptionItemIndex] = {
+          ...pendingInlineItem,
+          description,
+          sourceText: [pendingInlineItem.sourceText, description].join(" ").replace(/\s+/g, " ").trim()
+        };
+        consumedInlineDescription = true;
+      }
+
+      pendingInlineDescriptionItemIndex = null;
+
+      if (consumedInlineDescription) {
+        continue;
+      }
     }
 
     if (currentCategory && looksLikeStandaloneDishTitle(line)) {
@@ -288,6 +331,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
     }
 
     if (looksLikeAdjacentPriceDishTitle(line)) {
+      pendingInlineDescriptionItemIndex = null;
       pending = {
         title: cleanDishTitle(line),
         descriptionParts: [],
@@ -463,6 +507,10 @@ function normalizePrice(value: string) {
   return /(?:\u20ac|eur|euro)/i.test(cleaned) ? cleaned : `${cleaned} \u20ac`;
 }
 
+function isDuplicateInlinePriceMetadata(item: MenuExtractionItem | undefined, value: string) {
+  return item?.price ? normalizePriceNumber(item.price) === normalizePriceNumber(value) : false;
+}
+
 function parsePrice(value: string | undefined) {
   const match = value?.match(/\d{1,3}(?:[.,]\d{2})?/);
 
@@ -479,6 +527,10 @@ function isZeroPrice(value: string) {
   const match = value.match(/\d{1,3}(?:[.,]\d{2})/);
   const parsed = match ? Number(match[0].replace(",", ".")) : Number.NaN;
   return Number.isFinite(parsed) && parsed === 0;
+}
+
+function normalizePriceNumber(value: string | undefined) {
+  return value?.match(/\d{1,3}(?:[.,]\d{2})/)?.[0]?.replace(",", ".") ?? "";
 }
 
 function isCategoryLine(line: string) {
@@ -550,6 +602,21 @@ function isLikelyDescriptionNoise(line: string) {
     isAllergenCodeLine(line) ||
     isCategoryLine(line) ||
     isWeekdayDateHeading(line);
+}
+
+function isInlineDescriptionFollower(line: string) {
+  return !isLikelyDescriptionNoise(line) &&
+    !PRICE_LINE_PATTERN.test(line) &&
+    !extractLastPrice(line) &&
+    !parseNumberedTitle(line) &&
+    !looksLikeAdjacentPriceDishTitle(line) &&
+    (!looksLikeStandaloneDishTitle(line) || looksLikeInlineDescriptionText(line));
+}
+
+function looksLikeInlineDescriptionText(line: string) {
+  return /^[a-zäöüß]/.test(line) ||
+    /[.,;]/.test(line) ||
+    /\b(?:mit|und|oder|dazu|with|served|gefüllt|gefuellt|gewürzt|gewuerzt|überbacken|ueberbacken|gegrillt|gebacken|sauce|soße|sosse|tzatziki|reis|pommes|kartoffel)\b/i.test(line);
 }
 
 function isAllergenCodeLine(line: string) {

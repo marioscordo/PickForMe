@@ -1461,7 +1461,7 @@ function enrichMappedHtmlDescriptions(
   const htmlDishesByName = new Map(
     htmlMenuExtractionToDishes(htmlMenuExtraction)
       .filter((dish) => Boolean(dish.descriptionOriginal?.trim()))
-      .map((dish) => [normalizeDisplayName(dish.nameOriginal), dish])
+      .map((dish) => [normalizeHtmlBackfillDisplayName(dish.nameOriginal), dish])
   );
 
   if (htmlDishesByName.size === 0) {
@@ -1474,7 +1474,7 @@ function enrichMappedHtmlDescriptions(
       return dish;
     }
 
-    const htmlDish = htmlDishesByName.get(normalizeDisplayName(dish.nameOriginal));
+    const htmlDish = htmlDishesByName.get(normalizeHtmlBackfillDisplayName(dish.nameOriginal));
     const descriptionOriginal = htmlDish?.descriptionOriginal?.trim();
 
     if (!descriptionOriginal) {
@@ -1642,6 +1642,10 @@ function normalizeDisplayName(value: string) {
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeHtmlBackfillDisplayName(value: string) {
+  return normalizeDisplayName(value.replace(/^\s*\d{1,4}\s*(?:[.)]|[-:\u2022])\s*/, ""));
 }
 
 function hasLikelyEnglishDisplayText(value: string) {
