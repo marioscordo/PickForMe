@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 
 const contactEmail = "info@nuvaisys.com";
+const productContactEmail = "kontakt@gustaroai.com";
 
 const sectionStyle = {
   marginTop: 28
@@ -54,6 +55,8 @@ const privacyContent: Record<LegalLanguage, {
             Kontakt für Datenschutzanfragen:
             <br />
             <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
+            <br />
+            <a href={`mailto:${productContactEmail}`}>{productContactEmail}</a>
           </p>
         ]
       },
@@ -257,6 +260,8 @@ const privacyContent: Record<LegalLanguage, {
             Contact for privacy requests:
             <br />
             <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
+            <br />
+            <a href={`mailto:${productContactEmail}`}>{productContactEmail}</a>
           </p>
         ]
       },
