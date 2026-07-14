@@ -43,6 +43,22 @@ function firstNonEmptyText(...values: Array<string | null | undefined>) {
   return "";
 }
 
+function isGermanOutputLocale(outputLocale: string) {
+  return outputLocale.toLowerCase().replace("_", "-").startsWith("de");
+}
+
+function visibleDescriptionForOutputLocale(
+  translatedDescription: string | null | undefined,
+  outputLocale: string,
+  ...fallbacks: Array<string | null | undefined>
+) {
+  if (isGermanOutputLocale(outputLocale)) {
+    return firstNonEmptyText(translatedDescription);
+  }
+
+  return firstNonEmptyText(translatedDescription, ...fallbacks);
+}
+
 function formatEuroPrice(price: number) {
   return `${price.toFixed(2).replace(".", ",")} €`;
 }
@@ -178,6 +194,7 @@ export function RecommendationCard({
 
   const dishesById = useMemo(() => new Map(result.dishes.map((dish) => [dish.id, dish])), [result.dishes]);
   const visibleRecommendations = result.recommendations;
+  const outputLocale = resolveOutputLocale(profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE);
 
   const safeRecommendations = visibleRecommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
@@ -189,7 +206,13 @@ export function RecommendationCard({
     }
 
     const renderedDescriptionCount = safeRecommendations.filter(({ rec, dish }) =>
-      firstNonEmptyText(rec.translatedDescription, dish.description, rec.descriptionOriginal, dish.descriptionOriginal)
+      visibleDescriptionForOutputLocale(
+        rec.translatedDescription,
+        outputLocale,
+        dish.description,
+        rec.descriptionOriginal,
+        dish.descriptionOriginal
+      )
     ).length;
 
     console.info("[GUSTARO_MOBILE_RECOMMENDATION_DIAG]", [
@@ -197,9 +220,9 @@ export function RecommendationCard({
       `recommendationCount=${safeRecommendations.length}`,
       `renderedDescriptionCount=${renderedDescriptionCount}`
     ].join(" "));
-  }, [result]);
+  }, [result, outputLocale]);
 
-  const restaurantIntroLocale = resolveOutputLocale(profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE);
+  const restaurantIntroLocale = outputLocale;
   const cachedRestaurantIntro = normalizeRestaurantIntroText(restaurantIntroText);
   const restaurantIntroParagraphs = useMemo(
     () => splitRestaurantIntroParagraphs(cachedRestaurantIntro),
@@ -512,8 +535,9 @@ export function RecommendationCard({
           const originalName = dishData.nameOriginal ?? dishData.name ?? content.recommendation.fallbackDishName;
           const translatedName = buildDisplayTranslation(originalName, rec.translatedName);
           const showTranslation = translatedName.length > 0;
-          const translatedDescription = firstNonEmptyText(
+          const translatedDescription = visibleDescriptionForOutputLocale(
             rec.translatedDescription,
+            outputLocale,
             dishData.description,
             rec.descriptionOriginal,
             dishData.descriptionOriginal
@@ -628,8 +652,9 @@ export function RecommendationCard({
             };
             const originalName = nestedDish.nameOriginal ?? nestedDish.name ?? content.recommendation.fallbackDishName;
             const translatedName = buildDisplayTranslation(originalName, recommendation.translatedName);
-            const translatedDescription = firstNonEmptyText(
+            const translatedDescription = visibleDescriptionForOutputLocale(
               recommendation.translatedDescription,
+              outputLocale,
               nestedDish.description,
               recommendation.descriptionOriginal,
               nestedDish.descriptionOriginal
