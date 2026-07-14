@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { analyzeMenu, requestRestaurantIntro } from "../../api/pickformeApi";
@@ -26,6 +26,18 @@ function buildDisplayTranslation(originalName: string, translatedName?: string) 
 
   if (cleaned.length > 0 && cleaned.toLowerCase() !== originalName.toLowerCase()) {
     return cleaned;
+  }
+
+  return "";
+}
+
+function firstNonEmptyText(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const cleaned = value?.trim();
+
+    if (cleaned) {
+      return cleaned;
+    }
   }
 
   return "";
@@ -156,6 +168,7 @@ export function RecommendationCard({
   const { profile } = useProfile();
   const nestedLoadingDishIdsRef = useRef(new Set<string>());
   const activeNestedDishIdRef = useRef<string | null>(null);
+  const nestedRequestIdRef = useRef(0);
   const mountedRef = useRef(true);
   const [activeNestedDishId, setActiveNestedDishId] = useState<string | null>(null);
   const [nestedRecommendationsByDishId, setNestedRecommendationsByDishId] = useState<Record<string, NestedRecommendationState>>({});
@@ -169,6 +182,23 @@ export function RecommendationCard({
   const safeRecommendations = visibleRecommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+
+    const renderedDescriptionCount = safeRecommendations.filter(({ rec, dish }) =>
+      firstNonEmptyText(rec.translatedDescription, dish.description, rec.descriptionOriginal, dish.descriptionOriginal)
+    ).length;
+
+    console.info("[GUSTARO_MOBILE_RECOMMENDATION_DIAG]", [
+      `phase=render`,
+      `recommendationCount=${safeRecommendations.length}`,
+      `renderedDescriptionCount=${renderedDescriptionCount}`
+    ].join(" "));
+  }, [result]);
+
   const restaurantIntroLocale = resolveOutputLocale(profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE);
   const cachedRestaurantIntro = normalizeRestaurantIntroText(restaurantIntroText);
   const restaurantIntroParagraphs = useMemo(
@@ -244,8 +274,12 @@ export function RecommendationCard({
     </Surface>
   ) : null;
 
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -320,15 +354,61 @@ export function RecommendationCard({
       }
     }));
 
+    const nestedRequestId = nestedRequestIdRef.current + 1;
+    nestedRequestIdRef.current = nestedRequestId;
+    const nestedStartedAt = Date.now();
+    let responseStatus: number | undefined;
+
+    logNestedAnalyzeDiag({
+      activeDishId: activeNestedDishIdRef.current,
+      appState: AppState.currentState,
+      dishId,
+      menuTextLength: menuText.length,
+      nestedRequestId,
+      phase: "request_start",
+      requestedDishRoles: "starter,salad"
+    });
+
     try {
       const data = await analyzeMenu({
         menuText,
+        onResponseStatus: (status) => {
+          responseStatus = status;
+          logNestedAnalyzeDiag({
+            appState: AppState.currentState,
+            durationMs: Date.now() - nestedStartedAt,
+            nestedRequestId,
+            phase: "response_status",
+            responseStatus: status
+          });
+        },
         requestedDishRoles: ["starter", "salad"],
         preferredDishRole: "starter",
         profile
       });
 
+      logNestedAnalyzeDiag({
+        activeDishId: activeNestedDishIdRef.current,
+        appState: AppState.currentState,
+        durationMs: Date.now() - nestedStartedAt,
+        mounted: mountedRef.current,
+        nestedRequestId,
+        phase: "response_success",
+        recommendationCount: data.recommendations.length,
+        responseStatus
+      });
+
       if (!mountedRef.current || activeNestedDishIdRef.current !== dishId) {
+        logNestedAnalyzeDiag({
+          activeDishId: activeNestedDishIdRef.current,
+          appState: AppState.currentState,
+          durationMs: Date.now() - nestedStartedAt,
+          dishId,
+          mounted: mountedRef.current,
+          nestedRequestId,
+          phase: "response_stale",
+          responseStatus
+        });
         return;
       }
 
@@ -340,6 +420,19 @@ export function RecommendationCard({
         }
       }));
     } catch (error) {
+      logNestedAnalyzeDiag({
+        activeDishId: activeNestedDishIdRef.current,
+        appState: AppState.currentState,
+        durationMs: Date.now() - nestedStartedAt,
+        errorCause: getErrorCauseMessage(error),
+        errorClass: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : "",
+        mounted: mountedRef.current,
+        nestedRequestId,
+        phase: "response_error",
+        responseStatus
+      });
+
       if (!mountedRef.current || activeNestedDishIdRef.current !== dishId) {
         return;
       }
@@ -352,6 +445,14 @@ export function RecommendationCard({
         }
       }));
     } finally {
+      logNestedAnalyzeDiag({
+        activeDishId: activeNestedDishIdRef.current,
+        appState: AppState.currentState,
+        durationMs: Date.now() - nestedStartedAt,
+        nestedRequestId,
+        phase: "request_finally",
+        responseStatus
+      });
       nestedLoadingDishIdsRef.current.delete(dishId);
     }
   }
@@ -411,7 +512,12 @@ export function RecommendationCard({
           const originalName = dishData.nameOriginal ?? dishData.name ?? content.recommendation.fallbackDishName;
           const translatedName = buildDisplayTranslation(originalName, rec.translatedName);
           const showTranslation = translatedName.length > 0;
-          const translatedDescription = typeof dishData.description === "string" ? dishData.description.trim() : "";
+          const translatedDescription = firstNonEmptyText(
+            rec.translatedDescription,
+            dishData.description,
+            rec.descriptionOriginal,
+            dishData.descriptionOriginal
+          );
           const showDescription = translatedDescription.length > 0 && translatedDescription !== translatedName;
           const isPrimaryRecommendation = index === 0;
           const nestedState = nestedRecommendationsByDishId[rec.dishId] ?? { status: "idle" };
@@ -522,7 +628,12 @@ export function RecommendationCard({
             };
             const originalName = nestedDish.nameOriginal ?? nestedDish.name ?? content.recommendation.fallbackDishName;
             const translatedName = buildDisplayTranslation(originalName, recommendation.translatedName);
-            const translatedDescription = typeof nestedDish.description === "string" ? nestedDish.description.trim() : "";
+            const translatedDescription = firstNonEmptyText(
+              recommendation.translatedDescription,
+              nestedDish.description,
+              recommendation.descriptionOriginal,
+              nestedDish.descriptionOriginal
+            );
 
             return (
               <View key={dish.id} style={local.nestedResultItem}>
@@ -544,6 +655,33 @@ export function RecommendationCard({
       </View>
     );
   }
+}
+
+function logNestedAnalyzeDiag(fields: Record<string, string | number | boolean | undefined | null>) {
+  if (!__DEV__) {
+    return;
+  }
+
+  const payload = Object.entries(fields)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => `${key}=${String(value).replace(/\s+/g, "_")}`)
+    .join(" ");
+
+  console.info(`[GUSTARO_NESTED_ANALYZE_DIAG] ${payload}`);
+}
+
+function getErrorCauseMessage(error: unknown) {
+  if (typeof error !== "object" || error === null || !("cause" in error)) {
+    return "";
+  }
+
+  const cause = (error as { cause?: unknown }).cause;
+
+  if (cause instanceof Error) {
+    return `${cause.name}:${cause.message}`;
+  }
+
+  return typeof cause === "string" ? cause : "";
 }
 
 const local = StyleSheet.create({

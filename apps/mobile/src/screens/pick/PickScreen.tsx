@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Dimensions, Keyboard, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Dimensions, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { extractMenuTextFromPhoto, logAllergyWarningConfirmation } from "../../api/pickformeApi";
 import { PickForMeApiError } from "../../api/apiClient";
@@ -69,11 +70,12 @@ export function PickScreen({
   const [entryScrollToTopKey, setEntryScrollToTopKey] = useState(0);
   const [moodSectionY, setMoodSectionY] = useState(0);
   const analyze = useAnalyzeMenu();
-  const [lastAnalyzedMenuUrl, setLastAnalyzedMenuUrl] = useState("");
+  const [openableMenuUrl, setOpenableMenuUrl] = useState<string | null>(null);
   const [showAllergyWarning, setShowAllergyWarning] = useState(false);
   const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
   const linkConfirmedAtRef = useRef<number | null>(null);
+  const menuBrowserOpeningRef = useRef(false);
   const allergyWarningParagraphs = content.allergyWarning.message.split("\n\n");
 
   useEffect(() => {
@@ -135,11 +137,27 @@ export function PickScreen({
     }));
   }
 
+  function logAnalyzeLifecycle(fields: Record<string, string | number | boolean | null | undefined>) {
+    if (!__DEV__) {
+      return;
+    }
+
+    const payload = Object.entries(fields)
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([key, value]) => `${key}=${String(value).replace(/\s+/g, "_")}`)
+      .join(" ");
+
+    console.info(`[GUSTARO_MOBILE_ANALYZE_LIFECYCLE] ${payload}`);
+  }
+
   function updateMenuText(value: string) {
+    const normalizedMenuUrl = normalizeMenuUrl(value);
+
     setMenuText(value);
     setMenuInputOrigin(value.trim() ? "manual" : "empty");
+    setOpenableMenuUrl(normalizedMenuUrl || null);
 
-    if (normalizeMenuUrl(value)) {
+    if (normalizedMenuUrl) {
       linkConfirmedAtRef.current = Date.now();
       Keyboard.dismiss();
       setEntryScrollToMoodKey((current) => current + 1);
@@ -162,8 +180,12 @@ export function PickScreen({
   }
 
   function startAnalyze() {
+    const normalizedMenuUrl = normalizeMenuUrl(menuText);
+
     logAnalyzeSource(menuText, undefined, "startAnalyze");
-    setLastAnalyzedMenuUrl(normalizeMenuUrl(menuText));
+    if (normalizedMenuUrl) {
+      setOpenableMenuUrl(normalizedMenuUrl);
+    }
     analyze.run(menuText, requestedDishRolesForMode(recommendationMode), undefined, {
       linkConfirmedAt: linkConfirmedAtRef.current ?? undefined
     });
@@ -173,7 +195,7 @@ export function PickScreen({
     analyze.reset();
     setMenuText(value);
     setMenuInputOrigin("photo");
-    setLastAnalyzedMenuUrl("");
+    setOpenableMenuUrl(null);
 
     if (hasAllergiesOrIntolerances(profile)) {
       pendingConfirmedMenuTextRef.current = value;
@@ -189,7 +211,8 @@ export function PickScreen({
     analyze.reset();
     setMenuText("");
     setMenuInputOrigin("empty");
-    setLastAnalyzedMenuUrl("");
+    setOpenableMenuUrl(null);
+    setRecommendationMode(DEFAULT_RECOMMENDATION_MODE);
     setEntryScrollToActionKey(0);
     setEntryScrollToMoodKey(0);
     setEntryScrollToTopKey((current) => current + 1);
@@ -263,9 +286,40 @@ export function PickScreen({
   }
 
   async function openAnalyzedMenu() {
-    if (!lastAnalyzedMenuUrl) return;
-    await Linking.openURL(lastAnalyzedMenuUrl);
+    const menuUrl = openableMenuUrl?.trim() ?? "";
+    if (!menuUrl || menuBrowserOpeningRef.current) {
+      return;
+    }
+
+    menuBrowserOpeningRef.current = true;
+    logAnalyzeLifecycle({
+      phase: "open_menu_start",
+      requestId: analyze.currentRequestId,
+      analyzeLoading: analyze.loading,
+      openMethod: "expo_web_browser"
+    });
+
+    try {
+      const result = await WebBrowser.openBrowserAsync(menuUrl);
+      logAnalyzeLifecycle({
+        phase: "open_menu_closed",
+        requestId: analyze.currentRequestId,
+        analyzeLoading: analyze.loading,
+        browserResultType: result.type
+      });
+    } catch (error) {
+      logAnalyzeLifecycle({
+        phase: "open_menu_error",
+        requestId: analyze.currentRequestId,
+        analyzeLoading: analyze.loading,
+        errorClass: error instanceof Error ? error.name : typeof error
+      });
+    } finally {
+      menuBrowserOpeningRef.current = false;
+    }
   }
+
+  const canOpenMenu = typeof openableMenuUrl === "string" && openableMenuUrl.trim().length > 0;
 
   if (analyze.result) {
     return (
@@ -284,8 +338,8 @@ export function PickScreen({
           menuText={menuText}
           showStartersAndSaladsAction={recommendationMode === "main_course"}
           onReset={resetAnalysisState}
-          openMenuLabel={lastAnalyzedMenuUrl ? content.pick.openMenu : undefined}
-          onOpenMenu={lastAnalyzedMenuUrl ? openAnalyzedMenu : undefined}
+          openMenuLabel={canOpenMenu ? content.pick.openMenu : undefined}
+          onOpenMenu={canOpenMenu ? openAnalyzedMenu : undefined}
         />
       </Screen>
     );
@@ -371,8 +425,12 @@ export function PickScreen({
         {showQrScanner ? (
           <QrMenuScanner
             onUrlScanned={(value: string) => {
+              const normalizedMenuUrl = normalizeMenuUrl(value);
+
               setMenuText(value);
               setMenuInputOrigin("qr");
+              setOpenableMenuUrl(normalizedMenuUrl || null);
+              linkConfirmedAtRef.current = normalizedMenuUrl ? Date.now() : null;
               setShowQrScanner(false);
               setShowPhotoCamera(false);
               setPhotoMenuError("");
@@ -469,6 +527,12 @@ export function PickScreen({
         <Text style={local.mainButtonText}>{analyze.loading ? content.pick.mainButtonLoading : content.pick.mainButtonIdle}</Text>
       </Pressable>
 
+      {canOpenMenu ? (
+        <View style={local.openMenuSection}>
+          <ActionButton label={content.pick.openMenu} variant="secondary" onPress={openAnalyzedMenu} />
+        </View>
+      ) : null}
+
       {analyze.loading ? (
         <AnalysisLoadingBox
           steps={loadingSteps}
@@ -480,18 +544,14 @@ export function PickScreen({
         <>
           <View style={local.feedbackErrorCard}>
             <Text style={local.errorTitle}>
-              {analyze.error === content.analysisErrors.emptyMenuInput
+              {analyze.errorTitle ||
+              (analyze.error === content.analysisErrors.emptyMenuInput
                 ? content.pick.inputMissingTitle
-                : content.pick.errorTitle}
+                : content.pick.errorTitle)}
             </Text>
             <Text style={local.errorText}>{analyze.error}</Text>
           </View>
 
-          {lastAnalyzedMenuUrl ? (
-            <View style={local.openMenuSection}>
-              <ActionButton label={content.pick.openMenu} variant="secondary" onPress={openAnalyzedMenu} />
-            </View>
-          ) : null}
         </>
       ) : null}
 

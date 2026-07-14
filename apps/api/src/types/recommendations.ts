@@ -11,5 +11,7 @@ export type Recommendation = {
   reason: string;
   facts?: string;
   translatedName?: string;
+  translatedDescription?: string;
+  descriptionOriginal?: string;
   starter?: StarterPairing;
 };

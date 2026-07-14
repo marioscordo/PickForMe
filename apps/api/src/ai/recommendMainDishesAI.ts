@@ -499,6 +499,8 @@ function buildMainDishPrompt({
     `- translatedDescription muss descriptionOriginal treu in ${targetLanguage} (${targetLocale}) wiedergeben.`,
     "- Wenn keine echte Beschreibung sichtbar ist, lasse descriptionOriginal und translatedDescription null oder weg.",
     "- Erfinde keine Beschreibung, Zutaten oder Details.",
+    "- reason und scoreReason duerfen nur sichtbaren Gerichtsnamen, sichtbare Kategorie und aktive Profilvorlieben verwenden.",
+    "- Behaupte in reason oder scoreReason keine Zutaten, Fleischarten, Geschmack, Beliebtheit oder Zubereitung, wenn sie nicht sichtbar im Gerichtsnamen, in der Kategorie oder in der echten sichtbaren Beschreibung belegt sind.",
     "- translatedName ist Pflicht und ist die nutzerseitige Anzeigeuebersetzung in der Zielsprache.",
     `- translatedName muss in ${targetLanguage} (${targetLocale}) formuliert sein.`,
     "- Jede Empfehlung muss einen display-sicheren translatedName enthalten.",
@@ -534,7 +536,7 @@ function buildMainDishPrompt({
     "    {",
     '      "nameOriginal": "sicherer Kandidat",',
     '      "descriptionOriginal": "vollstaendige sichtbare Originalbeschreibung falls vorhanden, sonst null",',
-    '      "scoreReason": "kurze Bewertung anhand Vorlieben und Situation in der Zielsprache",',
+    '      "scoreReason": "kurze Bewertung in der Zielsprache; nur sichtbarer Name, sichtbare Kategorie und aktive Profilvorlieben, keine unbelegten Details",',
     '      "translatedName": "Anzeigeuebersetzung fuer moegliches Nachruecken, falls sicher belegbar",',
     '      "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
     '      "priceRaw": "Preis falls sichtbar, sonst null oder weglassen",',
@@ -559,7 +561,7 @@ function buildMainDishPrompt({
     '        "sourceKind": "pdf | html | image | text | unknown",',
     '        "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
     '        "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
-    '        "reason": "kurze profilbezogene Begruendung fuer genau diesen Kandidaten in der Zielsprache",',
+    '        "reason": "kurze profilbezogene Begruendung in der Zielsprache; nur sichtbarer Name, sichtbare Kategorie und aktive Profilvorlieben, keine unbelegten Details",',
     '        "confidence": "high | medium | low",',
     '        "profileSafety": {',
     '          "hasKnownConflict": false,',
@@ -582,7 +584,7 @@ function buildMainDishPrompt({
     '      "sourceKind": "pdf | html | image | text | unknown",',
     '      "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
     '      "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
-    '      "reason": "kurze profilbezogene Begruendung in der Zielsprache",',
+    '      "reason": "kurze profilbezogene Begruendung in der Zielsprache; nur sichtbarer Name, sichtbare Kategorie und aktive Profilvorlieben, keine unbelegten Details",',
     '      "confidence": "high | medium | low",',
     '      "profileSafety": {',
     '        "hasKnownConflict": false,',
@@ -851,7 +853,7 @@ function toSearchTargetLabel(value: string) {
     return "Pasta- oder Nudelgerichte";
   }
   if (/\b(?:salat|salate|salad|salads)\b/.test(normalized)) {
-    return "Salate oder salatnahe eigenstaendige Hauptgerichte";
+    return "Hauptgerichte im angeforderten Rollenraum";
   }
   if (/\b(?:fleisch|meat|rind|kalb|schwein|gefluegel|geflugel|huhn|haehnchen|hahnchen|lamm|steak)\b/.test(normalized)) {
     return "Fleischgerichte";

@@ -246,6 +246,23 @@ export async function POST(request: Request) {
           );
         }
 
+        if (isTemporaryConnectionError(pdfAiError)) {
+          throw new AppError(
+            503,
+            "CONNECTION_ERROR",
+            "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
+            { retryable: true }
+          );
+        }
+
+        if (pdfAiError instanceof SyntaxError) {
+          throw new AppError(
+            500,
+            "AI_RESPONSE_INVALID",
+            "Die KI-Antwort konnte technisch nicht verarbeitet werden."
+          );
+        }
+
         if (
           message.includes("PDF_LOCALIZATION_FAILED") ||
           message.includes("PDF_AI_TIMEOUT") ||
@@ -327,6 +344,23 @@ export async function POST(request: Request) {
           );
         }
 
+        if (isTemporaryConnectionError(imageAiError)) {
+          throw new AppError(
+            503,
+            "CONNECTION_ERROR",
+            "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
+            { retryable: true }
+          );
+        }
+
+        if (imageAiError instanceof SyntaxError) {
+          throw new AppError(
+            500,
+            "AI_RESPONSE_INVALID",
+            "Die KI-Antwort konnte technisch nicht verarbeitet werden."
+          );
+        }
+
         if (
           message.includes("IMAGE_AI_TIMEOUT") ||
           message.includes("TWO_STEP_MAIN_AI_TIMEOUT")
@@ -381,7 +415,16 @@ export async function POST(request: Request) {
       effectiveMenuText = dynamicMenuText ?? htmlMenuText ?? (inputLooksLikeUrl
         ? await loadMenuTextFromUrl(menuTextUrl)
         : rawMenuText);
-    } catch {
+    } catch (menuLoadError) {
+      if (isTemporaryConnectionError(menuLoadError)) {
+        throw new AppError(
+          503,
+          "CONNECTION_ERROR",
+          "Ich erreiche die Speisekarte gerade nicht. Bitte versuche es gleich noch einmal.",
+          { retryable: true }
+        );
+      }
+
       throw new AppError(422, "MENU_URL_LOAD_FAILED", "Diese Speisekarte konnte nicht geladen werden.");
     }
 
@@ -441,6 +484,23 @@ export async function POST(request: Request) {
           429,
           "AI_RATE_LIMIT",
           "Ich kann die Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+        );
+      }
+
+      if (isTemporaryConnectionError(aiError)) {
+        throw new AppError(
+          503,
+          "CONNECTION_ERROR",
+          "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
+          { retryable: true }
+        );
+      }
+
+      if (aiError instanceof SyntaxError) {
+        throw new AppError(
+          500,
+          "AI_RESPONSE_INVALID",
+          "Die KI-Antwort konnte technisch nicht verarbeitet werden."
         );
       }
 
@@ -543,6 +603,23 @@ export async function POST(request: Request) {
               429,
               "AI_RATE_LIMIT",
               "Ich kann die Bild-Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+            );
+          }
+
+          if (isTemporaryConnectionError(imageAiError)) {
+            throw new AppError(
+              503,
+              "CONNECTION_ERROR",
+              "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
+              { retryable: true }
+            );
+          }
+
+          if (imageAiError instanceof SyntaxError) {
+            throw new AppError(
+              500,
+              "AI_RESPONSE_INVALID",
+              "Die KI-Antwort konnte technisch nicht verarbeitet werden."
             );
           }
 
@@ -822,7 +899,11 @@ async function analyzeMenuWithTwoStepMainFlow({
   });
 
   const mapperStartedAt = Date.now();
-  const mapped = mapGatekeptMainRecommendationsToAnalyzeData(gatekeeperResult.accepted, requestedDishRoles);
+  const mapped = enrichMappedHtmlDescriptions(
+    mapGatekeptMainRecommendationsToAnalyzeData(gatekeeperResult.accepted, requestedDishRoles),
+    htmlMenuExtraction,
+    outputLocale
+  );
   const mapperDurationMs = Date.now() - mapperStartedAt;
   logDevAnalyzeTiming({
     runId,
@@ -1228,6 +1309,152 @@ function applyAllergySafetyGate({
       hardProfile
     );
   });
+}
+
+function enrichMappedHtmlDescriptions(
+  mapped: { dishes: Dish[]; recommendations: Recommendation[] },
+  htmlMenuExtraction: MenuExtractionResult | null,
+  outputLocale: string
+) {
+  if (!htmlMenuExtraction?.items.length) {
+    return mapped;
+  }
+
+  const htmlDishesByName = new Map(
+    htmlMenuExtractionToDishes(htmlMenuExtraction)
+      .filter((dish) => Boolean(dish.descriptionOriginal?.trim()))
+      .map((dish) => [normalizeDisplayName(dish.nameOriginal), dish])
+  );
+
+  if (htmlDishesByName.size === 0) {
+    return mapped;
+  }
+
+  const translatedDescriptionByDishId = new Map<string, string>();
+  const nextDishes = mapped.dishes.map((dish) => {
+    if (dish.descriptionOriginal?.trim()) {
+      return dish;
+    }
+
+    const htmlDish = htmlDishesByName.get(normalizeDisplayName(dish.nameOriginal));
+    const descriptionOriginal = htmlDish?.descriptionOriginal?.trim();
+
+    if (!descriptionOriginal) {
+      return dish;
+    }
+
+    const translatedDescription = getTrustedSameLanguageDescription(descriptionOriginal, outputLocale);
+
+    if (translatedDescription) {
+      translatedDescriptionByDishId.set(dish.id, translatedDescription);
+    }
+
+    return {
+      ...dish,
+      ...(translatedDescription ? { description: translatedDescription } : {}),
+      descriptionOriginal,
+      sourceLine: buildHtmlEnrichedSourceLine({
+        nameOriginal: dish.nameOriginal,
+        descriptionOriginal,
+        sourceLine: dish.sourceLine
+      })
+    };
+  });
+
+  if (nextDishes === mapped.dishes) {
+    return mapped;
+  }
+
+  const descriptionByDishId = new Map(
+    nextDishes
+      .filter((dish) => Boolean(dish.descriptionOriginal?.trim()))
+      .map((dish) => [dish.id, dish.descriptionOriginal!.trim()])
+  );
+
+  const nextRecommendations = mapped.recommendations.map((recommendation) => {
+    if (recommendation.descriptionOriginal?.trim()) {
+      return recommendation;
+    }
+
+    const descriptionOriginal = descriptionByDishId.get(recommendation.dishId);
+
+    if (!descriptionOriginal) {
+      return recommendation;
+    }
+
+    const translatedDescription = translatedDescriptionByDishId.get(recommendation.dishId);
+
+    return {
+      ...recommendation,
+      descriptionOriginal,
+      ...(translatedDescription ? { translatedDescription } : {})
+    };
+  });
+
+  return {
+    dishes: nextDishes,
+    recommendations: nextRecommendations
+  };
+}
+
+function getTrustedSameLanguageDescription(descriptionOriginal: string, outputLocale: string) {
+  const targetLanguageCode = normalizeTargetLocale(outputLocale).toLowerCase().split(/[-_]/)[0];
+
+  if (targetLanguageCode === "de" && looksLikeGermanText(descriptionOriginal)) {
+    return descriptionOriginal;
+  }
+
+  if (targetLanguageCode === "en" && looksLikeEnglishText(descriptionOriginal)) {
+    return descriptionOriginal;
+  }
+
+  return undefined;
+}
+
+function looksLikeGermanText(value: string) {
+  const normalized = ` ${value.toLowerCase()} `;
+
+  return /[äöüß]/i.test(value) ||
+    /\b(?:mit|und|oder|vom|von|aus|dazu|serviert|gegrillt|gebacken|hausgemacht|frisch|sauce|soße|gemuese|gemüse|kartoffel|reis|salat|kaese|käse|zwiebeln)\b/i.test(normalized);
+}
+
+function looksLikeEnglishText(value: string) {
+  const normalized = ` ${value.toLowerCase().replace(/[^a-z]+/g, " ")} `;
+
+  return [
+    " with ",
+    " and ",
+    " served ",
+    " grilled ",
+    " baked ",
+    " fresh ",
+    " sauce ",
+    " salad ",
+    " rice ",
+    " potatoes ",
+    " cheese ",
+    " onions "
+  ].some((term) => normalized.includes(term));
+}
+
+function buildHtmlEnrichedSourceLine({
+  nameOriginal,
+  descriptionOriginal,
+  sourceLine
+}: {
+  nameOriginal: string;
+  descriptionOriginal: string;
+  sourceLine: string;
+}) {
+  const existing = sourceLine.trim();
+
+  if (existing && normalizeDisplayName(existing).includes(normalizeDisplayName(descriptionOriginal))) {
+    return existing;
+  }
+
+  return [nameOriginal, descriptionOriginal, existing]
+    .filter((value) => value.trim())
+    .join(" - ");
 }
 
 function stringArrayValue(values?: string[]) {
@@ -2179,6 +2406,23 @@ function isRateLimitError(error: unknown) {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "";
+}
+
+function isTemporaryConnectionError(error: unknown) {
+  const technicalSignal = [
+    error instanceof Error ? error.name : "",
+    getErrorMessage(error),
+    typeof error === "object" && error !== null && "code" in error ? String((error as { code?: unknown }).code ?? "") : "",
+    typeof error === "object" && error !== null && "type" in error ? String((error as { type?: unknown }).type ?? "") : "",
+    typeof error === "object" && error !== null && "cause" in error
+      ? getErrorMessage((error as { cause?: unknown }).cause)
+      : "",
+    typeof error === "object" && error !== null && "cause" in error
+      ? String(((error as { cause?: { code?: unknown } }).cause)?.code ?? "")
+      : ""
+  ].join(" ");
+
+  return /ENOTFOUND|EAI_AGAIN|fetch failed|Connection_error|connection error|APIConnectionError/i.test(technicalSignal);
 }
 
 function getShortRetryDelayMs(error: unknown) {

@@ -16,6 +16,7 @@ type AnalyzeMenuMobileArgs = {
   preferredDishRole?: PreferredDishRole;
   profile: UserProfile;
   diagnosticRunId?: string;
+  onResponseStatus?: (status: number) => void;
   signal?: AbortSignal;
 };
 
@@ -127,6 +128,7 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
   };
 
   return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body, {
+    onResponseStatus: args.onResponseStatus,
     signal: args.signal
   });
 }

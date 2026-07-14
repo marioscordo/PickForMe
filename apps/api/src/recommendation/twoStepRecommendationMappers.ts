@@ -112,7 +112,9 @@ export function mapGatekeptMainRecommendationsToAnalyzeData(
     rank: item.rank,
     reason: item.reason,
     facts: normalizeOptionalString(item.sourceEvidence),
-    translatedName: item.translatedName
+    translatedName: item.translatedName,
+    ...(normalizeOptionalString(item.translatedDescription) ? { translatedDescription: normalizeOptionalString(item.translatedDescription) } : {}),
+    ...(normalizeOptionalString(item.descriptionOriginal) ? { descriptionOriginal: normalizeOptionalString(item.descriptionOriginal) } : {})
   }));
 
   return {

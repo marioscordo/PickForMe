@@ -5,7 +5,10 @@ import { requireUser } from "../../../src/auth/requireUser";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
-import { loadRestaurantDescriptionFromOrigin } from "../../../src/restaurant/extractRestaurantDescription";
+import {
+  loadRestaurantDescriptionFromOrigin,
+  type RestaurantDescriptionDiagnosticEvent
+} from "../../../src/restaurant/extractRestaurantDescription";
 
 type RestaurantIntroSourceKind = "official_website" | "pdf" | "html" | "text" | "unknown";
 type RestaurantIntroLogValue = string | number | boolean | null | undefined;
@@ -22,23 +25,39 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
+    const authStartedAt = Date.now();
     await requireUser(request);
+    logRestaurantIntro({
+      phase: "auth",
+      durationMs: Date.now() - authStartedAt
+    });
 
+    const validationStartedAt = Date.now();
     const body = RestaurantIntroRequestSchema.parse(await request.json());
     const outputLocale = getRestaurantIntroOutputLocale(body);
-    const source = await loadRestaurantIntroSource(body);
+    logRestaurantIntro({
+      phase: "validation",
+      durationMs: Date.now() - validationStartedAt,
+      hasMenuText: Boolean(body.menuText?.trim()),
+      hasRestaurantName: Boolean(body.restaurantName?.trim()),
+      hasSourceUrl: Boolean(body.sourceUrl?.trim()),
+      outputLocale
+    });
+
+    const sourceFetchStartedAt = Date.now();
+    const source = await loadRestaurantIntroSource(body, startedAt);
+    logRestaurantIntro({
+      phase: "source_fetch",
+      sourceKind: source.kind,
+      sourceCount: source.sourceUrl ? 1 : 0,
+      textLength: source.text.length,
+      durationMs: Date.now() - sourceFetchStartedAt,
+      totalDurationMs: Date.now() - startedAt
+    });
 
     if (!source.text.trim()) {
-      logRestaurantIntro({
-        phase: "fallback",
-        sourceKind: source.kind,
-        sourceCount: source.sourceUrl ? 1 : 0,
-        durationMs: Date.now() - startedAt,
-        introGenerated: false,
-        fallback: true
-      });
-
-      return NextResponse.json({
+      const fallbackResponseStartedAt = Date.now();
+      const response = NextResponse.json({
         ok: true,
         data: {
           title: getRestaurantIntroTitle(body.userLocale),
@@ -49,9 +68,35 @@ export async function POST(request: Request) {
           fallback: true
         }
       });
+      logRestaurantIntro({
+        phase: "fallback",
+        sourceKind: source.kind,
+        sourceCount: source.sourceUrl ? 1 : 0,
+        durationMs: Date.now() - startedAt,
+        introGenerated: false,
+        fallback: true
+      });
+      logRestaurantIntro({
+        phase: "response_serialization",
+        sourceKind: source.kind,
+        sourceCount: source.sourceUrl ? 1 : 0,
+        durationMs: Date.now() - fallbackResponseStartedAt,
+        totalDurationMs: Date.now() - startedAt,
+        introGenerated: false,
+        fallback: true
+      });
+
+      return response;
     }
 
     const introStartedAt = Date.now();
+    logRestaurantIntro({
+      phase: "ai_start",
+      sourceKind: source.kind,
+      sourceCount: source.sourceUrl ? 1 : 0,
+      sourceTextLength: source.text.length,
+      totalDurationMs: Date.now() - startedAt
+    });
     const introText = await generateRestaurantIntroAI({
       restaurantName: body.restaurantName,
       sourceText: source.text,
@@ -64,6 +109,31 @@ export async function POST(request: Request) {
       sourceKind: source.kind,
       sourceCount: source.sourceUrl ? 1 : 0,
       durationMs: Date.now() - introStartedAt,
+      introLength: introText.length,
+      totalDurationMs: Date.now() - startedAt,
+      introGenerated: true,
+      fallback: false
+    });
+
+    const responseSerializationStartedAt = Date.now();
+    const response = NextResponse.json({
+      ok: true,
+      data: {
+        title: getRestaurantIntroTitle(body.userLocale),
+        introText,
+        sourceKind: source.kind,
+        sourceUrl: source.sourceUrl,
+        limitedSource: false,
+        fallback: false
+      }
+    });
+
+    logRestaurantIntro({
+      phase: "response_serialization",
+      sourceKind: source.kind,
+      sourceCount: source.sourceUrl ? 1 : 0,
+      durationMs: Date.now() - responseSerializationStartedAt,
+      totalDurationMs: Date.now() - startedAt,
       introGenerated: true,
       fallback: false
     });
@@ -77,17 +147,7 @@ export async function POST(request: Request) {
       fallback: false
     });
 
-    return NextResponse.json({
-      ok: true,
-      data: {
-        title: getRestaurantIntroTitle(body.userLocale),
-        introText,
-        sourceKind: source.kind,
-        sourceUrl: source.sourceUrl,
-        limitedSource: false,
-        fallback: false
-      }
-    });
+    return response;
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse(
@@ -121,11 +181,31 @@ export async function POST(request: Request) {
   }
 }
 
-async function loadRestaurantIntroSource(body: z.infer<typeof RestaurantIntroRequestSchema>) {
+async function loadRestaurantIntroSource(body: z.infer<typeof RestaurantIntroRequestSchema>, requestStartedAt: number) {
   const sourceUrl = getSourceUrl(body);
+  const sourceSelectionStartedAt = Date.now();
+
+  logRestaurantIntro({
+    phase: "source_selection",
+    durationMs: 0,
+    hasSourceUrl: Boolean(sourceUrl),
+    sourceKind: sourceUrl ? getSourceKindFromUrl(sourceUrl) : "unknown"
+  });
 
   if (sourceUrl) {
-    const description = await loadRestaurantDescriptionFromOrigin(sourceUrl);
+    const officialStartedAt = Date.now();
+    const description = await loadRestaurantDescriptionFromOrigin(sourceUrl, (event) => {
+      logRestaurantIntroDescriptionEvent(event, requestStartedAt);
+    });
+    logRestaurantIntro({
+      phase: "official_source_fetch",
+      sourceKind: "official_website",
+      sourceCount: sourceUrl ? 1 : 0,
+      durationMs: Date.now() - officialStartedAt,
+      totalDurationMs: Date.now() - requestStartedAt,
+      textLength: description?.text.length ?? 0,
+      sourceUrl: description?.sourceUrl ?? sourceUrl
+    });
 
     if (description?.text.trim()) {
       return {
@@ -139,6 +219,13 @@ async function loadRestaurantIntroSource(body: z.infer<typeof RestaurantIntroReq
   const manualText = body.menuText?.trim() ?? "";
 
   if (manualText && !looksLikeUrl(manualText) && manualText.length >= 40) {
+    logRestaurantIntro({
+      phase: "manual_text_selection",
+      durationMs: Date.now() - sourceSelectionStartedAt,
+      textLength: manualText.length,
+      totalDurationMs: Date.now() - requestStartedAt
+    });
+
     return {
       kind: "text" as const,
       sourceUrl: undefined,
@@ -148,7 +235,16 @@ async function loadRestaurantIntroSource(body: z.infer<typeof RestaurantIntroReq
 
   if (sourceUrl) {
     try {
+      const fallbackStartedAt = Date.now();
       const sourceText = await loadMenuTextFromUrl(sourceUrl);
+      logRestaurantIntro({
+        phase: "fallback_menu_text_fetch",
+        sourceKind: getSourceKindFromUrl(sourceUrl),
+        sourceCount: 1,
+        durationMs: Date.now() - fallbackStartedAt,
+        totalDurationMs: Date.now() - requestStartedAt,
+        textLength: sourceText.length
+      });
 
       if (sourceText.trim().length >= 40) {
         return {
@@ -157,10 +253,22 @@ async function loadRestaurantIntroSource(body: z.infer<typeof RestaurantIntroReq
           text: sourceText.slice(0, 12000)
         };
       }
-    } catch {
+    } catch (error) {
+      logRestaurantIntroError({
+        phase: "fallback_menu_text_fetch_error",
+        durationMs: Date.now() - requestStartedAt,
+        error
+      });
       // The route still returns a controlled limited-source response below.
     }
   }
+
+  logRestaurantIntro({
+    phase: "limited_source_selection",
+    durationMs: Date.now() - sourceSelectionStartedAt,
+    totalDurationMs: Date.now() - requestStartedAt,
+    sourceKind: sourceUrl ? getSourceKindFromUrl(sourceUrl) : "unknown"
+  });
 
   return {
     kind: sourceUrl ? getSourceKindFromUrl(sourceUrl) : "unknown" as const,
@@ -243,6 +351,14 @@ function logRestaurantIntroError({
     errorName: error instanceof Error ? error.name : typeof error,
     errorMessage: sanitizeLogMessage(error instanceof Error ? error.message : String(error)),
     statusCode: getErrorStatus(error)
+  });
+}
+
+function logRestaurantIntroDescriptionEvent(event: RestaurantDescriptionDiagnosticEvent, requestStartedAt: number) {
+  logRestaurantIntro({
+    ...event,
+    phase: `source_${event.phase}`,
+    totalDurationMs: Date.now() - requestStartedAt
   });
 }
 
