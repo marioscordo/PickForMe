@@ -63,6 +63,35 @@ function formatEuroPrice(price: number) {
   return `${price.toFixed(2).replace(".", ",")} €`;
 }
 
+function formatDisplayPrice({
+  missingPriceText,
+  price,
+  priceApproxDisplay,
+  priceDisplay
+}: {
+  missingPriceText: string;
+  price?: number;
+  priceApproxDisplay?: string;
+  priceDisplay?: string;
+}) {
+  const original = priceDisplay?.trim();
+  const approximate = priceApproxDisplay?.trim();
+
+  if (original && approximate) {
+    return `${original} · ${approximate}`;
+  }
+
+  if (original) {
+    return original;
+  }
+
+  if (typeof price === "number") {
+    return formatEuroPrice(price);
+  }
+
+  return missingPriceText;
+}
+
 function normalizeRestaurantIntroText(value: string) {
   return value
     .replace(/\\n/g, "\n")
@@ -552,7 +581,12 @@ export function RecommendationCard({
             nestedState.status === "loaded" ||
             isOtherNestedDishActive;
 
-          const priceText = typeof dishData.price === "number" ? formatEuroPrice(dishData.price) : "";
+          const priceText = formatDisplayPrice({
+            missingPriceText: content.recommendation.missingPriceText,
+            price: dishData.price,
+            priceApproxDisplay: dishData.priceApproxDisplay ?? rec.priceApproxDisplay,
+            priceDisplay: dishData.priceDisplay ?? rec.priceDisplay
+          });
           return (
             <Surface key={dish.id} style={[local.card, isPrimaryRecommendation ? local.primaryCard : local.secondaryCard]}>
               <View style={[local.rankBubble, isPrimaryRecommendation ? local.rankBubblePrimary : local.rankBubbleSecondary]}>
@@ -669,9 +703,14 @@ export function RecommendationCard({
                   {translatedDescription && translatedDescription !== translatedName ? (
                     <Text style={local.nestedDishDescription}>{translatedDescription}</Text>
                   ) : null}
-                  {typeof nestedDish.price === "number" ? (
-                    <Text style={local.nestedDishPrice}>{formatEuroPrice(nestedDish.price)}</Text>
-                  ) : null}
+                  <Text style={local.nestedDishPrice}>
+                    {formatDisplayPrice({
+                      missingPriceText: content.recommendation.missingPriceText,
+                      price: nestedDish.price,
+                      priceApproxDisplay: nestedDish.priceApproxDisplay ?? recommendation.priceApproxDisplay,
+                      priceDisplay: nestedDish.priceDisplay ?? recommendation.priceDisplay
+                    })}
+                  </Text>
                 </View>
               </View>
             );

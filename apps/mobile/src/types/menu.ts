@@ -16,6 +16,11 @@ export type Dish = {
   description?: string;
   descriptionOriginal?: string;
   price?: number;
+  priceOriginal?: string;
+  priceCurrency?: string;
+  priceDisplay?: string;
+  priceApproxDisplay?: string;
+  priceExchangeRateDate?: string;
   category?: string;
   itemType?: DishItemType;
   sourceFormat?: DishSourceFormat;

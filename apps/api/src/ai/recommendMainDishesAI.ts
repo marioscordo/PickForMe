@@ -90,47 +90,150 @@ export async function recommendMainDishesAI({
     ]
   };
 
-  const requestStartedAt = Date.now();
-  const response = await client.responses.create(request, signal ? { signal } : undefined)
-    .catch((error) => {
+  let parsed: ReturnType<typeof MainDishAIResponseSchema.parse> | undefined;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const requestStartedAt = Date.now();
+    const response = await client.responses.create(request, signal ? { signal } : undefined)
+      .catch((error) => {
+        logDevAnalyzeTiming({
+          runId,
+          phase: "api.main_ai_request",
+          durationMs: Date.now() - requestStartedAt,
+          model,
+          retryAttempt: attempt,
+          sdkRetries: "not_exposed",
+          ...contentDiagnostics,
+          success: false,
+          errorClass: error instanceof Error ? error.name : typeof error
+        });
+        throw error;
+      });
+    logDevAnalyzeTiming({
+      runId,
+      phase: "api.main_ai_request",
+      durationMs: Date.now() - requestStartedAt,
+      model,
+      retryAttempt: attempt,
+      sdkRetries: "not_exposed",
+      ...contentDiagnostics,
+      inputTokens: getUsageValue(response.usage, "input_tokens"),
+      outputTokens: getUsageValue(response.usage, "output_tokens"),
+      success: true
+    });
+
+    const parseStartedAt = Date.now();
+
+    try {
+      parsed = MainDishAIResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
+      validateDescriptionTranslationContract(parsed, targetLocale);
       logDevAnalyzeTiming({
         runId,
-        phase: "api.main_ai_request",
-        durationMs: Date.now() - requestStartedAt,
-        model,
-        sdkRetries: "not_exposed",
-        ...contentDiagnostics,
+        phase: "api.main_ai_parse",
+        durationMs: Date.now() - parseStartedAt,
+        retryAttempt: attempt,
+        candidateCount: parsed.safeCandidates.length,
+        success: true
+      });
+      break;
+    } catch (error) {
+      logDevAnalyzeTiming({
+        runId,
+        phase: "api.main_ai_parse",
+        durationMs: Date.now() - parseStartedAt,
+        retryAttempt: attempt,
         success: false,
         errorClass: error instanceof Error ? error.name : typeof error
       });
-      throw error;
-    });
-  logDevAnalyzeTiming({
-    runId,
-    phase: "api.main_ai_request",
-    durationMs: Date.now() - requestStartedAt,
-    model,
-    sdkRetries: "not_exposed",
-    ...contentDiagnostics,
-    inputTokens: getUsageValue(response.usage, "input_tokens"),
-    outputTokens: getUsageValue(response.usage, "output_tokens"),
-    success: true
-  });
 
-  const parseStartedAt = Date.now();
-  const parsed = MainDishAIResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
-  logDevAnalyzeTiming({
-    runId,
-    phase: "api.main_ai_parse",
-    durationMs: Date.now() - parseStartedAt,
-    candidateCount: parsed.safeCandidates.length,
-    success: true
-  });
+      if (attempt === 1 && isInvalidAiResponseError(error)) {
+        continue;
+      }
+
+      throw toSyntaxError(error);
+    }
+  }
+
+  if (!parsed) {
+    throw new SyntaxError("AI_RESPONSE_INVALID");
+  }
 
   const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, runId, signal);
   logMainDishAiResponseDiagnostic(verifierSafe, runId);
 
   return verifierSafe.recommendations;
+}
+
+function validateDescriptionTranslationContract(
+  response: ReturnType<typeof MainDishAIResponseSchema.parse>,
+  targetLocale: string
+) {
+  const items = [
+    ...response.safeCandidates,
+    ...response.recommendations,
+    ...response.safeCandidates
+      .map((candidate) => candidate.recommendationPayload)
+      .filter((payload): payload is NonNullable<typeof payload> => Boolean(payload))
+  ];
+
+  for (const item of items) {
+    const descriptionOriginal = item.descriptionOriginal?.trim();
+    const translatedDescription = item.translatedDescription?.trim();
+
+    if (!descriptionOriginal && translatedDescription) {
+      throw new SyntaxError("AI_RESPONSE_INVALID_DESCRIPTION_WITHOUT_SOURCE");
+    }
+
+    if (
+      descriptionOriginal &&
+      !translatedDescription &&
+      !isDescriptionLikelyInTargetLanguage(descriptionOriginal, targetLocale)
+    ) {
+      throw new SyntaxError("AI_RESPONSE_INVALID_MISSING_TRANSLATED_DESCRIPTION");
+    }
+  }
+}
+
+function isDescriptionLikelyInTargetLanguage(value: string, targetLocale: string) {
+  const targetLanguage = targetLocale.split("-")[0]?.toLowerCase();
+
+  if (targetLanguage === "de") {
+    return looksLikeGermanText(value);
+  }
+
+  if (targetLanguage === "en") {
+    return looksLikeEnglishText(value);
+  }
+
+  return false;
+}
+
+function looksLikeGermanText(value: string) {
+  const normalized = value.toLowerCase();
+  return /[äöüß]/.test(normalized) ||
+    /\b(?:und|mit|auf|aus|vom|von|der|die|das|eine|einer|frisch|hausgemacht)\b/.test(normalized);
+}
+
+function looksLikeEnglishText(value: string) {
+  const normalized = value.toLowerCase();
+  return /\b(?:and|with|from|served|fresh|homemade|grilled|roasted|sauce|salad|cheese)\b/.test(normalized);
+}
+
+function isInvalidAiResponseError(error: unknown) {
+  return error instanceof SyntaxError ||
+    (error instanceof Error && error.name === "ZodError");
+}
+
+function toSyntaxError(error: unknown) {
+  if (error instanceof SyntaxError) {
+    return error;
+  }
+
+  if (error instanceof Error && error.name === "ZodError") {
+    return new SyntaxError("AI_RESPONSE_INVALID_SCHEMA");
+  }
+
+  return error;
 }
 
 function logMainDishAiResponseDiagnostic(
@@ -362,7 +465,7 @@ function buildRecommendationFromSafeCandidate(candidate: MainDishAISafeCandidate
     translatedName: payload.translatedName,
     descriptionOriginal: payload.descriptionOriginal,
     translatedDescription: payload.translatedDescription,
-    priceRaw: payload.priceRaw,
+    priceRaw: payload.priceRaw ?? candidate.priceRaw,
     sourceEvidence: payload.sourceEvidence,
     sourceKind: payload.sourceKind,
     sourceUrl: payload.sourceUrl,
@@ -491,7 +594,11 @@ function buildMainDishPrompt({
     "- profileSafety.hasKnownConflict muss fuer jede Empfehlung false sein.",
     "- profileSafety.checkedAgainst muss die aktiven harten Profilwerte enthalten, gegen die du die Empfehlung geprueft hast.",
     "- Ein Gericht darf nicht wegen fehlendem Preis ausgeschlossen werden.",
-    "- priceRaw ist optional und darf null oder fehlen.",
+    "- Wenn fuer einen sichtbaren Menueeintrag ein Preis mit sichtbarer Waehrung sichtbar und eindeutig diesem Gericht zuordenbar ist, muss der Preis exakt aus der Quelle uebernommen werden.",
+    "- Dieser Preisvertrag gilt identisch fuer allDishes.price, safeCandidates.priceRaw, recommendationPayload.priceRaw und recommendations.priceRaw.",
+    "- allDishes.price, safeCandidates.priceRaw, recommendationPayload.priceRaw und recommendations.priceRaw muessen immer string oder null sein.",
+    "- Verwende null, wenn fuer diesen konkreten Menueeintrag kein Preis mit sichtbarer Waehrung sichtbar oder nicht eindeutig zuordenbar ist.",
+    "- Verwende niemals 0, \"0\", \"N/A\", \"unbekannt\" oder leere Strings als Fehlwert fuer fehlende Preise.",
     "- sourceEvidence soll geliefert werden, wenn ein kurzer Beleg sicher moeglich ist.",
     "- sourceEvidence darf null oder fehlen, wenn kein knapper Beleg sicher angegeben werden kann.",
     "- Wenn der sichtbare Menueeintrag eine echte Beschreibung enthaelt, gib descriptionOriginal als vollstaendige originale Beschreibung aus.",
@@ -520,7 +627,7 @@ function buildMainDishPrompt({
     "    {",
     '      "nameOriginal": "exakter Originalname aus der Speisekarte",',
     '      "descriptionOriginal": "vollstaendige sichtbare Originalbeschreibung falls vorhanden, sonst null",',
-    '      "price": "Preis falls sichtbar, sonst null",',
+    '      "price": "exakter Preis mit sichtbarer Waehrung, wenn eindeutig diesem Gericht zuordenbar, sonst null",',
     '      "detectedConflicts": ["aktive Profilwerte, die in Name oder Beschreibung erkannt wurden"],',
     '      "isSafe": true',
     "    }",
@@ -539,7 +646,7 @@ function buildMainDishPrompt({
     '      "scoreReason": "kurze Bewertung in der Zielsprache; nur sichtbarer Name, sichtbare Kategorie und aktive Profilvorlieben, keine unbelegten Details",',
     '      "translatedName": "Anzeigeuebersetzung fuer moegliches Nachruecken, falls sicher belegbar",',
     '      "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
-    '      "priceRaw": "Preis falls sichtbar, sonst null oder weglassen",',
+    '      "priceRaw": "exakter Preis mit sichtbarer Waehrung, wenn eindeutig diesem Gericht zuordenbar, sonst null",',
     '      "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
     '      "sourceKind": "pdf | html | image | text | unknown",',
     '      "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
@@ -556,7 +663,7 @@ function buildMainDishPrompt({
     '        "translatedName": "display-sichere nutzerseitige Anzeigeuebersetzung in der Zielsprache",',
     '        "descriptionOriginal": "vollstaendige Originalbeschreibung falls sichtbar, sonst null",',
     '        "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
-    '        "priceRaw": "Preis falls sichtbar, sonst null oder weglassen",',
+    '        "priceRaw": "exakter Preis mit sichtbarer Waehrung, wenn eindeutig diesem Gericht zuordenbar, sonst null",',
     '        "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
     '        "sourceKind": "pdf | html | image | text | unknown",',
     '        "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
@@ -579,7 +686,7 @@ function buildMainDishPrompt({
     '      "translatedName": "display-sichere nutzerseitige Anzeigeuebersetzung in der Zielsprache",',
     '      "descriptionOriginal": "vollstaendige Originalbeschreibung falls sichtbar, sonst null",',
     '      "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
-    '      "priceRaw": "Preis falls sichtbar, sonst null oder weglassen",',
+    '      "priceRaw": "exakter Preis mit sichtbarer Waehrung, wenn eindeutig diesem Gericht zuordenbar, sonst null",',
     '      "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
     '      "sourceKind": "pdf | html | image | text | unknown",',
     '      "sourceUrl": "Quellen-URL falls bekannt, sonst null",',

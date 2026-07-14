@@ -16,6 +16,7 @@ import {
 import { prepareRecommendationSearchSpace } from "../../../src/menu/prepareRecommendationSearchSpace";
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import { findLinkedMenuImageUrls, looksLikeImageUrl } from "../../../src/menu/findLinkedMenuImageUrls";
+import { prepareBestTildaMenuImageFallback } from "../../../src/menu/prepareTildaMenuImageFallback";
 import { loadMenuTextFromMenury, looksLikeMenuryUrl } from "../../../src/menu/loadMenuTextFromMenury";
 import {
   applyDishRoleClassifications,
@@ -24,6 +25,7 @@ import {
 import { rankMenuSourceCandidatesByQuality, type MenuSourceQualityMetrics } from "../../../src/restaurant/menuSourceQuality";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import { gatekeepMainDishRecommendations } from "../../../src/recommendation/gatekeeper";
+import { enrichPriceCompatibility } from "../../../src/recommendation/priceCompatibility";
 import { mapGatekeptMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
 import { blockReasonForRecommendation } from "../../../src/profile/profileRules";
 import { sanitizeProfileForRecommendation } from "../../../src/profile/profileInputPolicy";
@@ -224,6 +226,7 @@ export async function POST(request: Request) {
           fallbackHeroContextText: selectedPdfMenu?.restaurantContextText ?? rawMenuText,
           htmlMenuExtraction: null,
           starterCandidateSourceUrls: pdfMenuUrls,
+          deviceLocale: body.deviceLocale,
           extraPayload: {
             ...sourceInputAllergenWarningPayload
           },
@@ -315,6 +318,7 @@ export async function POST(request: Request) {
           restaurantUrl: officialRestaurantUrl,
           fallbackHeroContextText: rawMenuText,
           htmlMenuExtraction: null,
+          deviceLocale: body.deviceLocale,
           extraPayload: {
             ...sourceInputAllergenWarningPayload
           },
@@ -440,6 +444,125 @@ export async function POST(request: Request) {
       throw new AppError(400, "AI_DISABLED", "Speisekartenempfehlungen benoetigen den KI-Modus.");
     }
 
+    if (shouldExtractHtmlMenu) {
+      const htmlFoodDishCount = (htmlMenuDishes ?? parseMenu(effectiveMenuText)).filter(isFoodDish).length;
+      const htmlPriceCount = countMenuPriceSignals(effectiveMenuText);
+
+      if (htmlFoodDishCount === 0 && htmlPriceCount === 0) {
+        const tildaImage = await prepareBestTildaMenuImageFallback(rawMenuText);
+
+        if (tildaImage) {
+          try {
+            const imageAllergenWarningPayload = buildAllergenInfoWarningPayload(
+              profile,
+              `${rawMenuText}\n${effectiveMenuText}`,
+              body.userLocale
+            );
+
+            return await analyzeMenuWithTwoStepMainFlow({
+              source: {
+                kind: "image",
+                urls: [tildaImage.imageDataUrl],
+                sourceUrl: tildaImage.originalUrl,
+                text: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`
+              },
+              responseMode: "ai_image",
+              profile,
+              situation: body.situation,
+              requestedDishRoles,
+              preferredDishRole,
+              outputLocale,
+              restaurantDescription,
+              localizedRestaurantDescription,
+              restaurantUrl: officialRestaurantUrl,
+              fallbackHeroContextText: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`,
+              htmlMenuExtraction,
+              deviceLocale: body.deviceLocale,
+              extraPayload: {
+                ...imageAllergenWarningPayload,
+                ...buildMenuExtractionPayload(htmlMenuExtraction)
+              },
+              timeoutMs: 60000,
+              requestStartedAt,
+              runId: requestRunId
+            });
+          } catch (tildaImageAiError) {
+            if (tildaImageAiError instanceof AppError) {
+              throw tildaImageAiError;
+            }
+
+            console.error("GustaroAI Tilda Image AI failed.", tildaImageAiError);
+
+            const message = tildaImageAiError instanceof Error ? tildaImageAiError.message : "";
+
+            if (isRateLimitError(tildaImageAiError)) {
+              throw new AppError(
+                429,
+                "AI_RATE_LIMIT",
+                "Ich kann die Bild-Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+              );
+            }
+
+            if (isTemporaryConnectionError(tildaImageAiError)) {
+              throw new AppError(
+                503,
+                "CONNECTION_ERROR",
+                "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
+                { retryable: true }
+              );
+            }
+
+            if (tildaImageAiError instanceof SyntaxError) {
+              throw new AppError(
+                500,
+                "AI_RESPONSE_INVALID",
+                "Die KI-Antwort konnte technisch nicht verarbeitet werden."
+              );
+            }
+
+            if (message.includes("TWO_STEP_MAIN_AI_TIMEOUT")) {
+              throw new AppError(
+                504,
+                "AI_TIMEOUT",
+                "Ich brauche fuer diese Bild-Speisekarte gerade zu lange. Bitte versuche es noch einmal.",
+                { retryable: true }
+              );
+            }
+
+            if (message.includes("IMAGE_AI_TIMEOUT")) {
+              throw new AppError(
+                422,
+                "ANALYSIS_NOT_SAFE",
+                "Ich konnte diese Bild-Speisekarte nicht sicher auswerten."
+              );
+            }
+
+            if (isInvalidImageAiError(tildaImageAiError)) {
+              throw new AppError(
+                422,
+                "IMAGE_MENU_NOT_READABLE",
+                "Diese Bild-Speisekarte konnte nicht sicher gelesen werden. Bitte nutze einen direkten Link zu einer PDF-Speisekarte oder fuege den Speisekartentext ein."
+              );
+            }
+
+            if (
+              message.includes("Profilregeln") ||
+              message.includes("keine sicher") ||
+              message.includes("NO_SAFE")
+            ) {
+              throw new AppError(
+                422,
+                "NO_SAFE_RECOMMENDATIONS",
+                "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+              );
+            }
+
+            throw tildaImageAiError;
+          }
+        }
+      }
+    }
+
     try {
       const textAllergenWarningPayload = buildAllergenInfoWarningPayload(
         profile,
@@ -464,6 +587,7 @@ export async function POST(request: Request) {
         restaurantUrl: officialRestaurantUrl,
         fallbackHeroContextText: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`,
         htmlMenuExtraction,
+        deviceLocale: body.deviceLocale,
         extraPayload: {
           ...textAllergenWarningPayload,
           ...buildMenuExtractionPayload(htmlMenuExtraction)
@@ -789,6 +913,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   fallbackHeroContextText,
   htmlMenuExtraction,
   starterCandidateSourceUrls = [],
+  deviceLocale,
   extraPayload = {},
   timeoutMs,
   requestStartedAt,
@@ -807,6 +932,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   fallbackHeroContextText: string;
   htmlMenuExtraction: MenuExtractionResult | null;
   starterCandidateSourceUrls?: string[];
+  deviceLocale?: string;
   extraPayload?: Record<string, unknown>;
   timeoutMs: number;
   requestStartedAt: number;
@@ -899,11 +1025,23 @@ async function analyzeMenuWithTwoStepMainFlow({
   });
 
   const mapperStartedAt = Date.now();
-  const mapped = enrichMappedHtmlDescriptions(
+  const mappedWithoutPriceCompatibility = enrichMappedHtmlDescriptions(
     mapGatekeptMainRecommendationsToAnalyzeData(gatekeeperResult.accepted, requestedDishRoles),
     htmlMenuExtraction,
     outputLocale
   );
+  const mapped = await enrichPriceCompatibility({
+    acceptedRecommendations: gatekeeperResult.accepted,
+    data: mappedWithoutPriceCompatibility,
+    deviceLocale,
+    sourceContext: [
+      source.sourceUrl,
+      source.text,
+      restaurantUrl,
+      fallbackHeroContextText
+    ].filter(Boolean).join("\n"),
+    targetLocale: outputLocale
+  });
   const mapperDurationMs = Date.now() - mapperStartedAt;
   logDevAnalyzeTiming({
     runId,
@@ -2970,6 +3108,10 @@ function uniqueStrings(values: string[]) {
     seen.add(key);
     return true;
   });
+}
+
+function countMenuPriceSignals(value: string) {
+  return (value.match(/(?:\u20ac|eur|euro)\s*\d+|\d+\s*(?:\u20ac|eur|euro)|\d+[,.]\d{2}/gi) ?? []).length;
 }
 
 function normalizeRequestedDishRoles(values?: RequestedDishRole[]): RequestedDishRole[] {

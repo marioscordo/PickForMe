@@ -129,7 +129,8 @@
     "startersAndSaladsRetry": "Erneut versuchen",
     "startersAndSaladsTitle": "Vorspeisen und Salate",
     "startersAndSaladsEmpty": "Ich finde dazu gerade keine sichere Vorspeisen- oder Salatempfehlung.",
-    "fallbackDishName": "Gericht"
+    "fallbackDishName": "Gericht",
+    "missingPriceText": "Bitte entnimm den Preis der Karte."
   },
   "profileScreen": {
     "title": "Profil",

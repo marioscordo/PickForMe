@@ -13,4 +13,5 @@ export type AnalyzeMenuRequest = {
   diagnosticRunId?: string;
   profile: UserProfile;
   userLocale?: string;
+  deviceLocale?: string;
 };

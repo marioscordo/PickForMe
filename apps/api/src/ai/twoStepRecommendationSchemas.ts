@@ -5,6 +5,7 @@ export const TwoStepConfidenceSchema = z.enum(["high", "medium", "low"]);
 export const TwoStepCommittedConfidenceSchema = z.enum(["high", "medium"]);
 
 const OptionalNullableStringSchema = z.string().trim().min(1).nullable().optional();
+const RequiredNullableStringSchema = z.string().trim().min(1).nullable();
 
 export const TwoStepProfileSafetySchema = z.object({
   hasKnownConflict: z.boolean(),
@@ -38,7 +39,7 @@ export const MainDishAIRecommendationSchema = z.object({
   translatedName: z.string().trim().min(1),
   descriptionOriginal: OptionalNullableStringSchema,
   translatedDescription: OptionalNullableStringSchema,
-  priceRaw: OptionalNullableStringSchema,
+  priceRaw: RequiredNullableStringSchema,
   sourceEvidence: OptionalNullableStringSchema,
   sourceKind: TwoStepSourceKindSchema.optional(),
   sourceUrl: OptionalNullableStringSchema,
@@ -53,7 +54,7 @@ export const MainDishAISafeCandidateRecommendationPayloadSchema = z.object({
   translatedName: z.string().trim().min(1).optional(),
   descriptionOriginal: OptionalNullableStringSchema,
   translatedDescription: OptionalNullableStringSchema,
-  priceRaw: OptionalNullableStringSchema,
+  priceRaw: RequiredNullableStringSchema,
   sourceEvidence: OptionalNullableStringSchema,
   sourceKind: TwoStepSourceKindSchema.optional(),
   sourceUrl: OptionalNullableStringSchema,
@@ -66,7 +67,7 @@ export const MainDishAISafeCandidateRecommendationPayloadSchema = z.object({
 export const MainDishAIAnalyzedDishSchema = z.object({
   nameOriginal: z.string().trim().min(1),
   descriptionOriginal: OptionalNullableStringSchema,
-  price: OptionalNullableStringSchema,
+  price: RequiredNullableStringSchema,
   detectedConflicts: z.array(z.string().trim().min(1)),
   isSafe: z.boolean()
 });
@@ -83,7 +84,7 @@ export const MainDishAISafeCandidateSchema = z.object({
   scoreReason: z.string().trim().min(1),
   translatedName: z.string().trim().min(1).optional(),
   translatedDescription: OptionalNullableStringSchema,
-  priceRaw: OptionalNullableStringSchema,
+  priceRaw: RequiredNullableStringSchema,
   sourceEvidence: OptionalNullableStringSchema,
   sourceKind: TwoStepSourceKindSchema.optional(),
   sourceUrl: OptionalNullableStringSchema,

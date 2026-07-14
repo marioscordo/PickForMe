@@ -49,6 +49,30 @@ export async function findLinkedMenuImageUrls(value: string, maxResults = 8): Pr
   }
 }
 
+export async function findTildaMenuImageUrls(value: string, maxResults = 2): Promise<string[]> {
+  try {
+    const response = await fetchWithTimeout(value, 8000);
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const finalUrl = response.url || value;
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+
+    if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+      return [];
+    }
+
+    const html = await response.text();
+    const candidates = extractTildaMenuImageCandidates(html, finalUrl);
+
+    return filterValidImageUrls(dedupeSimilarImageUrls(candidates), maxResults);
+  } catch {
+    return [];
+  }
+}
+
 async function filterValidImageUrls(values: string[], maxResults: number): Promise<string[]> {
   const result: string[] = [];
 
@@ -104,6 +128,53 @@ function extractImageCandidates(html: string, baseUrl: string): string[] {
   return [...candidates];
 }
 
+function extractTildaMenuImageCandidates(html: string, baseUrl: string): string[] {
+  const candidates: Array<{ url: string; score: number; index: number }> = [];
+  const attributePattern = /\b(?:data-original|data-img-zoom-url)=["']([^"']+)["']/gi;
+  const metaImagePattern = /<meta\b(?=[^>]*\bitemprop=["']image["'])(?=[^>]*\bcontent=["']([^"']+)["'])[^>]*>/gi;
+
+  collectTildaMenuCandidates(html, baseUrl, attributePattern, candidates);
+  collectTildaMenuCandidates(html, baseUrl, metaImagePattern, candidates);
+
+  return candidates
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((candidate) => candidate.url);
+}
+
+function collectTildaMenuCandidates(
+  html: string,
+  baseUrl: string,
+  pattern: RegExp,
+  candidates: Array<{ url: string; score: number; index: number }>
+) {
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(html)) !== null) {
+    const rawValue = decodeHtmlAttribute(match[1] ?? "");
+
+    if (!looksLikeTildaOriginalImage(rawValue)) {
+      continue;
+    }
+
+    const context = html.slice(Math.max(0, match.index - 2400), Math.min(html.length, match.index + 800));
+    const contextScore = scoreTildaMenuImageContext(context);
+
+    if (contextScore <= 0) {
+      continue;
+    }
+
+    try {
+      candidates.push({
+        url: new URL(rawValue, baseUrl).toString(),
+        score: contextScore,
+        index: match.index
+      });
+    } catch {
+      // ignored
+    }
+  }
+}
+
 function collectCandidates(html: string, baseUrl: string, pattern: RegExp, candidates: Set<string>) {
   let match: RegExpExecArray | null;
 
@@ -121,6 +192,62 @@ function collectCandidates(html: string, baseUrl: string, pattern: RegExp, candi
       // ignored
     }
   }
+}
+
+function looksLikeTildaOriginalImage(value: string): boolean {
+  const normalized = value.toLowerCase();
+
+  if (!IMAGE_EXTENSIONS.some((extension) => normalized.includes(extension))) {
+    return false;
+  }
+
+  if (!normalized.includes("static.tildacdn.com/")) {
+    return false;
+  }
+
+  if (
+    normalized.includes("/-/resize") ||
+    normalized.includes("/-/empty/") ||
+    normalized.includes("logo") ||
+    normalized.includes("favicon") ||
+    normalized.includes("blank") ||
+    normalized.includes("icon") ||
+    normalized.includes("vk.com") ||
+    normalized.includes("facebook") ||
+    normalized.includes("instagram") ||
+    normalized.includes("hero") ||
+    normalized.includes("cover") ||
+    normalized.includes("promo")
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function scoreTildaMenuImageContext(value: string): number {
+  const normalized = value
+    .toLowerCase()
+    .replace(/&nbsp;/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ");
+  let score = 0;
+
+  if (normalized.includes("меню")) score += 8;
+  if (normalized.includes("menu")) score += 6;
+  if (normalized.includes("speisekarte")) score += 6;
+  if (normalized.includes("restaurant")) score += 2;
+  if (normalized.includes("t552")) score += 2;
+  if (normalized.includes("imageobject")) score += 1;
+  if (normalized.includes("gallery")) score -= 2;
+  if (normalized.includes("slider")) score -= 3;
+  if (normalized.includes("logo")) score -= 8;
+  if (normalized.includes("favicon")) score -= 8;
+  if (normalized.includes("hero")) score -= 5;
+  if (normalized.includes("cover")) score -= 4;
+  if (normalized.includes("promo")) score -= 4;
+
+  return score;
 }
 
 function scoreImageCandidate(value: string): number {

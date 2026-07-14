@@ -5,6 +5,10 @@ export function resolveGuiLanguageFromDevice(): GuiLanguage {
   return resolveSupportedGuiLanguage(getDeviceLocaleCandidates()) ?? "en-US";
 }
 
+export function resolveDeviceLocaleFromDevice(): string | undefined {
+  return getDeviceLocaleCandidates().find((locale) => Boolean(locale?.trim()))?.replace(/_/g, "-").trim();
+}
+
 export function resolveSupportedGuiLanguage(locales: Array<string | null | undefined>): GuiLanguage | undefined {
   const normalized = normalizeLocale(locales.find((locale) => Boolean(locale?.trim())));
 

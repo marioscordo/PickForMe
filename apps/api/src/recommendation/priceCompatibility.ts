@@ -1,0 +1,403 @@
+import type { MainDishAIRecommendation } from "../ai/twoStepRecommendationSchemas";
+import type { Dish } from "../types/menu";
+import type { Recommendation } from "../types/recommendations";
+import type { TwoStepAnalyzeDataParts } from "./twoStepRecommendationMappers";
+
+export type PriceCompatibilityCurrency = "EUR" | "CHF" | "USD" | "RUB" | "INR" | "EGP" | "GBP" | "UNKNOWN";
+
+type PriceCompatibilityInput = {
+  acceptedRecommendations: MainDishAIRecommendation[];
+  data: TwoStepAnalyzeDataParts;
+  deviceLocale?: string;
+  sourceContext?: string;
+  targetLocale?: string;
+};
+
+type PriceParts = {
+  approximate?: boolean;
+  amounts: number[];
+  currency: PriceCompatibilityCurrency;
+  raw: string;
+};
+
+type ExchangeRateEntry = {
+  date: string;
+  fetchedAt: number;
+  rate: number;
+};
+
+const EXCHANGE_RATE_CACHE = new Map<string, ExchangeRateEntry>();
+const EXCHANGE_RATE_TTL_MS = 24 * 60 * 60 * 1000;
+const EXCHANGE_RATE_STALE_MS = 7 * EXCHANGE_RATE_TTL_MS;
+const SUPPORTED_TARGET_CURRENCIES = new Set<PriceCompatibilityCurrency>(["EUR", "CHF", "USD", "RUB", "INR", "EGP", "GBP"]);
+
+export async function enrichPriceCompatibility({
+  acceptedRecommendations,
+  data,
+  deviceLocale,
+  sourceContext,
+  targetLocale
+}: PriceCompatibilityInput): Promise<TwoStepAnalyzeDataParts> {
+  const targetCurrency = resolveTargetCurrencyFromDeviceLocale(deviceLocale) ?? resolveTargetCurrencyFromDeviceLocale(targetLocale);
+  const pricePartsByDishId = new Map<string, PriceParts>();
+  const sourceCurrencyFallback = inferSourceCurrencyFromContext(sourceContext);
+
+  acceptedRecommendations.forEach((item, index) => {
+    const dishId = data.dishes[index]?.id;
+    const priceParts = parsePriceParts(item.priceRaw, sourceCurrencyFallback);
+
+    if (dishId && priceParts) {
+      pricePartsByDishId.set(dishId, priceParts);
+    }
+  });
+
+  const currencyPairs = uniqueCurrencyPairs([...pricePartsByDishId.values()], targetCurrency);
+  const rates = new Map<string, ExchangeRateEntry>();
+
+  for (const pair of currencyPairs) {
+    const rate = await getExchangeRate(pair.sourceCurrency, pair.targetCurrency);
+
+    if (rate) {
+      rates.set(currencyPairKey(pair.sourceCurrency, pair.targetCurrency), rate);
+    }
+  }
+
+  const dishes = data.dishes.map((dish) => {
+    const priceParts = pricePartsByDishId.get(dish.id);
+    if (!priceParts) return dish;
+
+    return enrichDishPrice({
+      dish,
+      priceParts,
+      rates,
+      targetCurrency,
+      locale: deviceLocale ?? targetLocale
+    });
+  });
+  const enrichedDishById = new Map(dishes.map((dish) => [dish.id, dish]));
+  const recommendations = data.recommendations.map((recommendation) => {
+    const dish = enrichedDishById.get(recommendation.dishId);
+    if (!dish?.priceDisplay) return recommendation;
+
+    return {
+      ...recommendation,
+      priceOriginal: dish.priceOriginal,
+      priceCurrency: dish.priceCurrency,
+      priceDisplay: dish.priceDisplay,
+      priceApproxDisplay: dish.priceApproxDisplay,
+      priceExchangeRateDate: dish.priceExchangeRateDate
+    };
+  });
+
+  return {
+    dishes,
+    recommendations
+  };
+}
+
+export function parsePriceParts(
+  priceRaw: string | null | undefined,
+  fallbackCurrency?: PriceCompatibilityCurrency
+): PriceParts | null {
+  const raw = priceRaw?.trim();
+  if (!raw) return null;
+
+  const explicitCurrency = inferCurrencyFromPriceRaw(raw);
+  const currency = explicitCurrency ?? fallbackCurrency ?? "UNKNOWN";
+  const amounts = extractPriceAmounts(raw);
+
+  if (amounts.length === 0) {
+    return {
+      raw,
+      currency,
+      amounts: []
+    };
+  }
+
+  return {
+    raw,
+    currency,
+    amounts,
+    approximate: /\b(?:ca\.?|approx\.?|about|around)\b|≈|~/.test(raw.toLowerCase())
+  };
+}
+
+export function resolveTargetCurrencyFromDeviceLocale(locale: string | undefined): PriceCompatibilityCurrency | undefined {
+  const region = locale?.replace(/_/g, "-").split("-")[1]?.toUpperCase();
+
+  switch (region) {
+    case "AT":
+    case "BE":
+    case "CY":
+    case "DE":
+    case "EE":
+    case "ES":
+    case "FI":
+    case "FR":
+    case "GR":
+    case "HR":
+    case "IE":
+    case "IT":
+    case "LT":
+    case "LU":
+    case "LV":
+    case "MT":
+    case "NL":
+    case "PT":
+    case "SI":
+    case "SK":
+      return "EUR";
+    case "CH":
+    case "LI":
+      return "CHF";
+    case "US":
+      return "USD";
+    case "RU":
+      return "RUB";
+    case "IN":
+      return "INR";
+    case "EG":
+      return "EGP";
+    case "GB":
+      return "GBP";
+    default:
+      return undefined;
+  }
+}
+
+export function inferCurrencyFromPriceRaw(value: string): PriceCompatibilityCurrency | undefined {
+  const normalized = value.toLowerCase();
+
+  if (/[€]|(?:^|[\s\d.,])eur(?:$|[\s\d.,])|\beuro\b/i.test(value)) return "EUR";
+  if (/\bchf\b|\bsfr\.?\b/i.test(value)) return "CHF";
+  if (/\busd\b|us\$/i.test(value)) return "USD";
+  if (/\$/.test(value)) return "USD";
+  if (/₽|\brub\b|руб\.?/i.test(value)) return "RUB";
+  if (/₹|\binr\b|\brs\.?\b/i.test(value)) return "INR";
+  if (/\begp\b|e£|\ble\b|ج\.م/i.test(value)) return "EGP";
+  if (normalized.includes("£") || /\bgbp\b/i.test(value)) return "GBP";
+
+  return undefined;
+}
+
+export function inferSourceCurrencyFromContext(value: string | undefined): PriceCompatibilityCurrency | undefined {
+  if (!value) return undefined;
+
+  const normalized = value.toLowerCase();
+  const hostMatches = Array.from(normalized.matchAll(/https?:\/\/([^/\s"')]+)/g)).map((match) => match[1] ?? "");
+  const hosts = hostMatches.length > 0 ? hostMatches : [normalized];
+
+  if (hosts.some((host) => /\.ru(?::\d+)?$/.test(host))) return "RUB";
+  if (hosts.some((host) => /\.in(?::\d+)?$/.test(host))) return "INR";
+  if (hosts.some((host) => /\.eg(?::\d+)?$/.test(host))) return "EGP";
+  if (hosts.some((host) => /\.ch(?::\d+)?$/.test(host))) return "CHF";
+  if (hosts.some((host) => /\.us(?::\d+)?$/.test(host))) return "USD";
+  if (hosts.some((host) => hasEuroCountryDomain(host))) return "EUR";
+
+  return undefined;
+}
+
+function enrichDishPrice({
+  dish,
+  priceParts,
+  rates,
+  targetCurrency,
+  locale
+}: {
+  dish: Dish;
+  priceParts: PriceParts;
+  rates: Map<string, ExchangeRateEntry>;
+  targetCurrency?: PriceCompatibilityCurrency;
+  locale?: string;
+}): Dish {
+  if (priceParts.currency !== "UNKNOWN" && priceParts.currency === targetCurrency) {
+    return dish;
+  }
+
+  if (priceParts.currency === "UNKNOWN" && isPlainNumericPrice(priceParts.raw)) {
+    return dish;
+  }
+
+  const priceDisplay = formatOriginalPrice(priceParts);
+
+  if (!priceDisplay) {
+    return dish;
+  }
+
+  const next: Dish = {
+    ...dish,
+    priceOriginal: priceParts.raw,
+    priceCurrency: priceParts.currency,
+    priceDisplay
+  };
+
+  if (
+    targetCurrency &&
+    priceParts.currency !== "UNKNOWN" &&
+    priceParts.amounts.length > 0 &&
+    SUPPORTED_TARGET_CURRENCIES.has(targetCurrency)
+  ) {
+    const rate = rates.get(currencyPairKey(priceParts.currency, targetCurrency));
+
+    if (rate) {
+      next.priceApproxDisplay = formatApproximatePrice({
+        amounts: priceParts.amounts.map((amount) => amount * rate.rate),
+        currency: targetCurrency,
+        locale
+      });
+      next.priceExchangeRateDate = rate.date;
+    }
+  }
+
+  return next;
+}
+
+function hasEuroCountryDomain(host: string) {
+  return /\.(?:at|be|cy|de|ee|es|fi|fr|gr|hr|ie|it|lt|lu|lv|mt|nl|pt|si|sk)(?::\d+)?$/.test(host);
+}
+
+function isPlainNumericPrice(value: string) {
+  return /^\s*\d+(?:[,.]\d{1,2})?\s*$/.test(value);
+}
+
+function extractPriceAmounts(value: string): number[] {
+  const matches = value.match(/\d+(?:[.,]\d{1,2})?/g) ?? [];
+  return matches
+    .slice(0, 2)
+    .map((match) => Number(match.replace(",", ".")))
+    .filter((amount) => Number.isFinite(amount));
+}
+
+function formatOriginalPrice(priceParts: PriceParts) {
+  const cleaned = priceParts.raw.replace(/\s+/g, " ").trim();
+  if (!cleaned) return undefined;
+
+  if (priceParts.currency === "UNKNOWN" || inferCurrencyFromPriceRaw(cleaned)) {
+    return cleaned;
+  }
+
+  const symbol = currencySymbol(priceParts.currency);
+  return symbol ? `${cleaned} ${symbol}` : cleaned;
+}
+
+function formatApproximatePrice({
+  amounts,
+  currency,
+  locale
+}: {
+  amounts: number[];
+  currency: PriceCompatibilityCurrency;
+  locale?: string;
+}) {
+  const prefix = locale?.toLowerCase().startsWith("de") ? "ca." : "approx.";
+  const formatter = new Intl.NumberFormat(locale ?? "de-DE", {
+    currency,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    style: "currency"
+  });
+  const formattedAmounts = amounts.slice(0, 2).map((amount) => formatter.format(amount));
+
+  return `${prefix} ${formattedAmounts.join("–")}`;
+}
+
+function currencySymbol(currency: PriceCompatibilityCurrency) {
+  switch (currency) {
+    case "EUR":
+      return "€";
+    case "CHF":
+      return "CHF";
+    case "USD":
+      return "$";
+    case "RUB":
+      return "₽";
+    case "INR":
+      return "₹";
+    case "EGP":
+      return "EGP";
+    case "GBP":
+      return "£";
+    default:
+      return undefined;
+  }
+}
+
+function uniqueCurrencyPairs(values: PriceParts[], targetCurrency: PriceCompatibilityCurrency | undefined) {
+  if (!targetCurrency || !SUPPORTED_TARGET_CURRENCIES.has(targetCurrency)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const pairs: Array<{ sourceCurrency: PriceCompatibilityCurrency; targetCurrency: PriceCompatibilityCurrency }> = [];
+
+  for (const value of values) {
+    if (value.currency === "UNKNOWN" || value.currency === targetCurrency || value.amounts.length === 0) {
+      continue;
+    }
+
+    const key = currencyPairKey(value.currency, targetCurrency);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ sourceCurrency: value.currency, targetCurrency });
+  }
+
+  return pairs;
+}
+
+async function getExchangeRate(
+  sourceCurrency: PriceCompatibilityCurrency,
+  targetCurrency: PriceCompatibilityCurrency
+): Promise<ExchangeRateEntry | null> {
+  const key = currencyPairKey(sourceCurrency, targetCurrency);
+  const cached = EXCHANGE_RATE_CACHE.get(key);
+  const now = Date.now();
+
+  if (cached && now - cached.fetchedAt < EXCHANGE_RATE_TTL_MS) {
+    return cached;
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `https://api.frankfurter.dev/v2/rate/${sourceCurrency}/${targetCurrency}`,
+      2500
+    );
+
+    if (!response.ok) {
+      return cached && now - cached.fetchedAt < EXCHANGE_RATE_STALE_MS ? cached : null;
+    }
+
+    const payload = await response.json() as { date?: string; rate?: number };
+
+    if (!payload.date || typeof payload.rate !== "number" || !Number.isFinite(payload.rate)) {
+      return cached && now - cached.fetchedAt < EXCHANGE_RATE_STALE_MS ? cached : null;
+    }
+
+    const entry = {
+      date: payload.date,
+      fetchedAt: now,
+      rate: payload.rate
+    };
+    EXCHANGE_RATE_CACHE.set(key, entry);
+    return entry;
+  } catch {
+    return cached && now - cached.fetchedAt < EXCHANGE_RATE_STALE_MS ? cached : null;
+  }
+}
+
+function currencyPairKey(sourceCurrency: PriceCompatibilityCurrency, targetCurrency: PriceCompatibilityCurrency) {
+  return `${sourceCurrency}_${targetCurrency}`;
+}
+
+async function fetchWithTimeout(value: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(value, {
+      redirect: "follow",
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}

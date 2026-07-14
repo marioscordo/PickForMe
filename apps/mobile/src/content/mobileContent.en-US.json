@@ -129,7 +129,8 @@
     "startersAndSaladsRetry": "Try again",
     "startersAndSaladsTitle": "Starters and salads",
     "startersAndSaladsEmpty": "I cannot find a safe starter or salad recommendation here right now.",
-    "fallbackDishName": "Dish"
+    "fallbackDishName": "Dish",
+    "missingPriceText": "Please check the menu for the price."
   },
   "profileScreen": {
     "title": "Profile",

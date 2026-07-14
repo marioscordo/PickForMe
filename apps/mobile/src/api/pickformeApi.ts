@@ -2,7 +2,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { apiPost } from "./apiClient";
 import { DEFAULT_OUTPUT_LOCALE, resolveOutputLocale } from "../config/outputLocales";
-import { resolveGuiLanguageFromDevice } from "../content/guiLanguage";
+import { resolveDeviceLocaleFromDevice, resolveGuiLanguageFromDevice } from "../content/guiLanguage";
 import { profileFeatures } from "../config/profileFeatures";
 import { filterControlledProfileValues } from "../profile/profileInputPolicy";
 import type { UserProfile } from "../types/profile";
@@ -41,6 +41,7 @@ type AnalyzeMenuApiBody = {
   diagnosticRunId?: string;
   profile: UserProfile;
   userLocale: string;
+  deviceLocale?: string;
 };
 
 type ExtractMenuTextFromPhotoBody = {
@@ -124,7 +125,8 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
     ...(args.preferredDishRole ? { preferredDishRole: args.preferredDishRole } : {}),
     ...(args.diagnosticRunId ? { diagnosticRunId: args.diagnosticRunId } : {}),
     profile: sanitizeProfileForApi(args.profile),
-    userLocale: resolveGuiLanguageFromDevice()
+    userLocale: resolveGuiLanguageFromDevice(),
+    ...(resolveDeviceLocaleFromDevice() ? { deviceLocale: resolveDeviceLocaleFromDevice() } : {})
   };
 
   return apiPost<AnalyzeData, AnalyzeMenuApiBody>("/api/analyze-menu", body, {

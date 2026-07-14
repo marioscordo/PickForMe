@@ -10,6 +10,11 @@ export type Recommendation = {
   rank?: number;
   reason: string;
   facts?: string;
+  priceOriginal?: string;
+  priceCurrency?: string;
+  priceDisplay?: string;
+  priceApproxDisplay?: string;
+  priceExchangeRateDate?: string;
   translatedName?: string;
   translatedDescription?: string;
   descriptionOriginal?: string;
