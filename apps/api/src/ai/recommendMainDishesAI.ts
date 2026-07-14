@@ -22,6 +22,7 @@ import {
 import { verifyRecommendationSafetyAI } from "./verifyRecommendationSafetyAI";
 import {
   buildRecommendationSafetyRestrictions,
+  candidateContainsEvidence,
   filterSafeRecommendationCandidates
 } from "../recommendation/recommendationSafetyVerifier";
 
@@ -367,6 +368,13 @@ async function applyMainDishVerifierSafety(
     candidates,
     response: verifierResponse
   });
+  logVerifierDecisionDiagnostics({
+    restrictions,
+    candidates,
+    response: verifierResponse,
+    validation: verifierResult.validation,
+    runId
+  });
   logDevAnalyzeTiming({
     runId,
     phase: "api.safety_verifier_validation",
@@ -474,6 +482,72 @@ function buildRecommendationFromSafeCandidate(candidate: MainDishAISafeCandidate
     confidence: payload.confidence,
     profileSafety: payload.profileSafety
   };
+}
+
+function logVerifierDecisionDiagnostics({
+  restrictions,
+  candidates,
+  response,
+  validation,
+  runId
+}: {
+  restrictions: ReturnType<typeof buildRecommendationSafetyRestrictions>;
+  candidates: Array<MainDishAISafeCandidate & { id: string }>;
+  response: { candidates?: Array<{ candidateId?: string; checks?: Array<{ restrictionId?: string; verdict?: string; evidence?: string | null; source?: string | null }> }> };
+  validation: Array<{ candidateId: string; safe: boolean; reason?: string }>;
+  runId?: string;
+}) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  const responseByCandidateId = new Map<string, NonNullable<typeof response.candidates>[number]>();
+  for (const candidate of Array.isArray(response.candidates) ? response.candidates : []) {
+    const candidateId = candidate.candidateId?.trim();
+
+    if (candidateId) {
+      responseByCandidateId.set(candidateId, candidate);
+    }
+  }
+
+  const validationByCandidateId = new Map(validation.map((result) => [result.candidateId, result]));
+
+  for (const candidate of candidates) {
+    const responseCandidate = responseByCandidateId.get(candidate.id);
+    const checksByRestrictionId = new Map<string, NonNullable<NonNullable<typeof response.candidates>[number]["checks"]>[number]>();
+    for (const check of Array.isArray(responseCandidate?.checks) ? responseCandidate.checks : []) {
+      const restrictionId = check.restrictionId?.trim();
+
+      if (restrictionId) {
+        checksByRestrictionId.set(restrictionId, check);
+      }
+    }
+
+    const validationResult = validationByCandidateId.get(candidate.id);
+
+    for (const restriction of restrictions) {
+      const check = checksByRestrictionId.get(restriction.id);
+      const evidence = check?.evidence?.trim() ?? "";
+      const source = check?.source === "name" || check?.source === "description" ? check.source : null;
+      const evidenceValid = check?.verdict === "conflict"
+        ? Boolean(evidence && source && candidateContainsEvidence(candidate, evidence, source))
+        : undefined;
+
+      console.info(`[GUSTARO_SAFETY_VERIFIER_DECISION] ${[
+        `runId=${runId ?? ""}`,
+        `candidateId=${candidate.id}`,
+        `candidateName=${candidate.nameOriginal.replace(/\s+/g, "_")}`,
+        `restrictionId=${restriction.id}`,
+        `restrictionType=${restriction.type}`,
+        `restrictionLabel=${restriction.label.replace(/\s+/g, "_")}`,
+        `verdict=${check?.verdict ?? "missing"}`,
+        `reason=${validationResult?.reason ?? "safe"}`,
+        evidenceValid === undefined ? null : `evidenceValid=${evidenceValid}`,
+        evidence ? `evidence=${evidence.replace(/\s+/g, "_")}` : null,
+        source ? `source=${source}` : null
+      ].filter(Boolean).join(" ")}`);
+    }
+  }
 }
 
 function hasDiagnosticValue(value: string | null | undefined) {

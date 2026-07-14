@@ -60,6 +60,7 @@ assert(hook.includes("error.status && error.status >= 500"), "unexpected server 
 assert(analyzeRoute.includes("isTemporaryConnectionError"), "analyze route must classify temporary DNS/connect/OpenAI connection errors");
 assert(/503,\s*"CONNECTION_ERROR"/.test(analyzeRoute), "temporary connection errors must return HTTP 503");
 assert(analyzeRoute.includes("{ retryable: true }"), "temporary connection errors must be marked retryable");
+assert(/if \(aiError instanceof SyntaxError\)[\s\S]*message\.includes\("TWO_STEP_MAIN_AI_TIMEOUT"\)[\s\S]*504,\s*"AI_TIMEOUT"[\s\S]*\{\s*retryable:\s*true\s*\}/.test(analyzeRoute), "main AI timeout must return retryable HTTP 504");
 assert(analyzeRoute.includes("pdfAiError instanceof SyntaxError"), "invalid PDF AI JSON must be treated as technical error");
 assert(analyzeRoute.includes("aiError instanceof SyntaxError"), "invalid text AI JSON must be treated as technical error");
 assert(analyzeRoute.includes('"AI_RESPONSE_INVALID"'), "invalid AI JSON must not be reported as a safety 422");

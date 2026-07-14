@@ -628,10 +628,16 @@ export async function POST(request: Request) {
         );
       }
 
-      if (
-        message.includes("TEXT_AI_TIMEOUT") ||
-        message.includes("TWO_STEP_MAIN_AI_TIMEOUT")
-      ) {
+      if (message.includes("TWO_STEP_MAIN_AI_TIMEOUT")) {
+        throw new AppError(
+          504,
+          "AI_TIMEOUT",
+          "Ich brauche fuer diese Speisekarte gerade zu lange. Bitte versuche es noch einmal.",
+          { retryable: true }
+        );
+      }
+
+      if (message.includes("TEXT_AI_TIMEOUT")) {
         throw new AppError(
           422,
           "ANALYSIS_NOT_SAFE",
