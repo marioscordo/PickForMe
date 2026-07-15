@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
-import { analyzeMenu, requestRestaurantIntro } from "../../api/pickformeApi";
+import { analyzeMenu, requestRestaurantIntro, type MenuImageSource } from "../../api/pickformeApi";
 import { DEFAULT_OUTPUT_LOCALE, resolveOutputLocale } from "../../config/outputLocales";
 import { useMobileContent } from "../../content/useMobileContent";
 import { getAnalyzeMenuErrorMessage } from "../../hooks/useAnalyzeMenu";
@@ -197,6 +197,7 @@ function PremiumFooterAction({
 export function RecommendationCard({
   result,
   menuText,
+  menuImageSource,
   showStartersAndSaladsAction = false,
   onReset,
   openMenuLabel,
@@ -204,6 +205,7 @@ export function RecommendationCard({
 }: {
   result: AnalyzeData;
   menuText: string;
+  menuImageSource?: MenuImageSource | null;
   showStartersAndSaladsAction?: boolean;
   onReset: () => void;
   openMenuLabel?: string;
@@ -475,6 +477,7 @@ export function RecommendationCard({
     try {
       const data = await analyzeMenu({
         menuText,
+        menuImageSource,
         onResponseStatus: (status) => {
           responseStatus = status;
           logNestedAnalyzeDiag({

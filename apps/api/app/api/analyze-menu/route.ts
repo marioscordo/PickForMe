@@ -82,6 +82,8 @@ type LocalizedRestaurantDescriptionResult = RestaurantDescriptionResult & {
 const SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE =
   "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen";
 const TEXT_AI_TIMEOUT_MS = 90000;
+const MAX_ANALYZE_IMAGE_BASE64_LENGTH = 10_000_000;
+const UPLOADED_IMAGE_AI_TIMEOUT_MS = 70000;
 const PDF_AI_TIMEOUT_MS = 90000;
 const DISH_ROLE_CLASSIFICATION_TIMEOUT_MS = 30000;
 const STARTER_CANDIDATE_DISH_LIMIT = 20;
@@ -130,6 +132,86 @@ export async function POST(request: Request) {
       ...body.profile,
       outputLocale
     });
+
+    if (body.sourceKind === "image") {
+      const imageBase64 = validateAnalyzeImageBase64(body.imageBase64);
+      const mimeType = validateAnalyzeImageMimeType(body.mimeType);
+      const photoContextText = body.menuText?.trim() || "Fotografierte Speisekarte";
+
+      if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
+        throw new AppError(400, "IMAGE_AI_DISABLED", "Bild-Speisekarten benoetigen in V1 den KI-Modus.");
+      }
+
+      try {
+        return await analyzeMenuWithTwoStepMainFlow({
+          source: {
+            kind: "image",
+            urls: [`data:${mimeType};base64,${imageBase64}`],
+            text: photoContextText
+          },
+          responseMode: "ai_image",
+          profile,
+          situation: body.situation,
+          requestedDishRoles,
+          preferredDishRole,
+          outputLocale,
+          restaurantDescription: null,
+          localizedRestaurantDescription: null,
+          restaurantUrl: undefined,
+          fallbackHeroContextText: photoContextText,
+          htmlMenuExtraction: null,
+          deviceLocale: body.deviceLocale,
+          extraPayload: {},
+          timeoutMs: UPLOADED_IMAGE_AI_TIMEOUT_MS,
+          requestStartedAt,
+          runId: requestRunId
+        });
+      } catch (imageAiError) {
+        if (imageAiError instanceof AppError) {
+          throw imageAiError;
+        }
+
+        console.error("GustaroAI uploaded Image AI failed.", imageAiError);
+
+        const message = getErrorMessage(imageAiError);
+
+        if (isTemporaryConnectionError(imageAiError)) {
+          throw new AppError(
+            503,
+            "CONNECTION_ERROR",
+            "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
+            { retryable: true }
+          );
+        }
+
+        if (imageAiError instanceof SyntaxError) {
+          throw new AppError(
+            500,
+            "AI_RESPONSE_INVALID",
+            "Die KI-Antwort konnte technisch nicht verarbeitet werden."
+          );
+        }
+
+        if (message.includes("TWO_STEP_MAIN_AI_TIMEOUT") || message.includes("IMAGE_AI_TIMEOUT")) {
+          throw new AppError(
+            504,
+            "AI_TIMEOUT",
+            "Die Analyse dauert gerade zu lange. Bitte versuche es gleich noch einmal.",
+            { retryable: true }
+          );
+        }
+
+        if (isInvalidImageAiError(imageAiError)) {
+          throw new AppError(
+            422,
+            "IMAGE_MENU_NOT_READABLE",
+            "Diese Bild-Speisekarte konnte nicht sicher gelesen werden. Bitte nutze einen direkten Link zu einer PDF-Speisekarte oder fuege den Speisekartentext ein."
+          );
+        }
+
+        throw imageAiError;
+      }
+    }
 
     if (body.sourceKind !== "text") {
       throw new AppError(400, "SOURCE_KIND_UNSUPPORTED", "Diese Art von Speisekarte wird in V1 noch nicht unterstützt.");
@@ -2760,6 +2842,31 @@ function getAnalyzeOpsErrorClass(error: unknown) {
   return undefined;
 }
 
+function validateAnalyzeImageBase64(value: unknown) {
+  if (typeof value !== "string") {
+    throw new AppError(400, "IMAGE_INVALID_REQUEST", "Das Speisekartenfoto konnte nicht verarbeitet werden.");
+  }
+
+  const trimmed = value.trim();
+
+  if (trimmed.length < 100 || trimmed.length > MAX_ANALYZE_IMAGE_BASE64_LENGTH) {
+    throw new AppError(400, "IMAGE_INVALID_REQUEST", "Das Speisekartenfoto konnte nicht verarbeitet werden.");
+  }
+
+  return trimmed;
+}
+
+function validateAnalyzeImageMimeType(value: unknown): "image/jpeg" | "image/png" {
+  if (value === "image/png") {
+    return "image/png";
+  }
+
+  if (value === "image/jpeg" || value === "image/jpg" || value === undefined || value === null || value === "") {
+    return "image/jpeg";
+  }
+
+  throw new AppError(400, "IMAGE_INVALID_REQUEST", "Das Speisekartenfoto konnte nicht verarbeitet werden.");
+}
 function isTemporaryConnectionError(error: unknown) {
   const technicalSignal = [
     error instanceof Error ? error.name : "",

@@ -96,7 +96,7 @@ const openableMenuRenderIndex = pickScreen.indexOf("{canOpenMenu ? (");
 const analyzeLoadingRenderIndex = pickScreen.indexOf("{analyze.loading ? (");
 assert(openableMenuRenderIndex > 0 && openableMenuRenderIndex < analyzeLoadingRenderIndex, "PickScreen must not hide the open-menu button behind analyze.loading");
 const startAnalyzeStart = pickScreen.indexOf("function startAnalyze()");
-const startAnalyzeEnd = pickScreen.indexOf("\n  }\n\n  function startAnalyzeWithExtractedMenuText", startAnalyzeStart);
+const startAnalyzeEnd = pickScreen.indexOf("\n  }\n\n  function startAnalyzeWithPhotoSource", startAnalyzeStart);
 const startAnalyzeBody = pickScreen.slice(startAnalyzeStart, startAnalyzeEnd);
 assert(startAnalyzeBody.includes("if (normalizedMenuUrl)"), "startAnalyze must only update openableMenuUrl when the current input contains a URL");
 assert(!startAnalyzeBody.includes("setOpenableMenuUrl(null)"), "startAnalyze must not clear the openable menu URL during a same-session analysis");
@@ -135,6 +135,8 @@ assert(!useAnalyzeMenu.includes("preferredDishRole"), "top-level analyze hook mu
 
 const apiClient = read("apps/mobile/src/api/pickformeApi.ts");
 assert(apiClient.includes("requestedDishRoles: args.requestedDishRoles"), "mobile API payload must include requestedDishRoles");
+assert(apiClient.includes("menuImageSource?: MenuImageSource | null"), "mobile API payload must support a direct photo image source");
+assert(apiClient.includes("sourceKind: imageSource ? \"image\" : \"text\""), "mobile API must switch sourceKind for direct photo analysis");
 assert(apiClient.includes("preferredDishRole?: PreferredDishRole"), "mobile API payload must allow optional preferredDishRole");
 assert(!apiClient.includes("requestStarterPairings"), "mobile API client must not expose starter pairing call");
 assert(!apiClient.includes('"/api/starter-pairings"'), "mobile API client must not call starter-pairings");
@@ -144,6 +146,8 @@ assert(!recommendationCard.includes("starterSearch"), "RecommendationCard must n
 assert(!recommendationCard.includes("requestStarterPairings"), "RecommendationCard must not call starter pairings");
 assert(!recommendationCard.includes("targetDishId"), "RecommendationCard must not send targetDishId");
 assert(recommendationCard.includes("showStartersAndSaladsAction"), "RecommendationCard must gate nested action by main-mode prop");
+assert(recommendationCard.includes("menuImageSource?: MenuImageSource | null"), "RecommendationCard must receive the current image source for embedded analysis");
+assert(recommendationCard.includes("menuImageSource,"), "RecommendationCard embedded analyze call must reuse the current image source");
 assert(recommendationCard.includes('requestedDishRoles: ["starter", "salad"]'), "RecommendationCard nested action must reuse starter/salad analyze roles");
 assert(recommendationCard.includes('preferredDishRole: "starter"'), "RecommendationCard nested action must prefer starters");
 assert(recommendationCard.includes("nestedLoadingDishIdsRef"), "RecommendationCard must guard fast double taps");
@@ -161,11 +165,15 @@ assert(recommendationCard.includes("accessibilityState={{ disabled: Boolean(disa
 
 const apiTypes = read("apps/api/src/types/api.ts");
 assert(apiTypes.includes('export type RequestedDishRole = "starter" | "salad" | "main";'), "API requested role type missing");
+assert(apiTypes.includes('sourceKind: "text" | "image"'), "AnalyzeMenuRequest must allow direct image sourceKind");
+assert(apiTypes.includes("imageBase64?: string"), "AnalyzeMenuRequest must carry image data only when sourceKind=image");
 assert(apiTypes.includes("requestedDishRoles?: RequestedDishRole[]"), "AnalyzeMenuRequest must include requestedDishRoles");
 assert(apiTypes.includes('PreferredDishRole = Extract<RequestedDishRole, "starter" | "salad">'), "API preferred role type missing");
 
 const analyzeRoute = read("apps/api/app/api/analyze-menu/route.ts");
 assert(analyzeRoute.includes("normalizeRequestedDishRoles(body.requestedDishRoles)"), "analyze route must normalize requested roles");
+assert(analyzeRoute.includes("body.sourceKind === \"image\""), "analyze route must support uploaded photo image sources");
+assert(analyzeRoute.includes("responseMode: \"ai_image\""), "uploaded photos must use the existing ai_image response mode");
 assert(analyzeRoute.includes("normalizePreferredDishRole(body.preferredDishRole)"), "analyze route must normalize preferred role");
 assert(analyzeRoute.includes('return ["starter", "salad"];'), "analyze route must normalize starter/salad role space");
 assert(analyzeRoute.includes('return ["main"];'), "analyze route must default to main role space");
@@ -196,7 +204,15 @@ assert(!mainAi.includes('"recommendationPayload": {'), "Main AI prompt must not 
 assert(!mainAi.includes('"recommendations": ['), "Main AI prompt must not request duplicated final recommendations output");
 assert(mainAi.includes("const candidates = dishes.map"), "Compact adapter must take all supplied dishes into the backend candidate pool");
 assert(!mainAi.includes("compactParsed.dishes.slice"), "Compact parser must not trim the model candidate pool before the adapter");
-assert(!mainAi.includes("dishes.slice"), "Compact adapter must not trim the model candidate pool");
+assert(mainAi.includes("limitUploadedBase64ImageCompactDishes(JSON.parse(stripJsonFence(response.output_text ?? \"{}\")), source)"), "Main AI must apply upload-only compact overflow handling before schema validation");
+assert(mainAi.includes("function isUploadedBase64ImageSource(source: TwoStepMenuSourceInput)"), "Compact overflow handling must be gated by the existing source structure");
+assert(mainAi.includes('source.kind === "image"'), "Compact overflow handling must only consider image sources");
+assert(mainAi.includes("!source.sourceUrl"), "Compact overflow handling must not affect remote image or Tilda image sources with sourceUrl");
+assert(mainAi.includes("/^data:image\\/[a-z0-9.+-]+;base64,/i.test(url)"), "Compact overflow handling must require a data image URL");
+assert(mainAi.includes("response.dishes.slice(0, 10)"), "Uploaded Base64 compact overflow must keep the first ten dishes in order");
+assert(!mainAi.includes("GUSTARO_COMPACT_SCHEMA_DIAG"), "Temporary compact schema diagnostic must be removed");
+assert(!mainAi.includes("logCompactMainAiSchemaDiagnostic"), "Temporary compact schema diagnostic helper must be removed");
+assert(!mainAi.includes("jsonParseSucceeded"), "Temporary compact schema JSON/Zod diagnostic state must be removed");
 assert(mainAi.includes('phase: "api.main_ai_request"'), "Main AI request timing diagnostic missing");
 assert(mainAi.includes("contentDiagnostics"), "Main AI request diagnostic must include input mode metadata");
 assert(mainAi.includes("normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale)"), "Main AI must normalize missing translated descriptions before validation");

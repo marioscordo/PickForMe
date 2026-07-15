@@ -3,8 +3,7 @@ import { Alert, Dimensions, Keyboard, Modal, Platform, Pressable, StyleSheet, Te
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import { useProfile } from "../../app/providers/ProfileProvider";
-import { extractMenuTextFromPhoto, logAllergyWarningConfirmation } from "../../api/pickformeApi";
-import { PickForMeApiError } from "../../api/apiClient";
+import { logAllergyWarningConfirmation, type MenuImageSource } from "../../api/pickformeApi";
 import { Screen } from "../../components/ui/Screen";
 import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { PhotoMenuCamera } from "../../components/pick/PhotoMenuCamera";
@@ -63,8 +62,9 @@ export function PickScreen({
   const [recommendationMode, setRecommendationMode] = useState<RecommendationModeId>(DEFAULT_RECOMMENDATION_MODE);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showPhotoCamera, setShowPhotoCamera] = useState(false);
-  const [photoMenuLoading, setPhotoMenuLoading] = useState(false);
+  const photoMenuLoading = false;
   const [photoMenuError, setPhotoMenuError] = useState("");
+  const [menuImageSource, setMenuImageSource] = useState<MenuImageSource | null>(null);
   const [entryScrollToActionKey, setEntryScrollToActionKey] = useState(0);
   const [entryScrollToMoodKey, setEntryScrollToMoodKey] = useState(0);
   const [entryScrollToTopKey, setEntryScrollToTopKey] = useState(0);
@@ -192,24 +192,27 @@ export function PickScreen({
       setOpenableMenuUrl(normalizedMenuUrl);
     }
     analyze.run(menuText, requestedDishRolesForMode(recommendationMode), undefined, {
-      linkConfirmedAt: linkConfirmedAtRef.current ?? undefined
+      linkConfirmedAt: linkConfirmedAtRef.current ?? undefined,
+      menuImageSource
     });
   }
 
-  function startAnalyzeWithExtractedMenuText(value: string) {
+  function startAnalyzeWithPhotoSource(photo: MenuImageSource) {
     resetForNewMenuSource();
-    setMenuText(value);
+    setMenuText("");
     setMenuInputOrigin("photo");
+    setMenuImageSource(photo);
     setOpenableMenuUrl(null);
 
     if (hasAllergiesOrIntolerances(profile)) {
-      pendingConfirmedMenuTextRef.current = value;
       showAllergyWarningBeforeAnalyze();
       return;
     }
 
-    logAnalyzeSource(value, [], "photo");
-    analyze.run(value, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), []);
+    logAnalyzeSource("", [], "photo");
+    analyze.run("", requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), [], {
+      menuImageSource: photo
+    });
   }
 
   function resetAnalysisState() {
@@ -217,6 +220,7 @@ export function PickScreen({
     setMenuText("");
     setMenuInputOrigin("empty");
     setOpenableMenuUrl(null);
+    setMenuImageSource(null);
     setEntryScrollToActionKey(0);
     setEntryScrollToMoodKey(0);
     setEntryScrollToTopKey((current) => current + 1);
@@ -227,6 +231,7 @@ export function PickScreen({
     setRecommendationMode(DEFAULT_RECOMMENDATION_MODE);
     pendingConfirmedMenuTextRef.current = null;
     linkConfirmedAtRef.current = null;
+    setMenuImageSource(null);
   }
 
   function openPhotoCamera() {
@@ -235,24 +240,10 @@ export function PickScreen({
     setShowPhotoCamera(true);
   }
 
-  async function handlePhotoCaptured(photo: { imageBase64: string; mimeType: "image/jpeg" }) {
+  function handlePhotoCaptured(photo: { imageBase64: string; mimeType: "image/jpeg" }) {
     setPhotoMenuError("");
-    setPhotoMenuLoading(true);
-
-    try {
-      const result = await extractMenuTextFromPhoto(photo);
-      const extractedMenuText = result.menuText.trim();
-
-      setShowPhotoCamera(false);
-      startAnalyzeWithExtractedMenuText(extractedMenuText);
-    } catch (error) {
-      const isNoTextError =
-        error instanceof PickForMeApiError &&
-        error.code === "NO_MENU_TEXT_RECOGNIZED";
-      setPhotoMenuError(isNoTextError ? content.photoMenu.noTextError : content.photoMenu.genericError);
-    } finally {
-      setPhotoMenuLoading(false);
-    }
+    setShowPhotoCamera(false);
+    startAnalyzeWithPhotoSource(photo);
   }
 
   function showAllergyWarningBeforeAnalyze() {
@@ -278,7 +269,8 @@ export function PickScreen({
       if (pendingMenuText) {
         logAnalyzeSource(pendingMenuText, undefined, "allergyConfirmed");
         analyze.run(pendingMenuText, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), undefined, {
-          linkConfirmedAt: linkConfirmedAtRef.current ?? undefined
+          linkConfirmedAt: linkConfirmedAtRef.current ?? undefined,
+          menuImageSource
         });
         return;
       }
@@ -347,6 +339,7 @@ export function PickScreen({
         <RecommendationCard
           result={analyze.result}
           menuText={menuText}
+          menuImageSource={menuImageSource}
           showStartersAndSaladsAction={recommendationMode === "main_course"}
           onReset={resetAnalysisState}
           openMenuLabel={canOpenMenu ? content.pick.openMenu : undefined}

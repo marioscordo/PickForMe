@@ -135,7 +135,8 @@ export async function recommendMainDishesAI({
     const parseStartedAt = Date.now();
 
     try {
-      const compactParsed = MainDishAICompactResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
+      const compactJson = limitUploadedBase64ImageCompactDishes(JSON.parse(stripJsonFence(response.output_text ?? "{}")), source);
+      const compactParsed = MainDishAICompactResponseSchema.parse(compactJson);
       normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale);
       validateCompactDescriptionTranslationContract(compactParsed);
       parsed = buildMainDishResponseFromCompactDishes({
@@ -381,6 +382,28 @@ function toSyntaxError(error: unknown) {
   }
 
   return error;
+}
+
+function limitUploadedBase64ImageCompactDishes(value: unknown, source: TwoStepMenuSourceInput) {
+  if (!isUploadedBase64ImageSource(source) || value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const response = value as { dishes?: unknown };
+  if (!Array.isArray(response.dishes) || response.dishes.length <= 10) {
+    return value;
+  }
+
+  return {
+    ...(value as Record<string, unknown>),
+    dishes: response.dishes.slice(0, 10)
+  };
+}
+
+function isUploadedBase64ImageSource(source: TwoStepMenuSourceInput) {
+  return source.kind === "image" &&
+    !source.sourceUrl &&
+    (source.urls ?? []).some((url) => /^data:image\/[a-z0-9.+-]+;base64,/i.test(url));
 }
 
 function logMainDishAiResponseDiagnostic(

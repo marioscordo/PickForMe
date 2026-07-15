@@ -12,12 +12,18 @@ import type { AnalyzeData, RestaurantIntroData } from "../types/recommendations"
 type AnalyzeMenuMobileArgs = {
   menuText: string;
   menuUrls?: string[];
+  menuImageSource?: MenuImageSource | null;
   requestedDishRoles: RequestedDishRole[];
   preferredDishRole?: PreferredDishRole;
   profile: UserProfile;
   diagnosticRunId?: string;
   onResponseStatus?: (status: number) => void;
   signal?: AbortSignal;
+};
+
+export type MenuImageSource = {
+  imageBase64: string;
+  mimeType: "image/jpeg" | "image/png";
 };
 
 type ExtractMenuTextFromPhotoArgs = {
@@ -33,9 +39,11 @@ type RequestRestaurantIntroMobileArgs = {
 };
 
 type AnalyzeMenuApiBody = {
-  sourceKind: "text";
+  sourceKind: "text" | "image";
   menuText: string;
   menuUrls?: string[];
+  imageBase64?: string;
+  mimeType?: "image/jpeg" | "image/png";
   requestedDishRoles: RequestedDishRole[];
   preferredDishRole?: PreferredDishRole;
   diagnosticRunId?: string;
@@ -117,10 +125,14 @@ type ClassifyProfilePreferenceBody = {
 };
 
 export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
+  const imageSource = args.menuImageSource?.imageBase64?.trim()
+    ? args.menuImageSource
+    : null;
   const body: AnalyzeMenuApiBody = {
-    sourceKind: "text",
+    sourceKind: imageSource ? "image" : "text",
     menuText: args.menuText,
     ...(args.menuUrls?.length ? { menuUrls: args.menuUrls } : {}),
+    ...(imageSource ? { imageBase64: imageSource.imageBase64, mimeType: imageSource.mimeType } : {}),
     requestedDishRoles: args.requestedDishRoles,
     ...(args.preferredDishRole ? { preferredDishRole: args.preferredDishRole } : {}),
     ...(args.diagnosticRunId ? { diagnosticRunId: args.diagnosticRunId } : {}),

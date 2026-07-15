@@ -47,6 +47,9 @@ assert(apiClient.includes("options.onResponseStatus?.(response.status)"), "apiPo
 assert(apiClient.includes("response.status"), "apiPost must attach HTTP status to API errors");
 assert(api.includes("onResponseStatus?: (status: number) => void"), "analyzeMenu args must accept response status callback");
 assert(api.includes("onResponseStatus: args.onResponseStatus"), "analyzeMenu must pass response status callback to apiPost");
+assert(api.includes("menuImageSource?: MenuImageSource | null"), "analyzeMenu args must accept an optional image source");
+assert(api.includes("sourceKind: imageSource ? \"image\" : \"text\""), "photo analysis must send sourceKind=image when an image source is present");
+assert(api.includes("imageBase64: imageSource.imageBase64"), "photo analysis must send image data to the API");
 
 assert(hook.includes('case "ANALYSIS_TIMEOUT"'), "ANALYSIS_TIMEOUT must be mapped explicitly");
 assert(hook.includes("content.pick.analysisTimeoutTitle"), "ANALYSIS_TIMEOUT must use timeout title");
@@ -59,6 +62,17 @@ assert(hook.includes('case "NO_SAFE_RECOMMENDATIONS"'), "safety no-recommendatio
 assert(hook.includes('case "ANALYSIS_NOT_SAFE"'), "safety analysis-not-safe error must stay explicit");
 assert(hook.includes("error.status && error.status >= 500"), "unexpected server errors must not use safety title");
 assert(analyzeRoute.includes("isTemporaryConnectionError"), "analyze route must classify temporary DNS/connect/OpenAI connection errors");
+assert(analyzeRoute.includes("body.sourceKind === \"image\""), "analyze route must accept uploaded image sources");
+assert(analyzeRoute.includes("validateAnalyzeImageBase64(body.imageBase64)"), "analyze route must validate uploaded image payload size");
+assert(analyzeRoute.includes("validateAnalyzeImageMimeType(body.mimeType)"), "analyze route must validate uploaded image MIME type");
+assert(analyzeRoute.includes("urls: [`data:${mimeType};base64,${imageBase64}`]"), "uploaded photos must enter the existing image Two-Step flow as image input");
+assert(analyzeRoute.includes("const UPLOADED_IMAGE_AI_TIMEOUT_MS = 70000"), "uploaded image analysis must define a dedicated 70000 ms timeout budget");
+assert(/body\.sourceKind === "image"[\s\S]*validateAnalyzeImageBase64\(body\.imageBase64\)[\s\S]*validateAnalyzeImageMimeType\(body\.mimeType\)[\s\S]*timeoutMs: UPLOADED_IMAGE_AI_TIMEOUT_MS/.test(analyzeRoute), "uploaded Base64 images must be validated before using the dedicated timeout budget");
+assert(/responseMode: "ai_pdf"[\s\S]*timeoutMs: PDF_AI_TIMEOUT_MS/.test(analyzeRoute), "PDF analysis must keep the existing PDF timeout budget");
+assert(/const directImageUrl =[\s\S]*if \(directImageUrl\)[\s\S]*responseMode: "ai_image"[\s\S]*timeoutMs: 45000/.test(analyzeRoute), "direct remote image URLs must keep the existing 45000 ms timeout budget");
+assert(/prepareBestTildaMenuImageFallback[\s\S]*responseMode: "ai_image"[\s\S]*timeoutMs: 60000/.test(analyzeRoute), "Tilda image fallback must keep the existing 60000 ms timeout budget");
+assert(/responseMode: "ai"[\s\S]*timeoutMs: TEXT_AI_TIMEOUT_MS/.test(analyzeRoute), "text and HTML analysis must keep the existing text timeout budget");
+assert(!analyzeRoute.includes("console.info(imageBase64") && !analyzeRoute.includes("console.log(imageBase64"), "image data must not be written to diagnostics");
 assert(/503,\s*"CONNECTION_ERROR"/.test(analyzeRoute), "temporary connection errors must return HTTP 503");
 assert(analyzeRoute.includes("{ retryable: true }"), "temporary connection errors must be marked retryable");
 assert(/if \(aiError instanceof SyntaxError\)[\s\S]*message\.includes\("TWO_STEP_MAIN_AI_TIMEOUT"\)[\s\S]*504,\s*"AI_TIMEOUT"[\s\S]*\{\s*retryable:\s*true\s*\}/.test(analyzeRoute), "main AI timeout must return retryable HTTP 504");
@@ -87,9 +101,16 @@ assert(pickScreen.includes("function resetForNewMenuSource()"), "PickScreen must
 assert(pickScreen.includes("setRecommendationMode(DEFAULT_RECOMMENDATION_MODE)"), "new menu source reset must restore default recommendation mode");
 assert(pickScreen.includes("pendingConfirmedMenuTextRef.current = null"), "new menu source reset must clear pending confirmation text");
 assert(pickScreen.includes("linkConfirmedAtRef.current = null"), "new menu source reset must clear stale link confirmation time");
-assert(pickScreen.includes("resetForNewMenuSource();\n    setMenuText(value);"), "manual new menu source must reset before storing the new text");
-assert(pickScreen.includes("analyze.run(value, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), [])"), "photo text analysis must not reuse a stale recommendation mode");
-assert(pickScreen.includes("analyze.run(pendingMenuText, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE)"), "allergy-confirmed photo analysis must not reuse a stale recommendation mode");
+const updateMenuTextBody = pickScreen.slice(pickScreen.indexOf("function updateMenuText(value: string)"), pickScreen.indexOf("\n  }\n\n  function handleAnalyze", pickScreen.indexOf("function updateMenuText(value: string)")));
+assert(updateMenuTextBody.includes("resetForNewMenuSource();") && updateMenuTextBody.indexOf("resetForNewMenuSource();") < updateMenuTextBody.indexOf("setMenuText(value);"), "manual new menu source must reset before storing the new text");
+assert(!pickScreen.includes("startAnalyzeWithExtractedMenuText"), "photo flow must not analyze lossy OCR text as the menu source");
+assert(!pickScreen.includes("extractMenuTextFromPhoto(photo)"), "photo flow must not call OCR extraction before analysis");
+assert(pickScreen.includes("const [menuImageSource, setMenuImageSource] = useState<MenuImageSource | null>(null);"), "PickScreen must keep the captured photo source in the current session");
+assert(pickScreen.includes("setMenuImageSource(photo);"), "captured photo must be stored as the current image source");
+assert(pickScreen.includes("setMenuImageSource(null);"), "new menu sources must clear the previous image source");
+assert(pickScreen.includes("menuImageSource: photo"), "photo analysis must send the original image source");
+assert(pickScreen.includes("menuImageSource={menuImageSource}"), "result cards must receive the current image source for embedded analysis");
+assert(pickScreen.includes("analyze.run(\"\", requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), [], {"), "photo analysis must not use a synthetic OCR text replacement");
 assert(!pickScreen.includes("function handleAnalyze() {\n    Keyboard.dismiss();\n    resetForNewMenuSource();"), "retrying the same menu must not reset source or recommendation mode");
 
 assert(recommendationCard.includes("nestedAbortControllerRef"), "nested recommendations must keep an AbortController ref");

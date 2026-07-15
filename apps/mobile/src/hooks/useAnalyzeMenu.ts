@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useProfile } from "../app/providers/ProfileProvider";
 import { PickForMeApiError } from "../api/apiClient";
-import { analyzeMenu } from "../api/pickformeApi";
+import { analyzeMenu, type MenuImageSource } from "../api/pickformeApi";
 import { useMobileContent } from "../content/useMobileContent";
 import type { MobileContent } from "../content/mobileContent";
 import type { RequestedDishRole } from "../types/recommendationMode";
@@ -219,7 +219,7 @@ export function useAnalyzeMenu() {
     menuText: string,
     requestedDishRoles: RequestedDishRole[],
     menuUrls?: string[],
-    diagnostics?: { linkConfirmedAt?: number }
+    diagnostics?: { linkConfirmedAt?: number; menuImageSource?: MenuImageSource | null }
   ) {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
@@ -235,15 +235,16 @@ export function useAnalyzeMenu() {
     setResult(null);
 
     const trimmedMenuText = menuText.trim();
+    const hasImageSource = Boolean(diagnostics?.menuImageSource?.imageBase64?.trim());
 
-    if (trimmedMenuText.length === 0) {
+    if (trimmedMenuText.length === 0 && !hasImageSource) {
       setError(content.analysisErrors.emptyMenuInput);
       setErrorTitle(content.pick.inputMissingTitle);
       setCurrentRequestId(null);
       return;
     }
 
-    if (trimmedMenuText.length < 20) {
+    if (trimmedMenuText.length < 20 && !hasImageSource) {
       setError(content.analysisErrors.menuTooShort);
       setErrorTitle(content.pick.inputMissingTitle);
       setCurrentRequestId(null);
@@ -279,6 +280,7 @@ export function useAnalyzeMenu() {
       const data = await analyzeMenu({
         menuText,
         menuUrls,
+        menuImageSource: diagnostics?.menuImageSource,
         onResponseStatus: (status) => {
           responseHttpStatus = status;
         },
