@@ -214,6 +214,9 @@ export function RecommendationCard({
   const nestedLoadingDishIdsRef = useRef(new Set<string>());
   const activeNestedDishIdRef = useRef<string | null>(null);
   const nestedRequestIdRef = useRef(0);
+  const nestedAbortControllerRef = useRef<AbortController | null>(null);
+  const restaurantIntroRequestIdRef = useRef(0);
+  const restaurantIntroAbortControllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
   const [activeNestedDishId, setActiveNestedDishId] = useState<string | null>(null);
   const [nestedRecommendationsByDishId, setNestedRecommendationsByDishId] = useState<Record<string, NestedRecommendationState>>({});
@@ -224,6 +227,16 @@ export function RecommendationCard({
   const dishesById = useMemo(() => new Map(result.dishes.map((dish) => [dish.id, dish])), [result.dishes]);
   const visibleRecommendations = result.recommendations;
   const outputLocale = resolveOutputLocale(profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE);
+  const profileFingerprint = useMemo(
+    () =>
+      JSON.stringify({
+        outputLocale: profile.outputLocale,
+        primaryLikes: profile.primaryLikes,
+        customExclusions: profile.customExclusions,
+        allergens: profile.allergens
+      }),
+    [profile]
+  );
 
   const safeRecommendations = visibleRecommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
@@ -331,18 +344,35 @@ export function RecommendationCard({
 
     return () => {
       mountedRef.current = false;
+      resetTransientRecommendationState({ updateState: false });
     };
   }, []);
 
   useEffect(() => {
+    resetTransientRecommendationState({ updateState: true });
+  }, [profileFingerprint, restaurantIntroLocale, result]);
+
+  function resetTransientRecommendationState({ updateState }: { updateState: boolean }) {
+    nestedRequestIdRef.current += 1;
+    nestedAbortControllerRef.current?.abort();
+    nestedAbortControllerRef.current = null;
     nestedLoadingDishIdsRef.current.clear();
     activeNestedDishIdRef.current = null;
+
+    restaurantIntroRequestIdRef.current += 1;
+    restaurantIntroAbortControllerRef.current?.abort();
+    restaurantIntroAbortControllerRef.current = null;
+
+    if (!updateState) {
+      return;
+    }
+
     setActiveNestedDishId(null);
     setNestedRecommendationsByDishId({});
     setRestaurantIntroStatus("idle");
     setRestaurantIntroText("");
     setRestaurantIntroVisible(false);
-  }, [restaurantIntroLocale, result]);
+  }
 
   async function handleRestaurantIntro() {
     if (isRestaurantIntroLoading) {
@@ -356,13 +386,23 @@ export function RecommendationCard({
     }
 
     setRestaurantIntroStatus("loading");
+    const restaurantIntroRequestId = restaurantIntroRequestIdRef.current + 1;
+    restaurantIntroRequestIdRef.current = restaurantIntroRequestId;
+    restaurantIntroAbortControllerRef.current?.abort();
+    const restaurantIntroAbortController = new AbortController();
+    restaurantIntroAbortControllerRef.current = restaurantIntroAbortController;
 
     try {
       const data = await requestRestaurantIntro({
         menuText,
-        profile
+        profile,
+        signal: restaurantIntroAbortController.signal
       });
       const nextText = normalizeRestaurantIntroText(data.introText);
+
+      if (!mountedRef.current || restaurantIntroRequestIdRef.current !== restaurantIntroRequestId) {
+        return;
+      }
 
       if (!nextText) {
         setRestaurantIntroStatus("error");
@@ -373,7 +413,15 @@ export function RecommendationCard({
       setRestaurantIntroVisible(true);
       setRestaurantIntroStatus("loaded");
     } catch {
+      if (!mountedRef.current || restaurantIntroRequestIdRef.current !== restaurantIntroRequestId) {
+        return;
+      }
+
       setRestaurantIntroStatus("error");
+    } finally {
+      if (restaurantIntroRequestIdRef.current === restaurantIntroRequestId) {
+        restaurantIntroAbortControllerRef.current = null;
+      }
     }
   }
 
@@ -408,6 +456,9 @@ export function RecommendationCard({
 
     const nestedRequestId = nestedRequestIdRef.current + 1;
     nestedRequestIdRef.current = nestedRequestId;
+    nestedAbortControllerRef.current?.abort();
+    const nestedAbortController = new AbortController();
+    nestedAbortControllerRef.current = nestedAbortController;
     const nestedStartedAt = Date.now();
     let responseStatus: number | undefined;
 
@@ -436,7 +487,8 @@ export function RecommendationCard({
         },
         requestedDishRoles: ["starter", "salad"],
         preferredDishRole: "starter",
-        profile
+        profile,
+        signal: nestedAbortController.signal
       });
 
       logNestedAnalyzeDiag({
@@ -450,7 +502,7 @@ export function RecommendationCard({
         responseStatus
       });
 
-      if (!mountedRef.current || activeNestedDishIdRef.current !== dishId) {
+      if (!mountedRef.current || nestedRequestIdRef.current !== nestedRequestId || activeNestedDishIdRef.current !== dishId) {
         logNestedAnalyzeDiag({
           activeDishId: activeNestedDishIdRef.current,
           appState: AppState.currentState,
@@ -485,7 +537,7 @@ export function RecommendationCard({
         responseStatus
       });
 
-      if (!mountedRef.current || activeNestedDishIdRef.current !== dishId) {
+      if (!mountedRef.current || nestedRequestIdRef.current !== nestedRequestId || activeNestedDishIdRef.current !== dishId) {
         return;
       }
 
@@ -505,7 +557,10 @@ export function RecommendationCard({
         phase: "request_finally",
         responseStatus
       });
-      nestedLoadingDishIdsRef.current.delete(dishId);
+      if (nestedRequestIdRef.current === nestedRequestId) {
+        nestedAbortControllerRef.current = null;
+        nestedLoadingDishIdsRef.current.delete(dishId);
+      }
     }
   }
 

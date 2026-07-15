@@ -22,6 +22,7 @@ const apiClient = read("apps/mobile/src/api/apiClient.ts");
 const api = read("apps/mobile/src/api/pickformeApi.ts");
 const analyzeRoute = read("apps/api/app/api/analyze-menu/route.ts");
 const pickScreen = read("apps/mobile/src/screens/pick/PickScreen.tsx");
+const recommendationCard = read("apps/mobile/src/components/pick/RecommendationCard.tsx");
 const mobilePackage = parseJson("apps/mobile/package.json");
 const packageLock = parseJson("package-lock.json");
 const de = parseJson("apps/mobile/src/content/mobileContent.de-DE.json");
@@ -80,6 +81,24 @@ assert(pickScreen.includes('phase: "open_menu_start"'), "open-menu action must l
 assert(pickScreen.includes('phase: "open_menu_closed"'), "open-menu action must log close lifecycle");
 assert(pickScreen.includes('phase: "open_menu_error"'), "open-menu action must log browser errors without touching analyze errors");
 assert(pickScreen.includes('openMethod: "expo_web_browser"'), "open-menu lifecycle must identify expo-web-browser");
+assert(pickScreen.includes("function resetForNewMenuSource()"), "PickScreen must centralize reset for a new menu source");
+assert(pickScreen.includes("setRecommendationMode(DEFAULT_RECOMMENDATION_MODE)"), "new menu source reset must restore default recommendation mode");
+assert(pickScreen.includes("pendingConfirmedMenuTextRef.current = null"), "new menu source reset must clear pending confirmation text");
+assert(pickScreen.includes("linkConfirmedAtRef.current = null"), "new menu source reset must clear stale link confirmation time");
+assert(pickScreen.includes("resetForNewMenuSource();\n    setMenuText(value);"), "manual new menu source must reset before storing the new text");
+assert(pickScreen.includes("analyze.run(value, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), [])"), "photo text analysis must not reuse a stale recommendation mode");
+assert(pickScreen.includes("analyze.run(pendingMenuText, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE)"), "allergy-confirmed photo analysis must not reuse a stale recommendation mode");
+assert(!pickScreen.includes("function handleAnalyze() {\n    Keyboard.dismiss();\n    resetForNewMenuSource();"), "retrying the same menu must not reset source or recommendation mode");
+
+assert(recommendationCard.includes("nestedAbortControllerRef"), "nested recommendations must keep an AbortController ref");
+assert(recommendationCard.includes("restaurantIntroAbortControllerRef"), "restaurant intro must keep an AbortController ref");
+assert(recommendationCard.includes("restaurantIntroRequestIdRef"), "restaurant intro must keep a stale-response request id");
+assert(recommendationCard.includes("function resetTransientRecommendationState"), "RecommendationCard must centralize transient nested/intro reset");
+assert(recommendationCard.includes("nestedRequestIdRef.current !== nestedRequestId"), "nested recommendations must use request-id stale guards");
+assert(recommendationCard.includes("restaurantIntroRequestIdRef.current !== restaurantIntroRequestId"), "restaurant intro must use request-id stale guards");
+assert(recommendationCard.includes("profileFingerprint"), "RecommendationCard must invalidate nested state when profile safety inputs change");
+assert(recommendationCard.includes("signal: nestedAbortController.signal"), "nested recommendations must pass AbortController signal");
+assert(recommendationCard.includes("signal: restaurantIntroAbortController.signal"), "restaurant intro must pass AbortController signal");
 
 const openAnalyzedMenuBody = pickScreen.slice(
   pickScreen.indexOf("async function openAnalyzedMenu()"),

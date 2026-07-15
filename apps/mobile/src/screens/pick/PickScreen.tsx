@@ -152,6 +152,11 @@ export function PickScreen({
 
   function updateMenuText(value: string) {
     const normalizedMenuUrl = normalizeMenuUrl(value);
+    const isNewMenuSource = value !== menuText;
+
+    if (isNewMenuSource) {
+      resetForNewMenuSource();
+    }
 
     setMenuText(value);
     setMenuInputOrigin(value.trim() ? "manual" : "empty");
@@ -192,7 +197,7 @@ export function PickScreen({
   }
 
   function startAnalyzeWithExtractedMenuText(value: string) {
-    analyze.reset();
+    resetForNewMenuSource();
     setMenuText(value);
     setMenuInputOrigin("photo");
     setOpenableMenuUrl(null);
@@ -204,18 +209,24 @@ export function PickScreen({
     }
 
     logAnalyzeSource(value, [], "photo");
-    analyze.run(value, requestedDishRolesForMode(recommendationMode), []);
+    analyze.run(value, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), []);
   }
 
   function resetAnalysisState() {
-    analyze.reset();
+    resetForNewMenuSource();
     setMenuText("");
     setMenuInputOrigin("empty");
     setOpenableMenuUrl(null);
-    setRecommendationMode(DEFAULT_RECOMMENDATION_MODE);
     setEntryScrollToActionKey(0);
     setEntryScrollToMoodKey(0);
     setEntryScrollToTopKey((current) => current + 1);
+  }
+
+  function resetForNewMenuSource() {
+    analyze.reset();
+    setRecommendationMode(DEFAULT_RECOMMENDATION_MODE);
+    pendingConfirmedMenuTextRef.current = null;
+    linkConfirmedAtRef.current = null;
   }
 
   function openPhotoCamera() {
@@ -266,7 +277,7 @@ export function PickScreen({
       pendingConfirmedMenuTextRef.current = null;
       if (pendingMenuText) {
         logAnalyzeSource(pendingMenuText, undefined, "allergyConfirmed");
-        analyze.run(pendingMenuText, requestedDishRolesForMode(recommendationMode), undefined, {
+        analyze.run(pendingMenuText, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), undefined, {
           linkConfirmedAt: linkConfirmedAtRef.current ?? undefined
         });
         return;
@@ -427,6 +438,7 @@ export function PickScreen({
             onUrlScanned={(value: string) => {
               const normalizedMenuUrl = normalizeMenuUrl(value);
 
+              resetForNewMenuSource();
               setMenuText(value);
               setMenuInputOrigin("qr");
               setOpenableMenuUrl(normalizedMenuUrl || null);
