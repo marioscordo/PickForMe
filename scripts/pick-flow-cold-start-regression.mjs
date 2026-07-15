@@ -19,6 +19,8 @@ const recommendationCard = read("apps/mobile/src/components/pick/RecommendationC
 const rootNavigator = read("apps/mobile/src/app/navigation/RootNavigator.tsx");
 const appRoot = read("apps/mobile/src/app/AppRoot.tsx");
 const profileProvider = read("apps/mobile/src/app/providers/ProfileProvider.tsx");
+const profileEditor = read("apps/mobile/src/components/profile/ProfileEditor.tsx");
+const mobileContentDe = JSON.parse(read("apps/mobile/src/content/mobileContent.de-DE.json"));
 const supabaseClient = read("apps/mobile/src/services/supabaseClient.ts");
 
 for (const [name, source] of [
@@ -38,6 +40,12 @@ assert(profileProvider.includes('const PROFILE_STORAGE_KEY = "gustaroai:user-pro
 assert(profileProvider.includes("AsyncStorage.getItem(PROFILE_STORAGE_KEY)"), "profile must still hydrate from its own storage key");
 assert(profileProvider.includes("AsyncStorage.setItem(PROFILE_STORAGE_KEY"), "profile must still persist to its own storage key");
 assert(supabaseClient.includes("persistSession: true"), "auth session persistence may remain separate from Pick state");
+assert(profileProvider.includes('displayName: "",'), "fresh profile must not include a sample displayName");
+assert(!profileProvider.includes('displayName: "Mario"'), "fresh profile must not include Mario as sample data");
+assert(profileProvider.includes("primaryLikes: [],"), "fresh profile must not preselect preferences");
+assert(profileProvider.includes("customExclusions: [],"), "fresh profile must not preselect exclusions or intolerances");
+assert(profileProvider.includes("allergens: [],"), "fresh profile must not preselect allergens");
+assert(!profileProvider.includes('primaryLikes: ["Fleisch", "Fisch"]'), "fresh profile must not preselect Fleisch/Fisch");
 
 assert(pickScreen.includes('const [menuText, setMenuText] = useState("");'), "PickScreen must cold start with empty menu input");
 assert(pickScreen.includes('const [menuInputOrigin, setMenuInputOrigin] = useState<MenuInputOrigin>("empty");'), "PickScreen must cold start with empty input origin");
@@ -101,6 +109,60 @@ function coldStartPickState(_storage) {
 function hydrateProfile(storage) {
   return JSON.parse(storage["gustaroai:user-profile:v1"]);
 }
+
+function freshProfileFromDefault() {
+  return {
+    displayName: "",
+    primaryLikes: [],
+    customExclusions: [],
+    allergens: []
+  };
+}
+
+const freshProfile = freshProfileFromDefault();
+assert(freshProfile.displayName === "", "fresh start must not include a sample displayName");
+assert(freshProfile.displayName !== "Mario", "fresh start must not visibly use Mario as sample data");
+assert(freshProfile.primaryLikes.length === 0, "fresh start must not activate preferences");
+assert(freshProfile.customExclusions.length === 0, "fresh start must not activate exclusions");
+assert(freshProfile.allergens.length === 0, "fresh start must not activate allergens");
+assert(!freshProfile.allergens.includes("Milch"), "fresh start must not preselect Milch");
+assert(!freshProfile.allergens.includes("Eier"), "fresh start must not preselect Eier");
+
+const allergyOptions = mobileContentDe.profileEditor.allergyOptions;
+assert(Array.isArray(allergyOptions) && allergyOptions.length >= 20, "full allergen option list must remain visible");
+assert(allergyOptions.some((option) => option.value === "Milch"), "Milch allergen option must remain visible");
+assert(allergyOptions.some((option) => option.value === "Eier"), "Eier allergen option must remain visible");
+assert(profileEditor.includes("const visibleAllergyOptions = allergenModuleEnabled ? allergyOptions : [];"), "profile editor must keep the full allergen option list visible");
+assert(profileEditor.includes("active={allergens.includes(value)}"), "allergen chips must be active only when stored in profile.allergens");
+
+function sanitizeFreshProfileForApi(profile) {
+  return {
+    displayName: profile.displayName,
+    primaryLikes: profile.primaryLikes,
+    customExclusions: profile.customExclusions,
+    allergens: profile.allergens
+  };
+}
+
+const firstAnalyzePayloadProfile = sanitizeFreshProfileForApi(freshProfile);
+assert(firstAnalyzePayloadProfile.displayName === "", "first analysis payload must not include a sample displayName");
+assert(firstAnalyzePayloadProfile.displayName !== "Mario", "first analysis payload must not include Mario as sample data");
+assert(firstAnalyzePayloadProfile.primaryLikes.length === 0, "first analysis payload must not include active preferences");
+assert(firstAnalyzePayloadProfile.customExclusions.length === 0, "first analysis payload must not include exclusions");
+assert(firstAnalyzePayloadProfile.allergens.length === 0, "first analysis payload must not include active allergens");
+
+const storedProfile = hydrateProfile({
+  "gustaroai:user-profile:v1": JSON.stringify({
+    displayName: "Mario",
+    primaryLikes: ["Pasta"],
+    customExclusions: ["Koriander"],
+    allergens: ["Milch"]
+  })
+});
+assert(storedProfile.displayName === "Mario", "existing stored displayName must remain unchanged");
+assert(storedProfile.primaryLikes.includes("Pasta"), "existing stored preferences must remain unchanged");
+assert(storedProfile.customExclusions.includes("Koriander"), "existing stored exclusions must remain unchanged");
+assert(storedProfile.allergens.includes("Milch"), "existing stored active allergens must remain unchanged");
 
 const coldStart = coldStartPickState(previousStorage);
 assert(coldStart.menuText === "", "cold start must not restore menuText");

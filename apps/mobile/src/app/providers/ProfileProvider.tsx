@@ -7,8 +7,8 @@ import type { UserProfile } from "../../types/profile";
 const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";
 
 const defaultProfile: UserProfile = {
-  displayName: "Mario",
-  primaryLikes: ["Fleisch", "Fisch"],
+  displayName: "",
+  primaryLikes: [],
   outputLocale: DEFAULT_OUTPUT_LOCALE,
   appetiteMood: "leicht",
   customExclusions: [],
