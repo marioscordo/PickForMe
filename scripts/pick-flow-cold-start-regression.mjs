@@ -20,6 +20,8 @@ const rootNavigator = read("apps/mobile/src/app/navigation/RootNavigator.tsx");
 const appRoot = read("apps/mobile/src/app/AppRoot.tsx");
 const profileProvider = read("apps/mobile/src/app/providers/ProfileProvider.tsx");
 const profileEditor = read("apps/mobile/src/components/profile/ProfileEditor.tsx");
+const profileScreen = read("apps/mobile/src/screens/profile/ProfileScreen.tsx");
+const pickformeApi = read("apps/mobile/src/api/pickformeApi.ts");
 const mobileContentDe = JSON.parse(read("apps/mobile/src/content/mobileContent.de-DE.json"));
 const supabaseClient = read("apps/mobile/src/services/supabaseClient.ts");
 
@@ -46,6 +48,19 @@ assert(profileProvider.includes("primaryLikes: [],"), "fresh profile must not pr
 assert(profileProvider.includes("customExclusions: [],"), "fresh profile must not preselect exclusions or intolerances");
 assert(profileProvider.includes("allergens: [],"), "fresh profile must not preselect allergens");
 assert(!profileProvider.includes('primaryLikes: ["Fleisch", "Fisch"]'), "fresh profile must not preselect Fleisch/Fisch");
+assert(profileProvider.includes("primaryLikes: uniqueValues(filterControlledProfileValues(stringArray(profile.primaryLikes)))"), "profile provider must deduplicate stored preferences");
+assert(profileProvider.includes("customExclusions: uniqueValues(filterControlledProfileValues(stringArray(profile.customExclusions)))"), "profile provider must deduplicate stored exclusions");
+assert(profileProvider.includes('normalize("NFC")'), "profile provider duplicate check must use canonical NFC normalization");
+assert(pickformeApi.includes("primaryLikes: uniqueValues(filterControlledProfileValues(profile.primaryLikes))"), "analysis payload must deduplicate preferences");
+assert(pickformeApi.includes("customExclusions: uniqueValues(filterControlledProfileValues(profile.customExclusions ?? []))"), "analysis payload must deduplicate exclusions");
+assert(pickformeApi.includes('normalize("NFC")'), "analysis payload duplicate check must use canonical NFC normalization");
+assert(profileScreen.includes('normalize("NFC")'), "profile screen duplicate check must use canonical NFC normalization");
+assert(profileEditor.includes('normalize("NFC")'), "profile editor duplicate check must use canonical NFC normalization");
+assert(profileScreen.includes("preferenceAlreadyExists(nextValue, latestProfileRef.current)"), "profile screen must recheck preference duplicates after async validation");
+assert(profileScreen.includes("exclusionAlreadyExists(nextValue, latestProfileRef.current)"), "profile screen must recheck exclusion duplicates after async validation");
+assert(profileEditor.includes("preferenceAlreadyExists(nextValue, latestProfileRef.current)"), "profile editor must recheck preference duplicates after async validation");
+assert(profileEditor.includes("exclusionAlreadyExists(nextValue, latestProfileRef.current)"), "profile editor must recheck exclusion duplicates after async validation");
+assert(profileProvider.includes("allergens: uniqueValues(filterControlledProfileValues(stringArray(profile.allergens)))"), "allergen sanitizing must remain explicit");
 
 assert(pickScreen.includes('const [menuText, setMenuText] = useState("");'), "PickScreen must cold start with empty menu input");
 assert(pickScreen.includes('const [menuInputOrigin, setMenuInputOrigin] = useState<MenuInputOrigin>("empty");'), "PickScreen must cold start with empty input origin");
@@ -118,6 +133,84 @@ function freshProfileFromDefault() {
     allergens: []
   };
 }
+
+function normalizeProfileValue(value) {
+  return value.trim().normalize("NFC").toLowerCase();
+}
+
+function uniqueProfileValues(values) {
+  return values.reduce((result, value) => {
+    return result.some((item) => normalizeProfileValue(item) === normalizeProfileValue(value))
+      ? result
+      : [...result, value];
+  }, []);
+}
+
+function addUniqueProfileValue(values, value) {
+  return values.some((item) => normalizeProfileValue(item) === normalizeProfileValue(value))
+    ? values
+    : [...values, value];
+}
+
+function sanitizeProfileForApiFixture(profile) {
+  return {
+    displayName: profile.displayName,
+    primaryLikes: uniqueProfileValues(profile.primaryLikes),
+    customExclusions: uniqueProfileValues(profile.customExclusions ?? []),
+    allergens: uniqueProfileValues(profile.allergens ?? [])
+  };
+}
+
+const preferenceDuplicateInputs = ["Koriander", "koriander", " Koriander "];
+for (const input of preferenceDuplicateInputs) {
+  const next = addUniqueProfileValue(["Koriander"], input);
+  assert(next.length === 1 && next[0] === "Koriander", `preference duplicate ${input} must keep one entry`);
+}
+
+const exclusionDuplicateInputs = ["Koriander", "koriander", " Koriander "];
+for (const input of exclusionDuplicateInputs) {
+  const next = addUniqueProfileValue(["Koriander"], input);
+  assert(next.length === 1 && next[0] === "Koriander", `exclusion duplicate ${input} must keep one entry`);
+}
+
+const unicodeDuplicate = uniqueProfileValues(["Cafe\u0301", "Caf\u00e9"]);
+assert(unicodeDuplicate.length === 1 && unicodeDuplicate[0] === "Cafe\u0301", "canonical Unicode duplicate must keep first visible value");
+assert(addUniqueProfileValue(addUniqueProfileValue(["Koriander"], "Koriander"), "Koriander").length === 1, "double submit must keep only one preference");
+assert(profileScreen.includes("onSubmitEditing={addCustomPreference}"), "Enter must use the same preference add handler");
+assert(profileScreen.includes("onPress={addCustomPreference}"), "Add button must use the same preference add handler");
+assert(profileScreen.includes("onSubmitEditing={addCustomExclusion}"), "Enter must use the same exclusion add handler");
+assert(profileScreen.includes("onPress={addCustomExclusion}"), "Add button must use the same exclusion add handler");
+
+const persistedDuplicateProfile = {
+  primaryLikes: ["Koriander", "koriander", " Basilikum ", "Basilikum"],
+  customExclusions: ["Koriander", "koriander", " Basilikum ", "Basilikum"]
+};
+const normalizedPersistedLikes = uniqueProfileValues(persistedDuplicateProfile.primaryLikes);
+const normalizedPersistedExclusions = uniqueProfileValues(persistedDuplicateProfile.customExclusions);
+assert(normalizedPersistedLikes.length === 2, "stored duplicate preferences must be deduplicated");
+assert(normalizedPersistedLikes[0] === "Koriander" && normalizedPersistedLikes[1] === " Basilikum ", "stored preferences must keep first value and order");
+assert(normalizedPersistedExclusions.length === 2, "stored duplicate exclusions must be deduplicated");
+assert(normalizedPersistedExclusions[0] === "Koriander" && normalizedPersistedExclusions[1] === " Basilikum ", "stored exclusions must keep first value and order");
+
+const duplicatedPayloadProfile = sanitizeProfileForApiFixture({
+  displayName: "",
+  primaryLikes: ["Koriander", "koriander", "Tomate", "Tomaten"],
+  customExclusions: ["Koriander", " Koriander ", "Aubergine", "Eggplant"],
+  allergens: ["Milch", "Milch"]
+});
+assert(duplicatedPayloadProfile.primaryLikes.join("|") === "Koriander|Tomate|Tomaten", "analysis payload must keep unique preferences and preserve order");
+assert(duplicatedPayloadProfile.customExclusions.join("|") === "Koriander|Aubergine|Eggplant", "analysis payload must keep unique exclusions and preserve order");
+assert(duplicatedPayloadProfile.allergens.join("|") === "Milch", "allergen payload deduplication must remain unchanged");
+assert(uniqueProfileValues(["Tomate", "Tomaten"]).length === 2, "singular and plural must not be merged");
+assert(uniqueProfileValues(["Aubergine", "Eggplant"]).length === 2, "translations must not be merged");
+assert(uniqueProfileValues(["Koriander", "Korianderblaetter"]).length === 2, "similar foods must not be merged");
+const crossListProfile = sanitizeProfileForApiFixture({
+  displayName: "",
+  primaryLikes: ["Koriander"],
+  customExclusions: ["Koriander"],
+  allergens: []
+});
+assert(crossListProfile.primaryLikes.length === 1 && crossListProfile.customExclusions.length === 1, "same value in preferences and exclusions must not be removed across lists");
 
 const freshProfile = freshProfileFromDefault();
 assert(freshProfile.displayName === "", "fresh start must not include a sample displayName");

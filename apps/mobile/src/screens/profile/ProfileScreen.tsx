@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Alert, Dimensions, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { classifyProfileInput, classifyProfilePreference, submitTestFeedback, type TestFeedbackCategory, type TestFeedbackSeverity } from "../../api/pickformeApi";
@@ -122,6 +122,8 @@ export function ProfileScreen({
   const guiLanguage = useMemo(() => resolveGuiLanguageFromDevice(), []);
   const auth = useAuth();
   const { profile, setProfile } = useProfile();
+  const latestProfileRef = useRef(profile);
+  latestProfileRef.current = profile;
   const [deleteAccountPending, setDeleteAccountPending] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
@@ -560,6 +562,11 @@ export function ProfileScreen({
         }
 
         const nextValue = classification.normalizedValue?.trim() || value;
+        if (preferenceAlreadyExists(nextValue, latestProfileRef.current)) {
+          setCustomPreferenceValidationError(editor.addPreferenceDuplicateError);
+          return;
+        }
+
         updateProfile((currentProfile) => {
           const currentHiddenPreferences = currentProfile.hiddenPreferences ?? [];
           const currentDeletedPreferences = currentProfile.deletedPreferences ?? [];
@@ -579,8 +586,8 @@ export function ProfileScreen({
       }
     }
 
-    function preferenceAlreadyExists(value: string) {
-      return includesValue(profile.primaryLikes, value);
+    function preferenceAlreadyExists(value: string, currentProfile = profile) {
+      return includesValue(currentProfile.primaryLikes, value);
     }
 
     function deletePreference(value: string) {
@@ -645,6 +652,11 @@ export function ProfileScreen({
         }
 
         const nextValue = classification.normalizedValue?.trim() || value;
+        if (exclusionAlreadyExists(nextValue, latestProfileRef.current)) {
+          setCustomExclusionValidationError(editor.addExclusionDuplicateError);
+          return;
+        }
+
         updateProfile((currentProfile) => {
           const currentCustomExclusions = currentProfile.customExclusions ?? [];
           const currentHiddenExclusions = currentProfile.hiddenExclusions ?? [];
@@ -714,8 +726,8 @@ export function ProfileScreen({
       );
     }
 
-    function exclusionAlreadyExists(value: string) {
-      return includesValue(customExclusions, value);
+    function exclusionAlreadyExists(value: string, currentProfile = profile) {
+      return includesValue(currentProfile.customExclusions ?? [], value);
     }
 
     function displayIntoleranceValue(value: string) {
@@ -1433,7 +1445,7 @@ function uniqueValues(values: string[]) {
 }
 
 function normalizeValue(value: string) {
-  return value.trim().toLowerCase();
+  return value.trim().normalize("NFC").toLowerCase();
 }
 
 function formatCompactLocaleLabel(locale: string | undefined) {

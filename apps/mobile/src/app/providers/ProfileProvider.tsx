@@ -115,12 +115,12 @@ function normalizeProfile(profile: Partial<UserProfile>): UserProfile {
     displayName: typeof profile.displayName === "string" && profile.displayName.trim()
       ? profile.displayName
       : defaultProfile.displayName,
-    primaryLikes: filterControlledProfileValues(stringArray(profile.primaryLikes)),
+    primaryLikes: uniqueValues(filterControlledProfileValues(stringArray(profile.primaryLikes))),
     outputLocale: typeof profile.outputLocale === "string" && profile.outputLocale.trim()
       ? profile.outputLocale
       : defaultProfile.outputLocale,
     appetiteMood: isAppetiteMood(profile.appetiteMood) ? profile.appetiteMood : defaultProfile.appetiteMood,
-    customExclusions: filterControlledProfileValues(stringArray(profile.customExclusions)),
+    customExclusions: uniqueValues(filterControlledProfileValues(stringArray(profile.customExclusions))),
     allergens: uniqueValues(filterControlledProfileValues(stringArray(profile.allergens))),
     hiddenPreferences: stringArray(profile.hiddenPreferences),
     hiddenExclusions: stringArray(profile.hiddenExclusions),
@@ -146,8 +146,12 @@ function isAppetiteMood(value: unknown): value is UserProfile["appetiteMood"] {
 
 function uniqueValues(values: string[]) {
   return values.reduce<string[]>((result, value) => {
-    return result.some((item) => item.trim().toLowerCase() === value.trim().toLowerCase())
+    return result.some((item) => normalizeProfileValue(item) === normalizeProfileValue(value))
       ? result
       : [...result, value];
   }, []);
+}
+
+function normalizeProfileValue(value: string) {
+  return value.trim().normalize("NFC").toLowerCase();
 }

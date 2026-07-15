@@ -244,17 +244,21 @@ function sanitizeProfileForApi(profile: UserProfile): UserProfile {
   return {
     displayName: profile.displayName,
     outputLocale: profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE,
-    primaryLikes: filterControlledProfileValues(profile.primaryLikes),
-    customExclusions: filterControlledProfileValues(profile.customExclusions ?? []),
+    primaryLikes: uniqueValues(filterControlledProfileValues(profile.primaryLikes)),
+    customExclusions: uniqueValues(filterControlledProfileValues(profile.customExclusions ?? [])),
     allergens: controlledAllergens
   };
 }
 
 function uniqueValues(values: string[]) {
   return values.reduce<string[]>((result, value) => {
-    return result.some((item) => item.trim().toLowerCase() === value.trim().toLowerCase())
+    return result.some((item) => normalizeProfileValue(item) === normalizeProfileValue(value))
       ? result
       : [...result, value];
   }, []);
+}
+
+function normalizeProfileValue(value: string) {
+  return value.trim().normalize("NFC").toLowerCase();
 }
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Alert, Text, TextInput, View } from "react-native";
 import { classifyProfileInput, classifyProfilePreference } from "../../api/pickformeApi";
 import { profileFeatures } from "../../config/profileFeatures";
@@ -36,6 +36,8 @@ export function ProfileEditor({
 }) {
   const content = useMobileContent();
   const editor = content.profileEditor;
+  const latestProfileRef = useRef(profile);
+  latestProfileRef.current = profile;
   const preferenceOptions = editor.preferenceOptions as PreferenceOption[];
   const quickExclusions = editor.quickExclusions as ValueOption[];
   const allergyOptions = editor.allergyOptions as ValueOption[];
@@ -138,6 +140,11 @@ export function ProfileEditor({
       }
 
       const nextValue = classification.normalizedValue?.trim() || value;
+      if (preferenceAlreadyExists(nextValue, latestProfileRef.current)) {
+        setCustomPreferenceValidationError(editor.addPreferenceDuplicateError);
+        return;
+      }
+
       updateProfile((currentProfile) => {
         const currentHiddenPreferences = currentProfile.hiddenPreferences ?? [];
         const currentDeletedPreferences = currentProfile.deletedPreferences ?? [];
@@ -157,8 +164,8 @@ export function ProfileEditor({
     }
   }
 
-  function preferenceAlreadyExists(value: string) {
-    return includesValue(profile.primaryLikes, value);
+  function preferenceAlreadyExists(value: string, currentProfile = profile) {
+    return includesValue(currentProfile.primaryLikes, value);
   }
 
   function deletePreference(value: string) {
@@ -223,6 +230,11 @@ export function ProfileEditor({
       }
 
       const nextValue = classification.normalizedValue?.trim() || value;
+      if (exclusionAlreadyExists(nextValue, latestProfileRef.current)) {
+        setCustomExclusionValidationError(editor.addExclusionDuplicateError);
+        return;
+      }
+
       updateProfile((currentProfile) => {
         const currentCustomExclusions = currentProfile.customExclusions ?? [];
         const currentHiddenExclusions = currentProfile.hiddenExclusions ?? [];
@@ -284,8 +296,8 @@ export function ProfileEditor({
     );
   }
 
-  function exclusionAlreadyExists(value: string) {
-    return includesValue(customExclusions, value);
+  function exclusionAlreadyExists(value: string, currentProfile = profile) {
+    return includesValue(currentProfile.customExclusions ?? [], value);
   }
 
   function displayPreferenceValue(value: string) {
@@ -556,5 +568,5 @@ function uniqueValues(values: string[]) {
 }
 
 function normalizeValue(value: string) {
-  return value.trim().toLowerCase();
+  return value.trim().normalize("NFC").toLowerCase();
 }
