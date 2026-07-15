@@ -153,16 +153,14 @@ export async function recommendMainDishesAI({
         recommendations: parsed.recommendations,
         safeCandidates: parsed.safeCandidates
       });
+      parsed.recommendations = rankRecommendationsByPreferenceAttribution(parsed.recommendations);
       parsed.resultSummary = {
         ...parsed.resultSummary,
         recommendationCount: parsed.recommendations.length,
         lessThanThreeReason: parsed.recommendations.length < 3
-          ? parsed.resultSummary.lessThanThreeReason ?? "Weniger als drei Empfehlungen mit belastbarer Profil-Attribution."
+          ? parsed.resultSummary.lessThanThreeReason
           : null
       };
-      if (attributionValidated.attributionNotConfirmed && parsed.recommendations.length === 0) {
-        throw new Error(`ATTRIBUTION_NOT_CONFIRMED:${attributionValidated.attributionFailureReason ?? "no_valid_attribution_after_backfill"}`);
-      }
       logDevAnalyzeTiming({
         runId,
         phase: "api.main_ai_parse",
@@ -613,6 +611,25 @@ function buildRecommendationFromSafeCandidate(candidate: MainDishAISafeCandidate
   };
 }
 
+function rankRecommendationsByPreferenceAttribution(recommendations: MainDishAIRecommendation[]) {
+  return recommendations
+    .map((recommendation, index) => ({ recommendation, index }))
+    .sort((left, right) => {
+      const leftHasPreference = Boolean(left.recommendation.matchedPreferenceValue?.trim());
+      const rightHasPreference = Boolean(right.recommendation.matchedPreferenceValue?.trim());
+
+      if (leftHasPreference !== rightHasPreference) {
+        return leftHasPreference ? -1 : 1;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ recommendation }, index) => ({
+      ...recommendation,
+      rank: index + 1
+    }));
+}
+
 function logVerifierDecisionDiagnostics({
   restrictions,
   candidates,
@@ -848,7 +865,7 @@ function buildMainDishPrompt({
     "- Behaupte in reason oder scoreReason keine Zutaten, Fleischarten, Geschmack, Beliebtheit oder Zubereitung, wenn sie nicht sichtbar im Gerichtsnamen, in der Kategorie oder in der echten sichtbaren Beschreibung belegt sind.",
     "- Jede Empfehlung und jedes recommendationPayload mit Profilbezug muss matchedPreferenceValue liefern.",
     "- matchedPreferenceValue muss exakt ein aktiver Wert aus primaryLikes sein; keine erfundenen, deaktivierten oder frueheren Profilwerte.",
-    "- Wenn kein belastbarer Profilbezug belegbar ist, darf das Gericht nicht als Empfehlung oder recommendationPayload ausgegeben werden.",
+    "- Wenn kein belastbarer Profilbezug belegbar ist, darf ein safety-sicheres Gericht trotzdem als Empfehlung oder recommendationPayload ausgegeben werden; matchedPreferenceValue, profileEvidence und evidenceSource muessen dann null sein.",
     "- translatedName ist Pflicht und ist die nutzerseitige Anzeigeuebersetzung in der Zielsprache.",
     `- translatedName muss in ${targetLanguage} (${targetLocale}) formuliert sein.`,
     "- Jede Empfehlung muss einen display-sicheren translatedName enthalten.",

@@ -196,6 +196,13 @@ export async function validateMainDishAttributions(
   const safeCandidates = [...response.safeCandidates, ...restoredCandidates].map((candidate) => {
     const handle = candidatePayloadAttributionChecks.get(candidate);
 
+    if (activePreferences.length === 0 && candidate.recommendationPayload) {
+      return {
+        ...candidate,
+        recommendationPayload: neutralizeRecommendationPayload(candidate.recommendationPayload, profile.outputLocale)
+      };
+    }
+
     if (!handle) {
       return candidate;
     }
@@ -213,26 +220,30 @@ export async function validateMainDishAttributions(
       };
     }
 
-    attributionNotConfirmed = true;
-    const { recommendationPayload: _recommendationPayload, ...nextCandidate } = candidate;
-    return nextCandidate;
+    if (payload) {
+      return {
+        ...candidate,
+        recommendationPayload: neutralizeRecommendationPayload(payload, profile.outputLocale)
+      };
+    }
+
+    return candidate;
   });
 
   const recommendations = activePreferences.length === 0
-    ? response.recommendations
-    : response.recommendations.flatMap((recommendation) => {
+    ? response.recommendations.map((recommendation) => neutralizeRecommendation(recommendation, profile.outputLocale))
+    : response.recommendations.map((recommendation) => {
       const handle = recommendationAttributionChecks.get(recommendation);
       const verdict = handle ? resolveAttributionVerdict(handle, evidenceResults) : "uncertain";
 
       if (verdict === "valid") {
-        return [{
+        return {
           ...recommendation,
           reason: buildDeterministicPreferenceReason(recommendation.matchedPreferenceValue, profile.outputLocale)
-        }];
+        };
       }
 
-      attributionNotConfirmed = true;
-      return [];
+      return neutralizeRecommendation(recommendation, profile.outputLocale);
     });
 
   const attributionFailureReason = attributionNotConfirmed
@@ -255,7 +266,7 @@ export async function validateMainDishAttributions(
       safeCandidateCount: safeCandidates.length,
       recommendationCount: recommendations.length,
       lessThanThreeReason: recommendations.length < 3
-        ? response.resultSummary.lessThanThreeReason ?? "Weniger als drei Empfehlungen mit belastbarer Profil-Attribution."
+        ? response.resultSummary.lessThanThreeReason
         : null
     }
   };
@@ -413,11 +424,22 @@ async function resolvePendingAttributions({
     return { resultsByKey, attributionIdsByKey };
   }
 
-  const results = await verifyAttributionEvidenceAI({
-    checks,
-    runId,
-    signal
-  });
+  let results: AttributionEvidenceResult[];
+
+  try {
+    results = await verifyAttributionEvidenceAI({
+      checks,
+      runId,
+      signal
+    });
+  } catch {
+    results = checks.map((check) => ({
+      attributionId: check.attributionId,
+      verdict: "uncertain",
+      profileEvidence: null,
+      evidenceSource: null
+    }));
+  }
 
   for (const result of results) {
     const key = keyByAttributionId.get(result.attributionId);
@@ -499,6 +521,32 @@ function buildRestoredSourceEvidence(sourceDish: MainDishAIAnalyzedDish | undefi
   ]
     .filter((value): value is string => Boolean(value?.trim()))
     .join(" ");
+}
+
+function neutralizeRecommendationPayload(
+  payload: NonNullable<MainDishAISafeCandidate["recommendationPayload"]>,
+  outputLocale: string | undefined
+): NonNullable<MainDishAISafeCandidate["recommendationPayload"]> {
+  return {
+    ...payload,
+    matchedPreferenceValue: null,
+    profileEvidence: null,
+    evidenceSource: null,
+    reason: buildNeutralPreferenceReason(outputLocale)
+  };
+}
+
+function neutralizeRecommendation(
+  recommendation: MainDishAIRecommendation,
+  outputLocale: string | undefined
+): MainDishAIRecommendation {
+  return {
+    ...recommendation,
+    matchedPreferenceValue: null,
+    profileEvidence: null,
+    evidenceSource: null,
+    reason: buildNeutralPreferenceReason(outputLocale)
+  };
 }
 
 function getCanonicalCandidateSource(
@@ -617,6 +665,14 @@ function buildDeterministicPreferenceReason(value: string | null | undefined, ou
   }
 
   return `Passt zu Deiner Vorliebe: ${preferenceValue}.`;
+}
+
+function buildNeutralPreferenceReason(outputLocale: string | undefined) {
+  if (outputLocale?.toLowerCase().startsWith("en")) {
+    return "Selected without a confirmed match to your preferences.";
+  }
+
+  return "Ausgewählt ohne bestätigten Bezug zu Deinen Vorlieben.";
 }
 
 function stripNegationPrefix(value: string) {

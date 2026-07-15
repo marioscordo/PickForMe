@@ -2675,38 +2675,7 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "";
 }
 
-function mapAttributionEvidenceError(error: unknown) {
-  const message = getErrorMessage(error);
-
-  if (message.includes("ATTRIBUTION_NOT_CONFIRMED")) {
-    const appError = new AppError(
-      409,
-      "ATTRIBUTION_NOT_CONFIRMED",
-      "Ich konnte den Profilbezug dieser Empfehlungen gerade nicht sicher bestaetigen. Bitte versuche es noch einmal.",
-      { retryable: true }
-    );
-    attachAnalyzeOpsDiagnosticReason(appError, getAttributionOpsDiagnosticReason(message));
-    return appError;
-  }
-
-  if (message.includes("ATTRIBUTION_EVIDENCE_TIMEOUT")) {
-    return new AppError(
-      504,
-      "AI_TIMEOUT",
-      "Ich brauche fuer die Profilpruefung gerade zu lange. Bitte versuche es noch einmal.",
-      { retryable: true }
-    );
-  }
-
-  if (message.includes("ATTRIBUTION_EVIDENCE_TECHNICAL_ERROR")) {
-    return new AppError(
-      503,
-      "CONNECTION_ERROR",
-      "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
-      { retryable: true }
-    );
-  }
-
+function mapAttributionEvidenceError(_error: unknown) {
   return null;
 }
 

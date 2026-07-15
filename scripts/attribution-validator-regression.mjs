@@ -12,7 +12,7 @@ function assert(condition, message) {
   }
 }
 
-function loadAttributionValidatorModule({ verdicts = {}, capturedChecks = [] } = {}) {
+function loadAttributionValidatorModule({ verdicts = {}, capturedChecks = [], throwOnVerify = false } = {}) {
   const sourcePath = path.resolve("apps/api/src/recommendation/attributionValidator.ts");
   const source = fs.readFileSync(sourcePath, "utf8");
   const compiled = ts.transpileModule(source, {
@@ -29,6 +29,10 @@ function loadAttributionValidatorModule({ verdicts = {}, capturedChecks = [] } =
       return {
         verifyAttributionEvidenceAI: async ({ checks }) => {
           capturedChecks.push(...checks);
+
+          if (throwOnVerify) {
+            throw new Error("ATTRIBUTION_EVIDENCE_TIMEOUT");
+          }
 
           return checks.map((check) => {
           const result = verdicts[`${check.profileType}|${check.profileValue}|${check.nameOriginal}`] ?? {
@@ -258,8 +262,10 @@ function safeCandidateWithPayload(item) {
     resultSummary: { allDishCount: 1, removedDishCount: 0, safeCandidateCount: 0, recommendationCount: 1, lessThanThreeReason: null }
   }), profile());
 
-  assert(result.recommendations.length === 0, "Rindfleisch and Lachsforellenfilet must be invalid");
-  assert(result.attributionNotConfirmed === true, "Invalid recommendation attribution must mark attribution not confirmed");
+  assert(result.recommendations.length === 1, "Invalid preference attribution must not remove a safety-safe recommendation");
+  assert(result.recommendations[0]?.matchedPreferenceValue === null, "Invalid preference attribution must clear the personal preference value");
+  assert(result.recommendations[0]?.reason === "Ausgewählt ohne bestätigten Bezug zu Deinen Vorlieben.", "Invalid preference attribution must use the neutral de-DE reason");
+  assert(result.attributionNotConfirmed === false, "Invalid preference attribution must not mark the full run as not confirmed");
 }
 
 {
@@ -330,7 +336,32 @@ function safeCandidateWithPayload(item) {
     resultSummary: { allDishCount: 2, removedDishCount: 0, safeCandidateCount: 0, recommendationCount: 2, lessThanThreeReason: null }
   }), profile(["Pommes"]));
 
-  assert(result.recommendations.length === 0, "Inactive or invented profile values must be rejected before the Evidence AI call");
+  assert(result.recommendations.length === 2, "Inactive or invented preference values must not remove safety-safe recommendations");
+  assert(result.recommendations.every((item) => item.matchedPreferenceValue === null), "Inactive or invented preference values must become neutral");
+}
+
+{
+  const result = await validateMainDishAttributions(baseResponse({
+    recommendations: [
+      recommendation({ nameOriginal: "Pasta al pomodoro", matchedPreferenceValue: undefined })
+    ],
+    resultSummary: { allDishCount: 1, removedDishCount: 0, safeCandidateCount: 0, recommendationCount: 1, lessThanThreeReason: null }
+  }), profile(["Pommes"]));
+
+  assert(result.recommendations.length === 1, "Missing preference attribution fields must not remove a safety-safe recommendation");
+  assert(result.recommendations[0]?.matchedPreferenceValue === null, "Missing preference attribution fields must become neutral");
+}
+
+{
+  const result = await validateMainDishAttributions(baseResponse({
+    recommendations: [
+      recommendation({ nameOriginal: "Pasta al pomodoro", matchedPreferenceValue: undefined, reason: "Freier AI-Reason" })
+    ],
+    resultSummary: { allDishCount: 1, removedDishCount: 0, safeCandidateCount: 0, recommendationCount: 1, lessThanThreeReason: null }
+  }), profile([], [], [], "en-US"));
+
+  assert(result.recommendations.length === 1, "No active preferences must still allow a safety-safe recommendation");
+  assert(result.recommendations[0]?.reason === "Selected without a confirmed match to your preferences.", "No active preferences must neutralize free AI reasons");
 }
 
 {
@@ -391,8 +422,9 @@ function safeCandidateWithPayload(item) {
     resultSummary: { allDishCount: 1, removedDishCount: 0, safeCandidateCount: 1, recommendationCount: 0, lessThanThreeReason: null }
   }), profile(["Huhn"]));
 
-  assert(!result.safeCandidates[0]?.recommendationPayload, "Russian duck evidence must not validate Huhn");
-  assert(result.attributionNotConfirmed === true, "Invalid Russian duck attribution must be marked");
+  assert(result.safeCandidates[0]?.recommendationPayload, "Invalid Russian duck preference evidence must keep the safe candidate payload for neutral backfill");
+  assert(result.safeCandidates[0]?.recommendationPayload?.matchedPreferenceValue === null, "Invalid Russian duck preference evidence must clear the personal preference value");
+  assert(result.attributionNotConfirmed === false, "Invalid Russian duck preference evidence must not mark the full run");
 }
 
 {
@@ -445,7 +477,8 @@ function safeCandidateWithPayload(item) {
     resultSummary: { allDishCount: 1, removedDishCount: 0, safeCandidateCount: 0, recommendationCount: 1, lessThanThreeReason: null }
   }), profile());
 
-  assert(result.recommendations.length === 0, "A valid Evidence AI verdict with non-visible evidence must be downgraded to uncertain");
+  assert(result.recommendations.length === 1, "A valid Evidence AI verdict with non-visible evidence must become a neutral recommendation");
+  assert(result.recommendations[0]?.matchedPreferenceValue === null, "Non-visible Evidence must not keep a personal preference value");
 }
 
 {
@@ -456,7 +489,8 @@ function safeCandidateWithPayload(item) {
     resultSummary: { allDishCount: 1, removedDishCount: 0, safeCandidateCount: 0, recommendationCount: 1, lessThanThreeReason: null }
   }), profile());
 
-  assert(result.recommendations.length === 0, "A valid Evidence AI verdict without evidence must be downgraded to uncertain");
+  assert(result.recommendations.length === 1, "A valid Evidence AI verdict without evidence must become a neutral recommendation");
+  assert(result.recommendations[0]?.matchedPreferenceValue === null, "Missing Evidence must not keep a personal preference value");
 }
 
 {
@@ -471,8 +505,25 @@ function safeCandidateWithPayload(item) {
     resultSummary: { allDishCount: 3, removedDishCount: 0, safeCandidateCount: 2, recommendationCount: 1, lessThanThreeReason: null }
   }), profile());
 
-  assert(result.recommendations.length === 0, "Validator must only filter invalid recommendations; backfill is performed in the Main-AI path");
+  assert(result.recommendations.length === 1, "Invalid preference recommendations must remain available as neutral safety-safe recommendations");
+  assert(result.recommendations[0]?.matchedPreferenceValue === null, "Invalid preference recommendations must not keep a personal preference value");
   assert(result.safeCandidates.every((candidate) => candidate.recommendationPayload), "Valid safe candidate payloads must remain available for backfill");
+}
+
+{
+  const { validateMainDishAttributions: validateWithTimeout } = loadAttributionValidatorModule({ throwOnVerify: true });
+  const result = await validateWithTimeout(baseResponse({
+    recommendations: [
+      recommendation({ nameOriginal: "Entrecote di manzo danese", matchedPreferenceValue: "Rindfleisch" }),
+      recommendation({ nameOriginal: "patatine fritte", matchedPreferenceValue: "Pommes" })
+    ],
+    resultSummary: { allDishCount: 2, removedDishCount: 0, safeCandidateCount: 0, recommendationCount: 2, lessThanThreeReason: null }
+  }), profile());
+
+  assert(result.recommendations.length === 2, "Evidence timeout must not abort preference-safe recommendations");
+  assert(result.recommendations.every((item) => item.matchedPreferenceValue === null), "Evidence timeout must neutralize preference attribution");
+  assert(result.recommendations.every((item) => item.reason === "Ausgewählt ohne bestätigten Bezug zu Deinen Vorlieben."), "Evidence timeout must use neutral reasons");
+  assert(result.attributionNotConfirmed === false, "Evidence timeout must not produce an attribution-not-confirmed run");
 }
 
 {

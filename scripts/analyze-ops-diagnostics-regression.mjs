@@ -112,9 +112,11 @@ assert(
 );
 
 assert(
-  attributionValidator.includes("attributionFailureReason") &&
-    mainAi.includes("ATTRIBUTION_NOT_CONFIRMED:${attributionValidated.attributionFailureReason"),
-  "attribution failure reasons must be propagated as controlled internal codes"
+  !mainAi.includes("ATTRIBUTION_NOT_CONFIRMED:${attributionValidated.attributionFailureReason") &&
+    route.includes("function mapAttributionEvidenceError(_error: unknown)") &&
+    /function mapAttributionEvidenceError\(_error: unknown\)\s*{\s*return null;\s*}/.test(route) &&
+    attributionValidator.includes("verdict: \"uncertain\""),
+  "attribution failures must not be propagated as global HTTP 409/503/504 errors"
 );
 
 console.log("analyze ops diagnostics regression passed");
