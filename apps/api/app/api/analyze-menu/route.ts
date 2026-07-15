@@ -5,7 +5,10 @@ import { classifyDishRolesAI } from "../../../src/ai/classifyDishRolesAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
 import { recommendMainDishesAI } from "../../../src/ai/recommendMainDishesAI";
-import { isAnalyzeDiagnosticsEnabled } from "../../../src/ai/twoStepRecommendationDiagnostics";
+import {
+  isAnalyzeDiagnosticsEnabled,
+  logAnalyzeOpsDiagnostic
+} from "../../../src/ai/twoStepRecommendationDiagnostics";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
@@ -114,6 +117,14 @@ export async function POST(request: Request) {
     const preferredDishRole = requestedDishRoles.includes("starter")
       ? normalizePreferredDishRole(body.preferredDishRole)
       : undefined;
+    logAnalyzeOpsDiagnostic({
+      runId: requestRunId,
+      phase: "validation",
+      durationMs: Date.now() - validationStartedAt,
+      requestedDishRoles: formatRequestedDishRolesForOps(requestedDishRoles),
+      preferredDishRole,
+      requestKind: getAnalyzeRequestKind(requestedDishRoles, preferredDishRole)
+    });
     const legacySituation = body.situation ?? "leicht";
     const profile = sanitizeProfileForRecommendation({
       ...body.profile,
@@ -179,18 +190,43 @@ export async function POST(request: Request) {
       ? canonicalizePdfSourceUrl(rawMenuText)
       : null;
     const sourceFetchStartedAt = Date.now();
-    const linkedPdfMenu = !dynamicMenuText && inputLooksLikeUrl && !directPdfUrl ? await findLinkedPdfMenu(rawMenuText) : null;
-    const selectedPdfMenu = await selectPdfMenuForAnalysis({
-      providedPdfMenuUrls,
-      directPdfUrl,
-      linkedPdfMenu,
-      runId: requestRunId
-    });
+    let selectedPdfMenu: Awaited<ReturnType<typeof selectPdfMenuForAnalysis>>;
+
+    try {
+      const linkedPdfMenu = !dynamicMenuText && inputLooksLikeUrl && !directPdfUrl ? await findLinkedPdfMenu(rawMenuText) : null;
+      selectedPdfMenu = await selectPdfMenuForAnalysis({
+        providedPdfMenuUrls,
+        directPdfUrl,
+        linkedPdfMenu,
+        runId: requestRunId
+      });
+    } catch (sourceFetchError) {
+      logAnalyzeOpsDiagnostic({
+        runId: requestRunId,
+        phase: "source_fetch",
+        durationMs: Date.now() - sourceFetchStartedAt,
+        requestedDishRoles: formatRequestedDishRolesForOps(requestedDishRoles),
+        preferredDishRole,
+        requestKind: getAnalyzeRequestKind(requestedDishRoles, preferredDishRole),
+        errorClass: getAnalyzeOpsErrorClass(sourceFetchError),
+        diagnosticReason: getAnalyzeOpsDiagnosticReason(sourceFetchError)
+      });
+      throw sourceFetchError;
+    }
+
     logDevAnalyzeTiming({
       runId: requestRunId,
       phase: "api.source_fetch",
       durationMs: Date.now() - sourceFetchStartedAt,
       success: true
+    });
+    logAnalyzeOpsDiagnostic({
+      runId: requestRunId,
+      phase: "source_fetch",
+      durationMs: Date.now() - sourceFetchStartedAt,
+      requestedDishRoles: formatRequestedDishRolesForOps(requestedDishRoles),
+      preferredDishRole,
+      requestKind: getAnalyzeRequestKind(requestedDishRoles, preferredDishRole)
     });
     const pdfMenuUrls = selectedPdfMenu?.urls ?? [];
     const pdfMenuUrl = pdfMenuUrls[0];
@@ -905,6 +941,15 @@ export async function POST(request: Request) {
       }
     });
   } catch (error) {
+    logAnalyzeOpsDiagnostic({
+      runId: requestRunId,
+      phase: "total",
+      durationMs: Date.now() - requestStartedAt,
+      httpStatus: error instanceof AppError ? error.status : 500,
+      errorCode: error instanceof AppError ? error.code : "INTERNAL_ERROR",
+      errorClass: getAnalyzeOpsErrorClass(error),
+      diagnosticReason: getAnalyzeOpsDiagnosticReason(error)
+    });
     return errorResponse(error);
   }
 }
@@ -968,6 +1013,15 @@ async function analyzeMenuWithTwoStepMainFlow({
   const flowStartedAt = Date.now();
   const sourceKind = source.kind;
   const sourceCount = getTwoStepMainSourceCount(source);
+  const requestKind = getAnalyzeRequestKind(requestedDishRoles, preferredDishRole);
+  const opsBase = {
+    runId,
+    responseMode,
+    sourceKind,
+    requestedDishRoles: formatRequestedDishRolesForOps(requestedDishRoles),
+    preferredDishRole,
+    requestKind
+  };
   const searchSpace = prepareRecommendationSearchSpace({
     sourceKind,
     menuText: source.text ?? "",
@@ -1017,6 +1071,13 @@ async function analyzeMenuWithTwoStepMainFlow({
       mainAiTranslatedNameCount: countDisplaySafeTranslatedNames(proposedMainDishes),
       durationMs: mainAiDurationMs
     });
+    logAnalyzeOpsDiagnostic({
+      ...opsBase,
+      phase: "main_ai_request",
+      durationMs: mainAiDurationMs,
+      candidateCount: proposedMainDishes.length,
+      recommendationCount: proposedMainDishes.length
+    });
   } catch (error) {
     logTwoStepMainError({
       phase: "main-ai-error",
@@ -1026,6 +1087,13 @@ async function analyzeMenuWithTwoStepMainFlow({
       sourceCount,
       durationMs: Date.now() - mainStartedAt,
       error
+    });
+    logAnalyzeOpsDiagnostic({
+      ...opsBase,
+      phase: "main_ai_request",
+      durationMs: Date.now() - mainStartedAt,
+      errorClass: getAnalyzeOpsErrorClass(error),
+      diagnosticReason: getAnalyzeOpsDiagnosticReason(error)
     });
     throw error;
   }
@@ -1049,6 +1117,14 @@ async function analyzeMenuWithTwoStepMainFlow({
     gatekeeperAcceptedCount: gatekeeperResult.accepted.length,
     gatekeeperRejectedCount: gatekeeperResult.rejected.length,
     durationMs: gatekeeperDurationMs
+  });
+  logAnalyzeOpsDiagnostic({
+    ...opsBase,
+    phase: "gatekeeper",
+    durationMs: gatekeeperDurationMs,
+    candidateCount: proposedMainDishes.length,
+    recommendationCount: gatekeeperResult.accepted.length,
+    diagnosticReason: gatekeeperResult.accepted.length === 0 ? "gatekeeper_removed_all" : undefined
   });
 
   const mapperStartedAt = Date.now();
@@ -1086,6 +1162,13 @@ async function analyzeMenuWithTwoStepMainFlow({
     mapperRecommendationCount: mapped.recommendations.length,
     mapperTranslatedNameCount: countDisplaySafeRecommendationTranslations(mapped.recommendations, mapped.dishes),
     durationMs: mapperDurationMs
+  });
+  logAnalyzeOpsDiagnostic({
+    ...opsBase,
+    phase: "mapper",
+    durationMs: mapperDurationMs,
+    candidateCount: gatekeeperResult.accepted.length,
+    recommendationCount: mapped.recommendations.length
   });
 
   if (mapped.recommendations.length === 0) {
@@ -1153,6 +1236,13 @@ async function analyzeMenuWithTwoStepMainFlow({
     phase: "api.total",
     durationMs: Date.now() - requestStartedAt,
     success: true
+  });
+  logAnalyzeOpsDiagnostic({
+    ...opsBase,
+    phase: "total",
+    durationMs: Date.now() - requestStartedAt,
+    httpStatus: 200,
+    recommendationCount: allergySafeRecommendations.length
   });
 
   return response;
@@ -2589,12 +2679,14 @@ function mapAttributionEvidenceError(error: unknown) {
   const message = getErrorMessage(error);
 
   if (message.includes("ATTRIBUTION_NOT_CONFIRMED")) {
-    return new AppError(
+    const appError = new AppError(
       409,
       "ATTRIBUTION_NOT_CONFIRMED",
       "Ich konnte den Profilbezug dieser Empfehlungen gerade nicht sicher bestaetigen. Bitte versuche es noch einmal.",
       { retryable: true }
     );
+    attachAnalyzeOpsDiagnosticReason(appError, getAttributionOpsDiagnosticReason(message));
+    return appError;
   }
 
   if (message.includes("ATTRIBUTION_EVIDENCE_TIMEOUT")) {
@@ -2616,6 +2708,79 @@ function mapAttributionEvidenceError(error: unknown) {
   }
 
   return null;
+}
+
+function formatRequestedDishRolesForOps(roles: RequestedDishRole[]) {
+  return roles.length ? roles.join(",") : "main";
+}
+
+function getAnalyzeRequestKind(
+  roles: RequestedDishRole[],
+  preferredDishRole: PreferredDishRole | undefined
+) {
+  return preferredDishRole === "starter" && roles.includes("starter") ? "embedded" : "topLevel";
+}
+
+function attachAnalyzeOpsDiagnosticReason(error: AppError, reason: string | undefined) {
+  if (!reason) {
+    return;
+  }
+
+  Object.defineProperty(error, "__opsDiagnosticReason", {
+    value: reason,
+    enumerable: false
+  });
+}
+
+function getAnalyzeOpsDiagnosticReason(error: unknown) {
+  if (typeof error === "object" && error !== null && "__opsDiagnosticReason" in error) {
+    const reason = (error as { __opsDiagnosticReason?: unknown }).__opsDiagnosticReason;
+    return typeof reason === "string" ? reason : undefined;
+  }
+
+  const message = getErrorMessage(error);
+
+  if (message.includes("ATTRIBUTION_NOT_CONFIRMED")) return getAttributionOpsDiagnosticReason(message);
+  if (message.includes("ATTRIBUTION_EVIDENCE_TIMEOUT")) return "attribution_evidence_timeout";
+  if (message.includes("ATTRIBUTION_EVIDENCE_TECHNICAL_ERROR")) return "attribution_evidence_technical_error";
+  if (message.includes("TWO_STEP_MAIN_AI_TIMEOUT")) return "main_ai_timeout";
+  if (message.includes("TEXT_AI_TIMEOUT")) return "main_ai_timeout";
+  if (message.includes("PDF_AI_TIMEOUT")) return "main_ai_timeout";
+  if (message.includes("IMAGE_AI_TIMEOUT")) return "main_ai_timeout";
+
+  if (error instanceof AppError && error.status === 422) {
+    if (error.code === "NO_SAFE_RECOMMENDATIONS") return "main_ai_no_safe_candidates";
+    if (error.code === "ANALYSIS_NOT_SAFE") return "analysis_not_safe";
+    return "safety_or_analysis";
+  }
+
+  return undefined;
+}
+
+function getAttributionOpsDiagnosticReason(message: string) {
+  const reason = message.includes("ATTRIBUTION_NOT_CONFIRMED:")
+    ? message.split("ATTRIBUTION_NOT_CONFIRMED:")[1]?.trim()
+    : "";
+
+  return isAttributionOpsDiagnosticReason(reason) ? reason : "no_valid_attribution_after_backfill";
+}
+
+function isAttributionOpsDiagnosticReason(value: string | undefined) {
+  return value === "no_active_profile_match" ||
+    value === "no_evidence_checks" ||
+    value === "evidence_invalid" ||
+    value === "evidence_uncertain" ||
+    value === "no_valid_attribution_after_backfill";
+}
+
+function getAnalyzeOpsErrorClass(error: unknown) {
+  const message = getErrorMessage(error);
+
+  if (/timeout/i.test(message)) return "timeout";
+  if (/abort/i.test(message) || error instanceof DOMException && error.name === "AbortError") return "abort";
+  if (/fetch failed|connection|ENOTFOUND|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT/i.test(message)) return "connection";
+  if (/AI_RESPONSE_INVALID|SyntaxError|JSON/i.test(message) || error instanceof SyntaxError) return "invalid-response";
+  return undefined;
 }
 
 function isTemporaryConnectionError(error: unknown) {

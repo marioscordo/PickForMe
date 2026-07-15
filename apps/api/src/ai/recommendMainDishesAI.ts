@@ -10,7 +10,10 @@ import {
   normalizeTargetLocale,
   stripJsonFence
 } from "./twoStepRecommendationAIUtils";
-import { isAnalyzeDiagnosticsEnabled } from "./twoStepRecommendationDiagnostics";
+import {
+  isAnalyzeDiagnosticsEnabled,
+  logAnalyzeOpsDiagnostic
+} from "./twoStepRecommendationDiagnostics";
 import {
   MainDishAIResponseSchema,
   type MainDishAIAnalyzedDish,
@@ -133,6 +136,17 @@ export async function recommendMainDishesAI({
       parsed = MainDishAIResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
       normalizeMissingTranslatedDescriptions(parsed, targetLocale);
       validateDescriptionTranslationContract(parsed);
+      logAnalyzeOpsDiagnostic({
+        runId,
+        phase: "main_ai_parse",
+        durationMs: Date.now() - parseStartedAt,
+        sourceKind: source.kind,
+        requestedDishRoles: formatRequestedDishRolesForOps(requestedDishRoles),
+        preferredDishRole,
+        requestKind: getAnalyzeRequestKind(requestedDishRoles, preferredDishRole),
+        candidateCount: parsed.safeCandidates.length,
+        recommendationCount: parsed.recommendations.length
+      });
       const attributionValidated = await validateMainDishAttributions(parsed, profile, runId, signal);
       parsed = attributionValidated;
       parsed.recommendations = backfillMainDishRecommendationsWithValidatedCandidates({
@@ -147,7 +161,7 @@ export async function recommendMainDishesAI({
           : null
       };
       if (attributionValidated.attributionNotConfirmed && parsed.recommendations.length === 0) {
-        throw new Error("ATTRIBUTION_NOT_CONFIRMED");
+        throw new Error(`ATTRIBUTION_NOT_CONFIRMED:${attributionValidated.attributionFailureReason ?? "no_valid_attribution_after_backfill"}`);
       }
       logDevAnalyzeTiming({
         runId,
@@ -166,6 +180,19 @@ export async function recommendMainDishesAI({
         retryAttempt: attempt,
         success: false,
         errorClass: error instanceof Error ? error.name : typeof error
+      });
+      logAnalyzeOpsDiagnostic({
+        runId,
+        phase: error instanceof Error && error.message.includes("ATTRIBUTION_NOT_CONFIRMED")
+          ? "attribution_evidence"
+          : "main_ai_parse",
+        durationMs: Date.now() - parseStartedAt,
+        sourceKind: source.kind,
+        requestedDishRoles: formatRequestedDishRolesForOps(requestedDishRoles),
+        preferredDishRole,
+        requestKind: getAnalyzeRequestKind(requestedDishRoles, preferredDishRole),
+        errorClass: getAnalyzeOpsErrorClass(error),
+        diagnosticReason: getAnalyzeOpsDiagnosticReason(error)
       });
 
       if (attempt === 1 && isInvalidAiResponseError(error)) {
@@ -377,6 +404,13 @@ async function applyMainDishVerifierSafety(
       restrictionCount: restrictions.length,
       success: true
     });
+    logAnalyzeOpsDiagnostic({
+      runId,
+      phase: "safety_verifier",
+      durationMs: 0,
+      candidateCount: response.safeCandidates.length,
+      recommendationCount: response.recommendations.length
+    });
     return response;
   }
 
@@ -426,6 +460,14 @@ async function applyMainDishVerifierSafety(
     candidateCount: candidates.length,
     restrictionCount: restrictions.length,
     success: true
+  });
+  logAnalyzeOpsDiagnostic({
+    runId,
+    phase: "safety_verifier",
+    durationMs: Date.now() - verifierStartedAt,
+    candidateCount: candidates.length,
+    recommendationCount: verifierResult.candidates.length,
+    diagnosticReason: verifierResult.candidates.length === 0 ? "safety_removed_all" : undefined
   });
   const safeCandidates = verifierResult.candidates.map(({ id: _id, ...candidate }) => candidate);
 
@@ -672,6 +714,41 @@ function getUsageValue(usage: unknown, key: "input_tokens" | "output_tokens") {
 
   const value = (usage as Record<string, unknown>)[key];
   return typeof value === "number" ? value : undefined;
+}
+
+function formatRequestedDishRolesForOps(roles: RequestedDishRole[] | undefined) {
+  return roles?.length ? roles.join(",") : "main";
+}
+
+function getAnalyzeRequestKind(
+  roles: RequestedDishRole[] | undefined,
+  preferredDishRole: PreferredDishRole | undefined
+) {
+  return preferredDishRole === "starter" && (roles ?? []).includes("starter") ? "embedded" : "topLevel";
+}
+
+function getAnalyzeOpsErrorClass(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+
+  if (/timeout/i.test(message)) return "timeout";
+  if (/abort/i.test(message) || error instanceof DOMException && error.name === "AbortError") return "abort";
+  if (/fetch failed|connection|ENOTFOUND|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT/i.test(message)) return "connection";
+  if (/AI_RESPONSE_INVALID|SyntaxError|JSON/i.test(message) || error instanceof SyntaxError) return "invalid-response";
+  return undefined;
+}
+
+function getAnalyzeOpsDiagnosticReason(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+
+  if (message.includes("ATTRIBUTION_NOT_CONFIRMED:")) {
+    return message.split("ATTRIBUTION_NOT_CONFIRMED:")[1]?.trim() || "no_valid_attribution_after_backfill";
+  }
+
+  if (message.includes("ATTRIBUTION_EVIDENCE_TIMEOUT")) return "attribution_evidence_timeout";
+  if (message.includes("ATTRIBUTION_EVIDENCE_TECHNICAL_ERROR")) return "attribution_evidence_technical_error";
+  if (message.includes("TWO_STEP_MAIN_AI_TIMEOUT")) return "main_ai_timeout";
+  if (message.includes("AI_RESPONSE_INVALID")) return "invalid_response";
+  return undefined;
 }
 
 function buildMainDishPrompt({

@@ -5,6 +5,7 @@ import {
   stripJsonFence
 } from "./twoStepRecommendationAIUtils";
 import { isAnalyzeDiagnosticsEnabled } from "./twoStepRecommendationDiagnostics";
+import { logAnalyzeOpsDiagnostic } from "./twoStepRecommendationDiagnostics";
 
 export type AttributionEvidenceProfileType = "preference" | "exclusion" | "allergen";
 export type AttributionEvidenceVerdict = "valid" | "invalid" | "uncertain";
@@ -83,6 +84,12 @@ export async function verifyAttributionEvidenceAI({
       outputTokens: getUsageValue(response.usage, "output_tokens"),
       success: true
     });
+    logAnalyzeOpsDiagnostic({
+      runId,
+      phase: "attribution_evidence",
+      durationMs: Date.now() - startedAt,
+      candidateCount: checks.length
+    });
 
     return validateAttributionEvidenceResponse(checks, JSON.parse(stripJsonFence(response.output_text ?? "{}")));
   } catch (error) {
@@ -94,6 +101,17 @@ export async function verifyAttributionEvidenceAI({
       attributionCount: checks.length,
       success: false,
       errorClass: error instanceof Error ? error.name : typeof error
+    });
+    logAnalyzeOpsDiagnostic({
+      runId,
+      phase: "attribution_evidence",
+      durationMs: Date.now() - startedAt,
+      candidateCount: checks.length,
+      errorClass: error instanceof Error && error.message === "ATTRIBUTION_EVIDENCE_TIMEOUT"
+        ? "timeout"
+        : error instanceof SyntaxError
+          ? "invalid-response"
+          : "connection"
     });
 
     if (error instanceof Error && error.message === "ATTRIBUTION_EVIDENCE_TIMEOUT") {

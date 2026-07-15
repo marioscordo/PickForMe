@@ -27,7 +27,15 @@ type MainDishAttributionResponse = {
 
 export type MainDishAttributionValidationResponse = MainDishAttributionResponse & {
   attributionNotConfirmed: boolean;
+  attributionFailureReason?: AttributionFailureReason;
 };
+
+type AttributionFailureReason =
+  | "no_active_profile_match"
+  | "no_evidence_checks"
+  | "evidence_invalid"
+  | "evidence_uncertain"
+  | "no_valid_attribution_after_backfill";
 
 type PendingAttribution = {
   key: string;
@@ -227,12 +235,20 @@ export async function validateMainDishAttributions(
       return [];
     });
 
+  const attributionFailureReason = attributionNotConfirmed
+    ? getAttributionFailureReason({
+      diagnostics: attributionDiagnostics,
+      evidenceResults
+    })
+    : undefined;
+
   return {
     ...response,
     removedDishes,
     safeCandidates,
     recommendations,
     attributionNotConfirmed,
+    attributionFailureReason,
     resultSummary: {
       ...response.resultSummary,
       removedDishCount: removedDishes.length,
@@ -243,6 +259,38 @@ export async function validateMainDishAttributions(
         : null
     }
   };
+}
+
+function getAttributionFailureReason({
+  diagnostics,
+  evidenceResults
+}: {
+  diagnostics: AttributionDiagnostic[];
+  evidenceResults: Map<string, AttributionEvidenceResult>;
+}): AttributionFailureReason {
+  if (diagnostics.some((diagnostic) => diagnostic.invalidReason === "inactive_profile_value")) {
+    return "no_active_profile_match";
+  }
+
+  const pendingDiagnostics = diagnostics.filter((diagnostic) => diagnostic.status === "pending-evidence");
+
+  if (pendingDiagnostics.length === 0) {
+    return "no_evidence_checks";
+  }
+
+  const verdicts = pendingDiagnostics.map((diagnostic) =>
+    diagnostic.attributionKey ? evidenceResults.get(diagnostic.attributionKey)?.verdict ?? "uncertain" : "uncertain"
+  );
+
+  if (verdicts.includes("invalid")) {
+    return "evidence_invalid";
+  }
+
+  if (verdicts.includes("uncertain")) {
+    return "evidence_uncertain";
+  }
+
+  return "no_valid_attribution_after_backfill";
 }
 
 type AttributionVerdictHandle =
