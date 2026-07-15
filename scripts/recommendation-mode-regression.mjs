@@ -181,6 +181,8 @@ assert(mainAi.includes("Optionale Rollenpraeferenz"), "Main AI optional starter 
 assert(mainAi.includes("Salate bleiben erlaubt"), "Main AI must keep salads allowed for embedded starter preference");
 assert(mainAi.includes("fuelle verbleibende Plaetze mit sicheren Salaten auf"), "Main AI must fill with safe salads when starters are insufficient");
 assert(mainAi.includes("verifyRecommendationSafetyAI"), "Safety verifier must remain active");
+assert(mainAi.includes("validateMainDishAttributions(parsed, profile, runId, signal)"), "Attribution validator must run in the shared Main AI path");
+assert(mainAi.includes("backfillMainDishRecommendationsWithValidatedCandidates"), "Main AI must backfill only from attribution-validated safe candidates");
 assert(mainAi.includes('phase: "api.main_ai_request"'), "Main AI request timing diagnostic missing");
 assert(mainAi.includes("contentDiagnostics"), "Main AI request diagnostic must include input mode metadata");
 assert(mainAi.includes("normalizeMissingTranslatedDescriptions(parsed, targetLocale)"), "Main AI must normalize missing translated descriptions before validation");
@@ -189,6 +191,13 @@ assert(!mainAi.includes("AI_RESPONSE_INVALID_MISSING_TRANSLATED_DESCRIPTION"), "
 assert(mainAi.includes("AI_RESPONSE_INVALID_DESCRIPTION_WITHOUT_SOURCE"), "Invented translated descriptions without a source must still be rejected");
 assert(recommendationCard.includes("function visibleDescriptionForOutputLocale"), "RecommendationCard description locale guard missing");
 assert(recommendationCard.includes("return firstNonEmptyText(translatedDescription);"), "German output must not fall back to foreign original descriptions");
+
+const attributionValidator = read("apps/api/src/recommendation/attributionValidator.ts");
+assert(!attributionValidator.includes("ATTRIBUTION_ALIASES"), "Attribution validator must not keep a manual alias list");
+assert(attributionValidator.includes("verifyAttributionEvidenceAI"), "Attribution validator must use the batched Evidence AI verifier");
+assert(attributionValidator.includes("findDirectVisibleEvidence"), "Attribution validator must keep local direct visible-evidence validation");
+assert(attributionValidator.includes("buildDeterministicPreferenceReason"), "Attribution validator must replace free AI reasons with deterministic preference reasons");
+assert(!attributionValidator.includes("reason: recommendation.reason"), "Attribution validator must not pass free AI recommendation reasons through");
 
 const twoStepUtils = read("apps/api/src/ai/twoStepRecommendationAIUtils.ts");
 assert(twoStepUtils.includes('source.mainAiInputMode !== "extracted_text"'), "extracted-text PDF mode must skip PDF file input");

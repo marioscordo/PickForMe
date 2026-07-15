@@ -6,6 +6,7 @@ export const TwoStepCommittedConfidenceSchema = z.enum(["high", "medium"]);
 
 const OptionalNullableStringSchema = z.string().trim().min(1).nullable().optional();
 const RequiredNullableStringSchema = z.string().trim().min(1).nullable();
+const AttributionEvidenceSourceSchema = z.enum(["name", "description"]).nullable().optional();
 
 export const TwoStepProfileSafetySchema = z.object({
   hasKnownConflict: z.boolean(),
@@ -44,6 +45,9 @@ export const MainDishAIRecommendationSchema = z.object({
   sourceKind: TwoStepSourceKindSchema.optional(),
   sourceUrl: OptionalNullableStringSchema,
   sourceCategoryOriginal: OptionalNullableStringSchema,
+  matchedPreferenceValue: OptionalNullableStringSchema,
+  profileEvidence: OptionalNullableStringSchema,
+  evidenceSource: AttributionEvidenceSourceSchema,
   reason: z.string().trim().min(1),
   confidence: TwoStepConfidenceSchema,
   profileSafety: TwoStepProfileSafetySchema
@@ -59,6 +63,9 @@ export const MainDishAISafeCandidateRecommendationPayloadSchema = z.object({
   sourceKind: TwoStepSourceKindSchema.optional(),
   sourceUrl: OptionalNullableStringSchema,
   sourceCategoryOriginal: OptionalNullableStringSchema,
+  matchedPreferenceValue: OptionalNullableStringSchema,
+  profileEvidence: OptionalNullableStringSchema,
+  evidenceSource: AttributionEvidenceSourceSchema,
   reason: z.string().trim().min(1).optional(),
   confidence: TwoStepConfidenceSchema.optional(),
   profileSafety: TwoStepProfileSafetySchema.optional()
@@ -75,6 +82,8 @@ export const MainDishAIAnalyzedDishSchema = z.object({
 export const MainDishAIRemovedDishSchema = z.object({
   nameOriginal: z.string().trim().min(1),
   matchedProfileValue: z.string().trim().min(1),
+  profileEvidence: OptionalNullableStringSchema,
+  evidenceSource: AttributionEvidenceSourceSchema,
   reason: z.string().trim().min(1)
 });
 
@@ -89,6 +98,9 @@ export const MainDishAISafeCandidateSchema = z.object({
   sourceKind: TwoStepSourceKindSchema.optional(),
   sourceUrl: OptionalNullableStringSchema,
   sourceCategoryOriginal: OptionalNullableStringSchema,
+  matchedPreferenceValue: OptionalNullableStringSchema,
+  profileEvidence: OptionalNullableStringSchema,
+  evidenceSource: AttributionEvidenceSourceSchema,
   confidence: TwoStepConfidenceSchema.optional(),
   profileSafety: TwoStepProfileSafetySchema.optional(),
   recommendationPayload: MainDishAISafeCandidateRecommendationPayloadSchema.optional()

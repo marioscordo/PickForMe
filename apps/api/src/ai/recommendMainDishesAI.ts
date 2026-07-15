@@ -10,6 +10,7 @@ import {
   normalizeTargetLocale,
   stripJsonFence
 } from "./twoStepRecommendationAIUtils";
+import { isAnalyzeDiagnosticsEnabled } from "./twoStepRecommendationDiagnostics";
 import {
   MainDishAIResponseSchema,
   type MainDishAIAnalyzedDish,
@@ -25,6 +26,7 @@ import {
   candidateContainsEvidence,
   filterSafeRecommendationCandidates
 } from "../recommendation/recommendationSafetyVerifier";
+import { validateMainDishAttributions } from "../recommendation/attributionValidator";
 
 type MainDishAiDiagnosticRow = {
   index: number;
@@ -40,6 +42,8 @@ type MainDishAiDiagnosticRow = {
   profileSafetyUncertainForAllergy?: boolean;
   profileSafetyConflictReason?: string | null;
   reason?: string;
+  candidateScoreReason?: string;
+  finalRecommendationReason?: string;
   inAllDishes: boolean;
   inRemovedDishes: boolean;
   inSafeCandidates: boolean;
@@ -129,6 +133,22 @@ export async function recommendMainDishesAI({
       parsed = MainDishAIResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
       normalizeMissingTranslatedDescriptions(parsed, targetLocale);
       validateDescriptionTranslationContract(parsed);
+      const attributionValidated = await validateMainDishAttributions(parsed, profile, runId, signal);
+      parsed = attributionValidated;
+      parsed.recommendations = backfillMainDishRecommendationsWithValidatedCandidates({
+        recommendations: parsed.recommendations,
+        safeCandidates: parsed.safeCandidates
+      });
+      parsed.resultSummary = {
+        ...parsed.resultSummary,
+        recommendationCount: parsed.recommendations.length,
+        lessThanThreeReason: parsed.recommendations.length < 3
+          ? parsed.resultSummary.lessThanThreeReason ?? "Weniger als drei Empfehlungen mit belastbarer Profil-Attribution."
+          : null
+      };
+      if (attributionValidated.attributionNotConfirmed && parsed.recommendations.length === 0) {
+        throw new Error("ATTRIBUTION_NOT_CONFIRMED");
+      }
       logDevAnalyzeTiming({
         runId,
         phase: "api.main_ai_parse",
@@ -265,6 +285,10 @@ function logMainDishAiResponseDiagnostic(
   },
   runId?: string
 ) {
+  if (!isAnalyzeDiagnosticsEnabled()) {
+    return;
+  }
+
   const rows = new Map<string, MainDishAiDiagnosticRow>();
 
   const getRow = (nameOriginal: string) => {
@@ -303,6 +327,7 @@ function logMainDishAiResponseDiagnostic(
     const row = getRow(candidate.nameOriginal);
     row.inSafeCandidates = true;
     row.descriptionOriginalPresent = row.descriptionOriginalPresent ?? hasDiagnosticValue(candidate.descriptionOriginal);
+    row.candidateScoreReason = truncateDiagnosticValue(candidate.scoreReason);
     row.reason = row.reason ?? truncateDiagnosticValue(candidate.scoreReason);
   });
 
@@ -318,7 +343,8 @@ function logMainDishAiResponseDiagnostic(
     row.profileSafetyConflictReason = recommendation.profileSafety.conflictReason
       ? truncateDiagnosticValue(recommendation.profileSafety.conflictReason)
       : null;
-    row.reason = row.reason ?? truncateDiagnosticValue(recommendation.reason);
+    row.finalRecommendationReason = truncateDiagnosticValue(recommendation.reason);
+    row.reason = row.finalRecommendationReason;
   });
 
   console.info(`[GUSTARO_2STEP_MAIN_DIAG] ${JSON.stringify({
@@ -472,6 +498,46 @@ function rebuildMainDishRecommendationsFromSafeCandidates({
   return nextRecommendations;
 }
 
+function backfillMainDishRecommendationsWithValidatedCandidates({
+  recommendations,
+  safeCandidates
+}: {
+  recommendations: MainDishAIRecommendation[];
+  safeCandidates: MainDishAISafeCandidate[];
+}) {
+  const nextRecommendations = [...recommendations];
+  const recommendedNames = new Set(recommendations.map((recommendation) => normalizeDiagnosticName(recommendation.nameOriginal)));
+
+  for (const candidate of safeCandidates) {
+    if (nextRecommendations.length >= 3) {
+      break;
+    }
+
+    const nameKey = normalizeDiagnosticName(candidate.nameOriginal);
+
+    if (recommendedNames.has(nameKey)) {
+      continue;
+    }
+
+    const recommendation = buildRecommendationFromSafeCandidate(candidate);
+
+    if (!recommendation) {
+      continue;
+    }
+
+    nextRecommendations.push({
+      ...recommendation,
+      rank: nextRecommendations.length + 1
+    });
+    recommendedNames.add(nameKey);
+  }
+
+  return nextRecommendations.map((recommendation, index) => ({
+    ...recommendation,
+    rank: index + 1
+  }));
+}
+
 function buildRecommendationFromSafeCandidate(candidate: MainDishAISafeCandidate): MainDishAIRecommendation | null {
   const payload = candidate.recommendationPayload;
 
@@ -496,6 +562,9 @@ function buildRecommendationFromSafeCandidate(candidate: MainDishAISafeCandidate
     sourceKind: payload.sourceKind,
     sourceUrl: payload.sourceUrl,
     sourceCategoryOriginal: payload.sourceCategoryOriginal,
+    matchedPreferenceValue: payload.matchedPreferenceValue,
+    profileEvidence: payload.profileEvidence,
+    evidenceSource: payload.evidenceSource,
     reason: payload.reason,
     confidence: payload.confidence,
     profileSafety: payload.profileSafety
@@ -515,7 +584,7 @@ function logVerifierDecisionDiagnostics({
   validation: Array<{ candidateId: string; safe: boolean; reason?: string }>;
   runId?: string;
 }) {
-  if (process.env.NODE_ENV === "production") {
+  if (!isAnalyzeDiagnosticsEnabled()) {
     return;
   }
 
@@ -584,7 +653,7 @@ function normalizeDiagnosticName(value: string) {
 type DevTimingValue = string | number | boolean | null | undefined;
 
 function logDevAnalyzeTiming(fields: Record<string, DevTimingValue>) {
-  if (process.env.NODE_ENV === "production") {
+  if (!isAnalyzeDiagnosticsEnabled()) {
     return;
   }
 
@@ -700,6 +769,9 @@ function buildMainDishPrompt({
     "- Erfinde keine Beschreibung, Zutaten oder Details.",
     "- reason und scoreReason duerfen nur sichtbaren Gerichtsnamen, sichtbare Kategorie und aktive Profilvorlieben verwenden.",
     "- Behaupte in reason oder scoreReason keine Zutaten, Fleischarten, Geschmack, Beliebtheit oder Zubereitung, wenn sie nicht sichtbar im Gerichtsnamen, in der Kategorie oder in der echten sichtbaren Beschreibung belegt sind.",
+    "- Jede Empfehlung und jedes recommendationPayload mit Profilbezug muss matchedPreferenceValue liefern.",
+    "- matchedPreferenceValue muss exakt ein aktiver Wert aus primaryLikes sein; keine erfundenen, deaktivierten oder frueheren Profilwerte.",
+    "- Wenn kein belastbarer Profilbezug belegbar ist, darf das Gericht nicht als Empfehlung oder recommendationPayload ausgegeben werden.",
     "- translatedName ist Pflicht und ist die nutzerseitige Anzeigeuebersetzung in der Zielsprache.",
     `- translatedName muss in ${targetLanguage} (${targetLocale}) formuliert sein.`,
     "- Jede Empfehlung muss einen display-sicheren translatedName enthalten.",
@@ -743,6 +815,7 @@ function buildMainDishPrompt({
     '      "sourceKind": "pdf | html | image | text | unknown",',
     '      "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
     '      "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
+    '      "matchedPreferenceValue": "exakter aktiver primaryLikes-Wert",',
     '      "confidence": "high | medium | low",',
     '      "profileSafety": {',
     '        "hasKnownConflict": false,',
@@ -760,6 +833,7 @@ function buildMainDishPrompt({
     '        "sourceKind": "pdf | html | image | text | unknown",',
     '        "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
     '        "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
+    '        "matchedPreferenceValue": "exakter aktiver primaryLikes-Wert",',
     '        "reason": "kurze profilbezogene Begruendung in der Zielsprache; nur sichtbarer Name, sichtbare Kategorie und aktive Profilvorlieben, keine unbelegten Details",',
     '        "confidence": "high | medium | low",',
     '        "profileSafety": {',
@@ -783,6 +857,7 @@ function buildMainDishPrompt({
     '      "sourceKind": "pdf | html | image | text | unknown",',
     '      "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
     '      "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
+    '      "matchedPreferenceValue": "exakter aktiver primaryLikes-Wert",',
     '      "reason": "kurze profilbezogene Begruendung in der Zielsprache; nur sichtbarer Name, sichtbare Kategorie und aktive Profilvorlieben, keine unbelegten Details",',
     '      "confidence": "high | medium | low",',
     '      "profileSafety": {',

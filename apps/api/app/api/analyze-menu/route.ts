@@ -5,6 +5,7 @@ import { classifyDishRolesAI } from "../../../src/ai/classifyDishRolesAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
 import { recommendMainDishesAI } from "../../../src/ai/recommendMainDishesAI";
+import { isAnalyzeDiagnosticsEnabled } from "../../../src/ai/twoStepRecommendationDiagnostics";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { parseMenu } from "../../../src/menu/parseMenu";
@@ -258,6 +259,11 @@ export async function POST(request: Request) {
           );
         }
 
+        const attributionError = mapAttributionEvidenceError(pdfAiError);
+        if (attributionError) {
+          throw attributionError;
+        }
+
         if (pdfAiError instanceof SyntaxError) {
           throw new AppError(
             500,
@@ -355,6 +361,11 @@ export async function POST(request: Request) {
             "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
             { retryable: true }
           );
+        }
+
+        const attributionError = mapAttributionEvidenceError(imageAiError);
+        if (attributionError) {
+          throw attributionError;
         }
 
         if (imageAiError instanceof SyntaxError) {
@@ -512,6 +523,11 @@ export async function POST(request: Request) {
               );
             }
 
+            const attributionError = mapAttributionEvidenceError(tildaImageAiError);
+            if (attributionError) {
+              throw attributionError;
+            }
+
             if (tildaImageAiError instanceof SyntaxError) {
               throw new AppError(
                 500,
@@ -618,6 +634,11 @@ export async function POST(request: Request) {
           "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
           { retryable: true }
         );
+      }
+
+      const attributionError = mapAttributionEvidenceError(aiError);
+      if (attributionError) {
+        throw attributionError;
       }
 
       if (aiError instanceof SyntaxError) {
@@ -1301,6 +1322,10 @@ function getPdfFileFallbackReason({
 }
 
 function logTwoStepMain(fields: Record<string, TwoStepMainLogValue>) {
+  if (!isAnalyzeDiagnosticsEnabled()) {
+    return;
+  }
+
   const payload = Object.entries(fields)
     .filter(([, value]) => value !== undefined && value !== null)
     .map(([key, value]) => `${key}=${formatTwoStepMainLogValue(value)}`)
@@ -1310,6 +1335,10 @@ function logTwoStepMain(fields: Record<string, TwoStepMainLogValue>) {
 }
 
 function logAnalyzePerf(fields: Record<string, TwoStepMainLogValue>) {
+  if (!isAnalyzeDiagnosticsEnabled()) {
+    return;
+  }
+
   const payload = Object.entries(fields)
     .filter(([, value]) => value !== undefined && value !== null)
     .map(([key, value]) => `${key}=${formatTwoStepMainLogValue(value)}`)
@@ -1319,7 +1348,7 @@ function logAnalyzePerf(fields: Record<string, TwoStepMainLogValue>) {
 }
 
 function logDevAnalyzeTiming(fields: Record<string, TwoStepMainLogValue>) {
-  if (process.env.NODE_ENV === "production") {
+  if (!isAnalyzeDiagnosticsEnabled()) {
     return;
   }
 
@@ -2556,6 +2585,39 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "";
 }
 
+function mapAttributionEvidenceError(error: unknown) {
+  const message = getErrorMessage(error);
+
+  if (message.includes("ATTRIBUTION_NOT_CONFIRMED")) {
+    return new AppError(
+      409,
+      "ATTRIBUTION_NOT_CONFIRMED",
+      "Ich konnte den Profilbezug dieser Empfehlungen gerade nicht sicher bestaetigen. Bitte versuche es noch einmal.",
+      { retryable: true }
+    );
+  }
+
+  if (message.includes("ATTRIBUTION_EVIDENCE_TIMEOUT")) {
+    return new AppError(
+      504,
+      "AI_TIMEOUT",
+      "Ich brauche fuer die Profilpruefung gerade zu lange. Bitte versuche es noch einmal.",
+      { retryable: true }
+    );
+  }
+
+  if (message.includes("ATTRIBUTION_EVIDENCE_TECHNICAL_ERROR")) {
+    return new AppError(
+      503,
+      "CONNECTION_ERROR",
+      "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
+      { retryable: true }
+    );
+  }
+
+  return null;
+}
+
 function isTemporaryConnectionError(error: unknown) {
   const technicalSignal = [
     error instanceof Error ? error.name : "",
@@ -2947,7 +3009,7 @@ async function selectPdfMenuForAnalysis({
   const selectedSource = candidates.find((candidate) => candidate.url === selected?.url);
   const selectedBaseScore = selectedSource?.baseScore ?? 0;
 
-  if (selected) {
+  if (selected && isAnalyzeDiagnosticsEnabled()) {
     console.info("[GUSTARO_PDF_ANALYSIS_SOURCE_SELECTION]", JSON.stringify({
       selectedUrl: selected.url,
       selectedSource: selectedSource?.source ?? "unknown",
@@ -3013,7 +3075,7 @@ async function selectBestLinkedPdfMenuCandidate(
   const rankedCandidates = await rankMenuSourceCandidatesByQuality(qualityCandidates);
   const selected = rankedCandidates[0];
 
-  if (selected) {
+  if (selected && isAnalyzeDiagnosticsEnabled()) {
     console.info("[GUSTARO_LINKED_PDF_SELECTION]", JSON.stringify({
       selectedUrl: selected.url,
       selectedUrlsCount: selected.urls?.length ?? 1,
