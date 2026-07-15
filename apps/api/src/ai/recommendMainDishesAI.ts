@@ -127,7 +127,8 @@ export async function recommendMainDishesAI({
 
     try {
       parsed = MainDishAIResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
-      validateDescriptionTranslationContract(parsed, targetLocale);
+      normalizeMissingTranslatedDescriptions(parsed, targetLocale);
+      validateDescriptionTranslationContract(parsed);
       logDevAnalyzeTiming({
         runId,
         phase: "api.main_ai_parse",
@@ -165,17 +166,30 @@ export async function recommendMainDishesAI({
   return verifierSafe.recommendations;
 }
 
-function validateDescriptionTranslationContract(
+function normalizeMissingTranslatedDescriptions(
   response: ReturnType<typeof MainDishAIResponseSchema.parse>,
   targetLocale: string
 ) {
-  const items = [
-    ...response.safeCandidates,
-    ...response.recommendations,
-    ...response.safeCandidates
-      .map((candidate) => candidate.recommendationPayload)
-      .filter((payload): payload is NonNullable<typeof payload> => Boolean(payload))
-  ];
+  const items = getDescriptionContractItems(response);
+
+  for (const item of items) {
+    const descriptionOriginal = item.descriptionOriginal?.trim();
+    const translatedDescription = item.translatedDescription?.trim();
+
+    if (
+      descriptionOriginal &&
+      !translatedDescription &&
+      !isDescriptionLikelyInTargetLanguage(descriptionOriginal, targetLocale)
+    ) {
+      item.translatedDescription = null;
+    }
+  }
+}
+
+function validateDescriptionTranslationContract(
+  response: ReturnType<typeof MainDishAIResponseSchema.parse>,
+) {
+  const items = getDescriptionContractItems(response);
 
   for (const item of items) {
     const descriptionOriginal = item.descriptionOriginal?.trim();
@@ -184,15 +198,19 @@ function validateDescriptionTranslationContract(
     if (!descriptionOriginal && translatedDescription) {
       throw new SyntaxError("AI_RESPONSE_INVALID_DESCRIPTION_WITHOUT_SOURCE");
     }
-
-    if (
-      descriptionOriginal &&
-      !translatedDescription &&
-      !isDescriptionLikelyInTargetLanguage(descriptionOriginal, targetLocale)
-    ) {
-      throw new SyntaxError("AI_RESPONSE_INVALID_MISSING_TRANSLATED_DESCRIPTION");
-    }
   }
+}
+
+function getDescriptionContractItems(response: ReturnType<typeof MainDishAIResponseSchema.parse>) {
+  const items = [
+    ...response.safeCandidates,
+    ...response.recommendations,
+    ...response.safeCandidates
+      .map((candidate) => candidate.recommendationPayload)
+      .filter((payload): payload is NonNullable<typeof payload> => Boolean(payload))
+  ];
+
+  return items;
 }
 
 function isDescriptionLikelyInTargetLanguage(value: string, targetLocale: string) {

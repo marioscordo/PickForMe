@@ -183,6 +183,12 @@ assert(mainAi.includes("fuelle verbleibende Plaetze mit sicheren Salaten auf"), 
 assert(mainAi.includes("verifyRecommendationSafetyAI"), "Safety verifier must remain active");
 assert(mainAi.includes('phase: "api.main_ai_request"'), "Main AI request timing diagnostic missing");
 assert(mainAi.includes("contentDiagnostics"), "Main AI request diagnostic must include input mode metadata");
+assert(mainAi.includes("normalizeMissingTranslatedDescriptions(parsed, targetLocale)"), "Main AI must normalize missing translated descriptions before validation");
+assert(mainAi.includes("item.translatedDescription = null"), "Main AI must keep the source description and clear missing translated descriptions");
+assert(!mainAi.includes("AI_RESPONSE_INVALID_MISSING_TRANSLATED_DESCRIPTION"), "Missing translatedDescription must not reject the whole Main AI response");
+assert(mainAi.includes("AI_RESPONSE_INVALID_DESCRIPTION_WITHOUT_SOURCE"), "Invented translated descriptions without a source must still be rejected");
+assert(recommendationCard.includes("function visibleDescriptionForOutputLocale"), "RecommendationCard description locale guard missing");
+assert(recommendationCard.includes("return firstNonEmptyText(translatedDescription);"), "German output must not fall back to foreign original descriptions");
 
 const twoStepUtils = read("apps/api/src/ai/twoStepRecommendationAIUtils.ts");
 assert(twoStepUtils.includes('source.mainAiInputMode !== "extracted_text"'), "extracted-text PDF mode must skip PDF file input");
