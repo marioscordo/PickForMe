@@ -15,7 +15,9 @@ import {
   logAnalyzeOpsDiagnostic
 } from "./twoStepRecommendationDiagnostics";
 import {
+  MainDishAICompactResponseSchema,
   MainDishAIResponseSchema,
+  type MainDishAICompactDish,
   type MainDishAIAnalyzedDish,
   type MainDishAIRecommendation,
   type MainDishAIRemovedDish,
@@ -133,9 +135,14 @@ export async function recommendMainDishesAI({
     const parseStartedAt = Date.now();
 
     try {
-      parsed = MainDishAIResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
-      normalizeMissingTranslatedDescriptions(parsed, targetLocale);
-      validateDescriptionTranslationContract(parsed);
+      const compactParsed = MainDishAICompactResponseSchema.parse(JSON.parse(stripJsonFence(response.output_text ?? "{}")));
+      normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale);
+      validateCompactDescriptionTranslationContract(compactParsed);
+      parsed = buildMainDishResponseFromCompactDishes({
+        dishes: compactParsed.dishes,
+        source,
+        outputLocale: profile.outputLocale
+      });
       logAnalyzeOpsDiagnostic({
         runId,
         phase: "main_ai_parse",
@@ -147,7 +154,8 @@ export async function recommendMainDishesAI({
         candidateCount: parsed.safeCandidates.length,
         recommendationCount: parsed.recommendations.length
       });
-      const attributionValidated = await validateMainDishAttributions(parsed, profile, runId, signal);
+      const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, runId, signal);
+      const attributionValidated = await validateMainDishAttributions(verifierSafe, profile, runId, signal);
       parsed = attributionValidated;
       parsed.recommendations = backfillMainDishRecommendationsWithValidatedCandidates({
         recommendations: parsed.recommendations,
@@ -205,19 +213,16 @@ export async function recommendMainDishesAI({
     throw new SyntaxError("AI_RESPONSE_INVALID");
   }
 
-  const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, runId, signal);
-  logMainDishAiResponseDiagnostic(verifierSafe, runId);
+  logMainDishAiResponseDiagnostic(parsed, runId);
 
-  return verifierSafe.recommendations;
+  return parsed.recommendations;
 }
 
-function normalizeMissingTranslatedDescriptions(
-  response: ReturnType<typeof MainDishAIResponseSchema.parse>,
+function normalizeMissingCompactTranslatedDescriptions(
+  response: ReturnType<typeof MainDishAICompactResponseSchema.parse>,
   targetLocale: string
 ) {
-  const items = getDescriptionContractItems(response);
-
-  for (const item of items) {
+  for (const item of response.dishes) {
     const descriptionOriginal = item.descriptionOriginal?.trim();
     const translatedDescription = item.translatedDescription?.trim();
 
@@ -231,12 +236,10 @@ function normalizeMissingTranslatedDescriptions(
   }
 }
 
-function validateDescriptionTranslationContract(
-  response: ReturnType<typeof MainDishAIResponseSchema.parse>,
+function validateCompactDescriptionTranslationContract(
+  response: ReturnType<typeof MainDishAICompactResponseSchema.parse>,
 ) {
-  const items = getDescriptionContractItems(response);
-
-  for (const item of items) {
+  for (const item of response.dishes) {
     const descriptionOriginal = item.descriptionOriginal?.trim();
     const translatedDescription = item.translatedDescription?.trim();
 
@@ -246,16 +249,96 @@ function validateDescriptionTranslationContract(
   }
 }
 
-function getDescriptionContractItems(response: ReturnType<typeof MainDishAIResponseSchema.parse>) {
-  const items = [
-    ...response.safeCandidates,
-    ...response.recommendations,
-    ...response.safeCandidates
-      .map((candidate) => candidate.recommendationPayload)
-      .filter((payload): payload is NonNullable<typeof payload> => Boolean(payload))
-  ];
+function buildMainDishResponseFromCompactDishes({
+  dishes,
+  source,
+  outputLocale
+}: {
+  dishes: MainDishAICompactDish[];
+  source: TwoStepMenuSourceInput;
+  outputLocale?: string;
+}): ReturnType<typeof MainDishAIResponseSchema.parse> {
+  const neutralReason = buildBackendNeutralReason(outputLocale);
+  const sourceUrl = normalizedNullableString(source.sourceUrl);
+  const candidates = dishes.map((dish): MainDishAISafeCandidate => {
+    const sourceKind = dish.sourceKind ?? source.kind;
 
-  return items;
+    return {
+      nameOriginal: dish.nameOriginal,
+      descriptionOriginal: dish.descriptionOriginal,
+      scoreReason: neutralReason,
+      translatedName: dish.translatedName,
+      translatedDescription: dish.translatedDescription,
+      priceRaw: dish.priceRaw,
+      sourceEvidence: dish.sourceEvidence,
+      sourceKind,
+      sourceUrl: normalizedNullableString(dish.sourceUrl) ?? sourceUrl,
+      sourceCategoryOriginal: dish.sourceCategoryOriginal,
+      matchedPreferenceValue: dish.matchedPreferenceValue,
+      profileEvidence: null,
+      evidenceSource: null,
+      confidence: "medium",
+      profileSafety: buildBackendSafeProfileSafety(),
+      recommendationPayload: {
+        nameOriginal: dish.nameOriginal,
+        translatedName: dish.translatedName,
+        descriptionOriginal: dish.descriptionOriginal,
+        translatedDescription: dish.translatedDescription,
+        priceRaw: dish.priceRaw,
+        sourceEvidence: dish.sourceEvidence,
+        sourceKind,
+        sourceUrl: normalizedNullableString(dish.sourceUrl) ?? sourceUrl,
+        sourceCategoryOriginal: dish.sourceCategoryOriginal,
+        matchedPreferenceValue: dish.matchedPreferenceValue,
+        profileEvidence: null,
+        evidenceSource: null,
+        reason: neutralReason,
+        confidence: "medium",
+        profileSafety: buildBackendSafeProfileSafety()
+      }
+    };
+  });
+
+  return MainDishAIResponseSchema.parse({
+    allDishes: dishes.map((dish) => ({
+      nameOriginal: dish.nameOriginal,
+      descriptionOriginal: dish.descriptionOriginal,
+      price: dish.priceRaw,
+      detectedConflicts: [],
+      isSafe: true
+    })),
+    removedDishes: [],
+    safeCandidates: candidates,
+    recommendations: [],
+    resultSummary: {
+      allDishCount: dishes.length,
+      removedDishCount: 0,
+      safeCandidateCount: candidates.length,
+      recommendationCount: 0,
+      lessThanThreeReason: candidates.length < 3
+        ? "Weniger als drei Kandidaten im angeforderten Rollenraum erkannt."
+        : null
+    }
+  });
+}
+
+function buildBackendSafeProfileSafety() {
+  return {
+    hasKnownConflict: false,
+    uncertainForAllergy: false,
+    conflictReason: null
+  };
+}
+
+function buildBackendNeutralReason(outputLocale: string | undefined) {
+  return outputLocale?.toLowerCase().startsWith("en")
+    ? "Selected without a confirmed match to your preferences."
+    : "Ausgewählt ohne bestätigten Bezug zu Deinen Vorlieben.";
+}
+
+function normalizedNullableString(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function isDescriptionLikelyInTargetLanguage(value: string, targetLocale: string) {
@@ -800,20 +883,17 @@ function buildMainDishPrompt({
     "Du bist GustaroAI in der neuen 2+2-AI-Architektur.",
     "Du bist der Main-AI-Concierge fuer rollenbasierte Speisekartenempfehlungen.",
     "Du bekommst Profil, Gerichtsrollen, Regeln und Speisekarte vollstaendig strukturiert.",
-    `Liefere bis zu 3 sichere Empfehlungen aus diesem Rollenraum: ${roleAssignment.label}.`,
-    `Aufgabe: Bilde zuerst einen sicheren Kandidatenraum aus ${roleAssignment.label} und waehle erst daraus bis zu 3 echte Gerichte aus.`,
+    `Liefere jeden klar erkennbaren Kandidaten aus diesem Rollenraum genau einmal: ${roleAssignment.label}.`,
+    "- Liefere bis zu 10 unterschiedliche Gerichte aus dem angeforderten Rollenraum.",
+    "- Wenn weniger als 10 rollenpassende Gerichte vorhanden sind, liefere alle geeigneten.",
+    "- Erfinde keine kuenstliche Mindestanzahl.",
+    `Aufgabe: Erzeuge einen entdoppelten Kandidatenpool aus ${roleAssignment.label}; Backend-Safety, Vorliebengewichtung, Backfill und finale Auswahl passieren danach.`,
     "Arbeite in dieser Reihenfolge:",
     "1. Analysiere die Speisekarte.",
     `2. Ermittle alle verfuegbaren ${roleAssignment.analysisTarget} mit Gerichtsname und vollstaendiger sichtbarer Beschreibung, soweit aus der Quelle erkennbar.`,
-    "3. Pruefe fuer jedes Gericht immer Gerichtsname UND vollstaendige sichtbare Beschreibung auf aktive Allergene.",
-    "4. Pruefe fuer jedes Gericht immer Gerichtsname UND vollstaendige sichtbare Beschreibung auf aktive Ausschluesse oder aktive Unvertraeglichkeiten aus customExclusions.",
-    "5. Entferne alle Gerichte, die mindestens einen aktiven Allergenwert enthalten.",
-    "6. Entferne alle Gerichte, die mindestens einen aktiven Ausschluss oder eine aktive Unvertraeglichkeit aus customExclusions enthalten.",
-    "7. Bewerte nur die verbleibenden sicheren Gerichte anhand der Vorlieben aus primaryLikes.",
-    "8. Liefere genau 3 Empfehlungen, wenn mindestens 3 sichere Gerichte im angeforderten Rollenraum vorhanden sind.",
-    "9. Wenn weniger als 3 sichere Gerichte vorhanden sind, liefere nur die sicheren Gerichte und erklaere im JSON resultSummary.lessThanThreeReason warum weniger als 3 moeglich waren.",
-    `Wenn mindestens 3 sichere Gerichte im Rollenraum ${roleAssignment.label} in der Speisekarte vorhanden sind, musst du genau 3 Empfehlungen liefern.`,
-    `Liefere nur dann weniger als 3 Empfehlungen, wenn die Speisekarte nach verbindlicher Pruefung harter Tabus tatsaechlich weniger als 3 sichere Gerichte im Rollenraum ${roleAssignment.label} enthaelt.`,
+    "3. Gib jedes erkannte rollenpassende Gericht nur einmal in dishes aus.",
+    "4. Entferne keine Gerichte wegen Allergenen, Ausschluessen, Unvertraeglichkeiten oder Vorlieben; diese Pruefung uebernimmt das Backend.",
+    "5. Markiere nur einen sichtbaren moeglichen Vorliebenbezug mit matchedPreferenceValue, wenn er exakt einem aktiven primaryLikes-Wert entspricht; sonst null.",
     `Sprache fuer nutzerseitige Ausgaben: ${targetLanguage} (${targetLocale}).`,
     "",
     "Strukturierter Auftrag:",
@@ -826,32 +906,17 @@ function buildMainDishPrompt({
     "- Alle Ausschluesse, Unvertraeglichkeiten und aktiven Allergene sind harte Tabus.",
     "- Harte Tabus stehen immer ueber Vorlieben, Situation, Beliebtheit, Preis, Kategorie oder Restaurantklassikern.",
     "- Vorlieben sind positive Orientierung; sie duerfen harte Tabus niemals ueberstimmen.",
-    "- Ein Gericht darf niemals empfohlen werden, wenn es eine aktive Allergie, einen aktiven Ausschluss oder eine erkannte harte Unvertraeglichkeit enthaelt.",
-    "- Fuer diese harte Konfliktpruefung musst du immer den Gerichtsnamen UND die vollstaendige sichtbare Beschreibung analysieren.",
-    "- Wenn Gerichtsname und Beschreibung unterschiedlich wirken, ist die Beschreibung fuer Konflikte massgeblich.",
-    "- Ein Vorkommen eines aktiven Ausschlussbegriffs in der Beschreibung fuehrt immer zur Entfernung des Gerichts.",
-    "- Entfernte Gerichte muessen in removedDishes mit matchedProfileValue und reason nachvollziehbar auftauchen.",
-    "- removedDishes muss auch Gerichte enthalten, bei denen ein aktiver Ausschluss nur in der Beschreibung, nicht aber im Namen vorkommt.",
-    "- safeCandidates darf nur Gerichte enthalten, die nach deiner Konfliktpruefung sicher sind.",
-    "- recommendations darf nur aus safeCandidates ausgewaehlt werden.",
-    `- Wenn ein bevorzugter Kandidat wegen harter Tabus nicht passt, waehle ein anderes sicheres Gericht aus dem Rollenraum ${roleAssignment.label} aus der Speisekarte.`,
-    `- Reduziere nicht freiwillig auf 0, 1 oder 2 Empfehlungen, solange mindestens 3 sichere Gerichte im Rollenraum ${roleAssignment.label} verfuegbar sind.`,
-    "- Brich die Auswahl nicht ab, nur weil ein Kandidat blockiert ist; suche aktiv nach einem sicheren Ersatzgericht.",
-    "- Empfiehl kein Gericht mit bekanntem oder sichtbarem Profilkonflikt.",
-    "- Entferne Gerichte nur, wenn ein aktiver harter Profilwert im sichtbaren Gerichtsnamen oder in der sichtbaren Beschreibung erkennbar vorkommt.",
-    "- Entferne kein Gericht wegen blosser Vermutung, unbekannter Zubereitung oder Formulierungen wie koennte enthalten.",
-    "- Wenn kein sichtbarer Konflikt erkennbar ist, darf das Gericht nicht allein wegen Unsicherheit in removedDishes landen.",
-    "- Wenn Sahne, Rahm, Cream oder Panna in Ausschluessen, Unvertraeglichkeiten oder Allergenen aktiv ist: kein Gericht mit Sahne, Sahnesosse, Sahnesauce, Rahm, Cream, Cream sauce oder Panna empfehlen.",
-    "- Beispiel Modo Mio: Name Spaghetti al Tartufo wirkt unkritisch, aber die Beschreibung enthaelt Pecorino-Trueffel-Sahnesauce; bei Ausschluss Sahne muss dieses Gericht entfernt werden.",
+    "- Backend-Safety entfernt harte Konflikte nachgelagert fail-closed; du darfst im Main-AI-Output keine Gerichte wegen Safety oder Vorlieben entfernen.",
+    "- Gib keine removedDishes, safeCandidates, recommendations, recommendationPayload, reason, scoreReason, detectedConflicts, isSafe oder profileSafety aus.",
     `- Nutze nur echte Gerichte aus dem Rollenraum ${roleAssignment.label}, die belegbar in der Speisekarte vorkommen.`,
+    "- Liefere maximal 10 Compact-Dishes.",
+    "- Vorlieben duerfen die Reihenfolge beeinflussen, aber neutrale Gerichte nicht aus dem Kandidatenpool verdraengen.",
     "- Keine rollenfremden Gerichte, Desserts, Getraenke, Beilagen, Zutaten oder Beschreibungsteile empfehlen.",
-    "- Wenn ein Risiko in einem gelieferten Ergebnis erkannt wird, muss profileSafety dies korrekt markieren.",
-    "- profileSafety.hasKnownConflict muss fuer jede Empfehlung false sein.",
-    "- profileSafety.checkedAgainst muss die aktiven harten Profilwerte enthalten, gegen die du die Empfehlung geprueft hast.",
+    "- Ein Gericht darf im JSON nur einmal vorkommen.",
+    "- Gib keine Duplikate und keine nahezu identischen Varianten desselben Gerichts aus.",
     "- Ein Gericht darf nicht wegen fehlendem Preis ausgeschlossen werden.",
     "- Wenn fuer einen sichtbaren Menueeintrag ein Preis mit sichtbarer Waehrung sichtbar und eindeutig diesem Gericht zuordenbar ist, muss der Preis exakt aus der Quelle uebernommen werden.",
-    "- Dieser Preisvertrag gilt identisch fuer allDishes.price, safeCandidates.priceRaw, recommendationPayload.priceRaw und recommendations.priceRaw.",
-    "- allDishes.price, safeCandidates.priceRaw, recommendationPayload.priceRaw und recommendations.priceRaw muessen immer string oder null sein.",
+    "- priceRaw muss immer string oder null sein.",
     "- Verwende null, wenn fuer diesen konkreten Menueeintrag kein Preis mit sichtbarer Waehrung sichtbar oder nicht eindeutig zuordenbar ist.",
     "- Verwende niemals 0, \"0\", \"N/A\", \"unbekannt\" oder leere Strings als Fehlwert fuer fehlende Preise.",
     "- sourceEvidence soll geliefert werden, wenn ein kurzer Beleg sicher moeglich ist.",
@@ -861,11 +926,10 @@ function buildMainDishPrompt({
     `- translatedDescription muss descriptionOriginal treu in ${targetLanguage} (${targetLocale}) wiedergeben.`,
     "- Wenn keine echte Beschreibung sichtbar ist, lasse descriptionOriginal und translatedDescription null oder weg.",
     "- Erfinde keine Beschreibung, Zutaten oder Details.",
-    "- reason und scoreReason duerfen nur sichtbaren Gerichtsnamen, sichtbare Kategorie und aktive Profilvorlieben verwenden.",
-    "- Behaupte in reason oder scoreReason keine Zutaten, Fleischarten, Geschmack, Beliebtheit oder Zubereitung, wenn sie nicht sichtbar im Gerichtsnamen, in der Kategorie oder in der echten sichtbaren Beschreibung belegt sind.",
-    "- Jede Empfehlung und jedes recommendationPayload mit Profilbezug muss matchedPreferenceValue liefern.",
+    "- Gib keine freie Begruendung aus; persoenliche und neutrale Reasons erzeugt ausschliesslich das Backend.",
+    "- Jedes Gericht mit Profilbezug muss matchedPreferenceValue liefern.",
     "- matchedPreferenceValue muss exakt ein aktiver Wert aus primaryLikes sein; keine erfundenen, deaktivierten oder frueheren Profilwerte.",
-    "- Wenn kein belastbarer Profilbezug belegbar ist, darf ein safety-sicheres Gericht trotzdem als Empfehlung oder recommendationPayload ausgegeben werden; matchedPreferenceValue, profileEvidence und evidenceSource muessen dann null sein.",
+    "- Wenn kein belastbarer Profilbezug belegbar ist, muss matchedPreferenceValue null sein.",
     "- translatedName ist Pflicht und ist die nutzerseitige Anzeigeuebersetzung in der Zielsprache.",
     `- translatedName muss in ${targetLanguage} (${targetLocale}) formuliert sein.`,
     "- Jede Empfehlung muss einen display-sicheren translatedName enthalten.",
@@ -881,94 +945,20 @@ function buildMainDishPrompt({
     "",
     "Antwort ausschliesslich als valides JSON ohne Markdown:",
     "{",
-    '  "allDishes": [',
+    '  "dishes": [',
     "    {",
     '      "nameOriginal": "exakter Originalname aus der Speisekarte",',
     '      "descriptionOriginal": "vollstaendige sichtbare Originalbeschreibung falls vorhanden, sonst null",',
-    '      "price": "exakter Preis mit sichtbarer Waehrung, wenn eindeutig diesem Gericht zuordenbar, sonst null",',
-    '      "detectedConflicts": ["aktive Profilwerte, die in Name oder Beschreibung erkannt wurden"],',
-    '      "isSafe": true',
-    "    }",
-    "  ],",
-    '  "removedDishes": [',
-    "    {",
-    '      "nameOriginal": "entferntes Gericht",',
-    '      "matchedProfileValue": "aktiver Ausschluss oder aktives Allergen",',
-    '      "reason": "kurzer Grund in der Zielsprache, inklusive ob der Konflikt im Namen oder in der Beschreibung stand"',
-    "    }",
-    "  ],",
-    '  "safeCandidates": [',
-    "    {",
-    '      "nameOriginal": "sicherer Kandidat",',
-    '      "descriptionOriginal": "vollstaendige sichtbare Originalbeschreibung falls vorhanden, sonst null",',
-    '      "scoreReason": "kurze Bewertung in der Zielsprache; nur sichtbarer Name, sichtbare Kategorie und aktive Profilvorlieben, keine unbelegten Details",',
-    '      "translatedName": "Anzeigeuebersetzung fuer moegliches Nachruecken, falls sicher belegbar",',
-    '      "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
-    '      "priceRaw": "exakter Preis mit sichtbarer Waehrung, wenn eindeutig diesem Gericht zuordenbar, sonst null",',
-    '      "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
-    '      "sourceKind": "pdf | html | image | text | unknown",',
-    '      "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
-    '      "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
-    '      "matchedPreferenceValue": "exakter aktiver primaryLikes-Wert",',
-    '      "confidence": "high | medium | low",',
-    '      "profileSafety": {',
-    '        "hasKnownConflict": false,',
-    '        "uncertainForAllergy": false,',
-    '        "conflictReason": null,',
-    '        "checkedAgainst": ["aktive harte Profilwerte"]',
-    "      },",
-    '      "recommendationPayload": {',
-    '        "nameOriginal": "derselbe Originalname dieses sicheren Kandidaten",',
-    '        "translatedName": "display-sichere nutzerseitige Anzeigeuebersetzung in der Zielsprache",',
-    '        "descriptionOriginal": "vollstaendige Originalbeschreibung falls sichtbar, sonst null",',
-    '        "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
-    '        "priceRaw": "exakter Preis mit sichtbarer Waehrung, wenn eindeutig diesem Gericht zuordenbar, sonst null",',
-    '        "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
-    '        "sourceKind": "pdf | html | image | text | unknown",',
-    '        "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
-    '        "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
-    '        "matchedPreferenceValue": "exakter aktiver primaryLikes-Wert",',
-    '        "reason": "kurze profilbezogene Begruendung in der Zielsprache; nur sichtbarer Name, sichtbare Kategorie und aktive Profilvorlieben, keine unbelegten Details",',
-    '        "confidence": "high | medium | low",',
-    '        "profileSafety": {',
-    '          "hasKnownConflict": false,',
-    '          "uncertainForAllergy": false,',
-    '          "conflictReason": null,',
-    '          "checkedAgainst": ["aktive harte Profilwerte"]',
-    "        }",
-    "      }",
-    "    }",
-    "  ],",
-    '  "recommendations": [',
-    "    {",
-    '      "rank": 1,',
-    '      "nameOriginal": "exakter Originalname aus der Speisekarte",',
     '      "translatedName": "display-sichere nutzerseitige Anzeigeuebersetzung in der Zielsprache",',
-    '      "descriptionOriginal": "vollstaendige Originalbeschreibung falls sichtbar, sonst null",',
     '      "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
     '      "priceRaw": "exakter Preis mit sichtbarer Waehrung, wenn eindeutig diesem Gericht zuordenbar, sonst null",',
     '      "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
     '      "sourceKind": "pdf | html | image | text | unknown",',
     '      "sourceUrl": "Quellen-URL falls bekannt, sonst null",',
     '      "sourceCategoryOriginal": "sichtbare Kategorie falls hilfreich, sonst null",',
-    '      "matchedPreferenceValue": "exakter aktiver primaryLikes-Wert",',
-    '      "reason": "kurze profilbezogene Begruendung in der Zielsprache; nur sichtbarer Name, sichtbare Kategorie und aktive Profilvorlieben, keine unbelegten Details",',
-    '      "confidence": "high | medium | low",',
-    '      "profileSafety": {',
-    '        "hasKnownConflict": false,',
-    '        "uncertainForAllergy": false,',
-    '        "conflictReason": null,',
-    '        "checkedAgainst": ["aktive harte Profilwerte"]',
-    "      }",
+    '      "matchedPreferenceValue": "exakter aktiver primaryLikes-Wert oder null"',
     "    }",
-    "  ],",
-    '  "resultSummary": {',
-    '    "allDishCount": 0,',
-    '    "removedDishCount": 0,',
-    '    "safeCandidateCount": 0,',
-    '    "recommendationCount": 0,',
-    '    "lessThanThreeReason": null',
-    "  }",
+    "  ]",
     "}"
   ].join("\n");
 }
@@ -1031,20 +1021,21 @@ function buildStructuredMainDishAssignment({
         kompatibilitaet_nur_fuer_alte_clients: true
       },
       regeln: {
-        anzahl_gerichte: 3,
         angeforderte_gerichtrollen: roleAssignment.roles,
         rollenraum_label: roleAssignment.label,
         zuerst_alle_erkennbaren_gerichte_im_rollenraum_analysieren: true,
         rollenfremde_gerichte_aus_kandidatenraum_entfernen: true,
         keine_rollenfremde_auffuellung: true,
         gerichtsnamen_und_vollstaendige_sichtbare_beschreibungen_pruefen: true,
-        beschreibung_ist_bei_konflikten_massgeblich: true,
-        ausschluss_in_beschreibung_fuehrt_zur_entfernung: true,
-        konfliktgerichte_entfernen_bevor_empfohlen_wird: true,
-        empfehlungen_nur_aus_sicheren_kandidaten: true,
-        genau_3_wenn_mindestens_3_sichere_gerichte_vorhanden: true,
-        nicht_freiwillig_auf_weniger_als_3_reduzieren: true,
-        ersatzgericht_waehlen_wenn_kandidat_blockiert_ist: true,
+        jedes_gericht_nur_einmal_ausgeben: true,
+        maximal_10_compact_dishes: true,
+        weniger_als_10_liefert_alle_geeigneten: true,
+        keine_kuenstliche_mindestanzahl: true,
+        neutrale_gerichte_nicht_durch_vorlieben_verdraengen: true,
+        keine_finale_empfehlung_im_main_ai_output: true,
+        backend_prueft_harte_safety_fail_closed: true,
+        backend_rankt_vorlieben_weich: true,
+        backend_waehlt_maximal_drei_finale_empfehlungen: true,
         harte_ausschluesse_sind_verbindlich: true,
         allergene_sind_verbindlich: true,
         unvertraeglichkeiten_sind_verbindlich: true,
@@ -1055,8 +1046,11 @@ function buildStructuredMainDishAssignment({
         keine_beschreibung_erfinden: true,
         translated_name_pflicht_und_display_sicher: true,
         translated_name_darf_bei_fremdsprachigem_original_nicht_blosse_kopie_sein: true,
-        removed_dishes_mit_matched_profile_value_ausgeben: true,
-        less_than_three_reason_erforderlich_wenn_weniger_als_3_empfehlungen: true,
+        keine_removed_dishes_ausgeben: true,
+        keine_safe_candidates_ausgeben: true,
+        keine_recommendations_ausgeben: true,
+        keine_recommendation_payloads_ausgeben: true,
+        keine_freien_reasons_ausgeben: true,
         keine_nachgelagerte_qualitaetskontrolle: true,
         kein_pdf_fuzzy_matching: true
       },
@@ -1066,7 +1060,7 @@ function buildStructuredMainDishAssignment({
       },
       speisekarte: "siehe Quellenkontext/Speisekartentext oder angehaengte Speisekartendateien"
     },
-    auftrag: `Analysiere zuerst alle erkennbaren Gerichte im Rollenraum ${roleAssignment.label}, entferne rollenfremde Gerichte sowie Gerichte mit aktiven Ausschluessen oder Allergenen, bilde daraus sichere Kandidaten und waehle erst danach genau 3 Empfehlungen, wenn mindestens 3 sichere Gerichte im Rollenraum vorhanden sind.`
+    auftrag: `Analysiere alle erkennbaren Gerichte im Rollenraum ${roleAssignment.label}, entferne nur rollenfremde Eintraege und gib jedes verbleibende Gericht genau einmal in dishes aus. Backend-Safety, Vorliebengewichtung, Backfill und finale Auswahl folgen danach.`
   };
 }
 
@@ -1095,7 +1089,7 @@ function buildRequestedDishRoleAssignment(values?: RequestedDishRole[]): Request
         "- Der aktive Rollenraum ist ausschliesslich starter und salad.",
         "- Identifiziere sichtbare Vorspeisen, Antipasti, Suppen nur wenn als Vorspeise erkennbar, und Salate.",
         "- Hauptgerichte, Pasta-/Pizza-/Fleisch-/Fisch-Hauptspeisen und vollwertige Hauptplatten duerfen nicht als Ersatz empfohlen werden.",
-        "- Wenn weniger als 3 sichere Vorspeisen oder Salate vorhanden sind, liefere weniger als 3 Empfehlungen statt mit Hauptgerichten aufzufuellen."
+        "- Wenn weniger als 10 sichtbare Vorspeisen oder Salate vorhanden sind, liefere alle geeigneten statt mit Hauptgerichten aufzufuellen."
       ]
     };
   }
@@ -1111,7 +1105,7 @@ function buildRequestedDishRoleAssignment(values?: RequestedDishRole[]): Request
       "- Der aktive Rollenraum ist ausschliesslich main.",
       "- Identifiziere sichtbare Hauptgerichte und vollwertige Hauptspeisen.",
       "- Vorspeisen, Salate als reine Vorspeisen, Desserts, Getraenke und Beilagen duerfen nicht als Ersatz empfohlen werden.",
-      "- Wenn weniger als 3 sichere Hauptspeisen vorhanden sind, liefere weniger als 3 Empfehlungen statt mit Vorspeisen oder Salaten aufzufuellen."
+      "- Wenn weniger als 10 sichtbare Hauptspeisen vorhanden sind, liefere alle geeigneten statt mit Vorspeisen oder Salaten aufzufuellen."
     ]
   };
 }
@@ -1130,8 +1124,8 @@ function buildPreferredDishRoleAssignment(
     rules: [
       "- Optionale Rollenpraeferenz innerhalb dieses Rollenraums: Bevorzuge sichere Vorspeisen gegenueber sicheren Salaten, wenn sie ansonsten aehnlich geeignet sind.",
       "- Diese Praeferenz darf Safety, harte Profilwerte oder den verbindlichen Rollenraum niemals ueberstimmen.",
-      "- Salate bleiben erlaubt und duerfen empfohlen werden.",
-      "- Liefere nicht weniger Empfehlungen nur weil weniger Vorspeisen vorhanden sind; fuelle verbleibende Plaetze mit sicheren Salaten auf.",
+      "- Salate bleiben erlaubt und duerfen im Kandidatenpool bleiben.",
+      "- Liefere nicht weniger Kandidaten nur weil weniger Vorspeisen vorhanden sind; nimm auch sichtbare Salate in den Kandidatenpool auf.",
       "- Innerhalb derselben Rolle bleiben primaryLikes fuer das Ranking aktiv."
     ]
   };
@@ -1167,12 +1161,12 @@ function buildActivePreferenceSearchAssignment(values: string[]): ActivePreferen
   if (values.length === 0) {
     return {
       kind: "none",
-      instruction: "Empfiehl genau 3 passende Gerichte aus dem angeforderten Rollenraum, wenn mindestens 3 sichere Gerichte vorhanden sind.",
+      instruction: "Liefere bis zu 10 passende Kandidaten aus dem angeforderten Rollenraum.",
       searchSpaceLabel: "allgemeine passende Gerichte im angeforderten Rollenraum",
       rules: [
-        "- Es gibt keine aktive Wunschrichtung; waehle genau 3 passende echte Gerichte aus dem angeforderten Rollenraum, wenn mindestens 3 sichere Gerichte vorhanden sind.",
-        "- Liefere nur weniger als 3 Empfehlungen, wenn nach harter Tabu-Pruefung tatsaechlich weniger sichere Gerichte im angeforderten Rollenraum vorhanden sind.",
-        "- Harte Ausschluesse, Allergien und Unvertraeglichkeiten bleiben verbindlich."
+        "- Es gibt keine aktive Wunschrichtung; liefere bis zu 10 echte Kandidaten aus dem angeforderten Rollenraum.",
+        "- Wenn weniger als 10 rollenpassende Gerichte sichtbar sind, liefere alle geeigneten.",
+        "- Harte Ausschluesse, Allergien und Unvertraeglichkeiten werden nachgelagert vom Backend geprueft."
       ]
     };
   }
@@ -1182,13 +1176,13 @@ function buildActivePreferenceSearchAssignment(values: string[]): ActivePreferen
 
     return {
       kind: "single",
-      instruction: `Empfiehl genau 3 Gerichte aus dem angeforderten Rollenraum und priorisiere dabei den aktiven Suchraum: ${searchTarget}.`,
+      instruction: `Liefere bis zu 10 Kandidaten aus dem angeforderten Rollenraum und priorisiere dabei den aktiven Suchraum: ${searchTarget}.`,
       searchSpaceLabel: searchTarget,
       rules: [
-        `- Wenn die Speisekarte genuegend passende ${searchTarget} enthaelt, muessen alle Empfehlungen ${searchTarget} sein.`,
-        `- Wenn weniger passende ${searchTarget} sicher erkennbar sind, ergaenze mit anderen sicheren Gerichten aus dem angeforderten Rollenraum, bis 3 Empfehlungen erreicht sind.`,
-        "- Liefere nur weniger als 3 Empfehlungen, wenn nach harter Tabu-Pruefung insgesamt weniger als 3 sichere Gerichte im angeforderten Rollenraum vorhanden sind.",
-        "- Fuelle nicht mit neutralen Kategorien ausserhalb des Suchraums auf.",
+        `- Wenn die Speisekarte passende ${searchTarget} enthaelt, sortiere diese im Kandidatenpool nach vorne.`,
+        `- Wenn weniger passende ${searchTarget} sichtbar sind, ergaenze mit anderen sichtbaren Gerichten aus dem angeforderten Rollenraum, bis maximal 10 Kandidaten erreicht sind.`,
+        "- Verdraenge neutrale rollenpassende Gerichte nicht nur wegen fehlendem Vorliebenbezug.",
+        "- Fuelle nicht mit Kategorien ausserhalb des Rollenraums auf.",
         "- Erfinde nichts.",
         "- Nutze nur echte Gerichte aus der Speisekarte."
       ]
@@ -1200,13 +1194,13 @@ function buildActivePreferenceSearchAssignment(values: string[]): ActivePreferen
 
   return {
     kind: "multiple",
-    instruction: `Empfiehl genau 3 Gerichte aus dem angeforderten Rollenraum und priorisiere dabei den aktiven Suchraum: ${searchSpace}.`,
+    instruction: `Liefere bis zu 10 Kandidaten aus dem angeforderten Rollenraum und priorisiere dabei den aktiven Suchraum: ${searchSpace}.`,
     searchSpaceLabel: searchSpace,
     rules: [
-      "- Empfehlungen muessen aus diesem Suchraum stammen, wenn passende Gerichte vorhanden sind.",
-      "- Fuelle nicht mit neutralen Kategorien ausserhalb des Suchraums auf.",
-      "- Wenn nur weniger sichere Treffer im Suchraum erkennbar sind, ergaenze mit anderen sicheren Gerichten aus dem angeforderten Rollenraum, bis 3 Empfehlungen erreicht sind.",
-      "- Liefere nur weniger als 3 Empfehlungen, wenn nach harter Tabu-Pruefung insgesamt weniger als 3 sichere Gerichte im angeforderten Rollenraum vorhanden sind.",
+      "- Kandidaten aus diesem Suchraum stehen weiter vorne, wenn passende Gerichte vorhanden sind.",
+      "- Verdraenge neutrale rollenpassende Gerichte nicht nur wegen fehlendem Vorliebenbezug.",
+      "- Wenn nur weniger Treffer im Suchraum erkennbar sind, ergaenze mit anderen sichtbaren Gerichten aus dem angeforderten Rollenraum, bis maximal 10 Kandidaten erreicht sind.",
+      "- Wenn weniger als 10 rollenpassende Gerichte sichtbar sind, liefere alle geeigneten.",
       "- Erfinde nichts.",
       "- Nutze nur echte Gerichte aus der Speisekarte."
     ]

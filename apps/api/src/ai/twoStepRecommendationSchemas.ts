@@ -114,6 +114,39 @@ export const MainDishAIResultSummarySchema = z.object({
   lessThanThreeReason: OptionalNullableStringSchema
 });
 
+export const MainDishAICompactDishSchema = z.object({
+  nameOriginal: z.string().trim().min(1),
+  descriptionOriginal: RequiredNullableStringSchema,
+  translatedName: z.string().trim().min(1),
+  translatedDescription: RequiredNullableStringSchema,
+  priceRaw: RequiredNullableStringSchema,
+  sourceEvidence: RequiredNullableStringSchema,
+  sourceKind: TwoStepSourceKindSchema.optional(),
+  sourceUrl: RequiredNullableStringSchema.optional(),
+  sourceCategoryOriginal: RequiredNullableStringSchema.optional(),
+  matchedPreferenceValue: RequiredNullableStringSchema
+});
+
+export const MainDishAICompactResponseSchema = z.object({
+  dishes: z.array(MainDishAICompactDishSchema)
+    .max(10, "Main AI compact response must not contain more than 10 dishes")
+    .refine((values) => {
+      const seen = new Set<string>();
+
+      for (const value of values) {
+        const key = value.nameOriginal.trim().toLowerCase();
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+      }
+
+      return true;
+    }, "Main AI compact response must not contain duplicate dish names")
+});
+
 export const CommittedMainDishRecommendationSchema = z.object({
   committed: z.literal(true),
   rank: z.number(),
@@ -207,6 +240,8 @@ export type MainDishAIAnalyzedDish = z.infer<typeof MainDishAIAnalyzedDishSchema
 export type MainDishAIRemovedDish = z.infer<typeof MainDishAIRemovedDishSchema>;
 export type MainDishAISafeCandidate = z.infer<typeof MainDishAISafeCandidateSchema>;
 export type MainDishAIResultSummary = z.infer<typeof MainDishAIResultSummarySchema>;
+export type MainDishAICompactDish = z.infer<typeof MainDishAICompactDishSchema>;
+export type MainDishAICompactResponse = z.infer<typeof MainDishAICompactResponseSchema>;
 export type CommittedMainDishRecommendation = z.infer<typeof CommittedMainDishRecommendationSchema>;
 export type RejectedMainDishRecommendation = z.infer<typeof RejectedMainDishRecommendationSchema>;
 export type MainDishCommitResult = z.infer<typeof MainDishCommitResultSchema>;

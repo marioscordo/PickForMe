@@ -179,13 +179,27 @@ assert(mainAi.includes("Der aktive Rollenraum ist ausschliesslich main."), "Main
 assert(mainAi.includes("keine_rollenfremde_auffuellung"), "Main AI must forbid role-foreign fill-up");
 assert(mainAi.includes("Optionale Rollenpraeferenz"), "Main AI optional starter preference rule missing");
 assert(mainAi.includes("Salate bleiben erlaubt"), "Main AI must keep salads allowed for embedded starter preference");
-assert(mainAi.includes("fuelle verbleibende Plaetze mit sicheren Salaten auf"), "Main AI must fill with safe salads when starters are insufficient");
+assert(mainAi.includes("nimm auch sichtbare Salate in den Kandidatenpool auf"), "Main AI must keep salads in the starter/salad candidate pool");
 assert(mainAi.includes("verifyRecommendationSafetyAI"), "Safety verifier must remain active");
-assert(mainAi.includes("validateMainDishAttributions(parsed, profile, runId, signal)"), "Attribution validator must run in the shared Main AI path");
+assert(mainAi.includes("MainDishAICompactResponseSchema.parse"), "Main AI must parse the compact deduplicated response contract");
+assert(mainAi.includes("buildMainDishResponseFromCompactDishes"), "Main AI compact response must be converted to the existing backend candidate shape");
+assert(mainAi.includes("applyMainDishVerifierSafety(parsed, profile, runId, signal)"), "Main AI must run hard safety before soft preference attribution");
+assert(mainAi.includes("validateMainDishAttributions(verifierSafe, profile, runId, signal)"), "Attribution validator must run after hard safety in the shared Main AI path");
 assert(mainAi.includes("backfillMainDishRecommendationsWithValidatedCandidates"), "Main AI must backfill only from attribution-validated safe candidates");
+assert(mainAi.includes('"dishes": ['), "Main AI prompt must request a single compact dishes list");
+assert(mainAi.includes("Liefere bis zu 10 unterschiedliche Gerichte"), "Main AI prompt must allow a broader compact candidate pool");
+assert(mainAi.includes("Liefere maximal 10 Compact-Dishes"), "Main AI prompt must cap compact dishes at 10");
+assert(!/Empfiehl genau 3|waehle genau 3|Wähle die besten 3|besten 3|3 Empfehlungen erreicht|weniger als 3 Empfehlungen/.test(mainAi), "Main AI prompt must not ask the model to pick exactly three dishes");
+assert(!mainAi.includes('"allDishes": ['), "Main AI prompt must not request duplicated allDishes output");
+assert(!mainAi.includes('"safeCandidates": ['), "Main AI prompt must not request duplicated safeCandidates output");
+assert(!mainAi.includes('"recommendationPayload": {'), "Main AI prompt must not request duplicated recommendationPayload output");
+assert(!mainAi.includes('"recommendations": ['), "Main AI prompt must not request duplicated final recommendations output");
+assert(mainAi.includes("const candidates = dishes.map"), "Compact adapter must take all supplied dishes into the backend candidate pool");
+assert(!mainAi.includes("compactParsed.dishes.slice"), "Compact parser must not trim the model candidate pool before the adapter");
+assert(!mainAi.includes("dishes.slice"), "Compact adapter must not trim the model candidate pool");
 assert(mainAi.includes('phase: "api.main_ai_request"'), "Main AI request timing diagnostic missing");
 assert(mainAi.includes("contentDiagnostics"), "Main AI request diagnostic must include input mode metadata");
-assert(mainAi.includes("normalizeMissingTranslatedDescriptions(parsed, targetLocale)"), "Main AI must normalize missing translated descriptions before validation");
+assert(mainAi.includes("normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale)"), "Main AI must normalize missing translated descriptions before validation");
 assert(mainAi.includes("item.translatedDescription = null"), "Main AI must keep the source description and clear missing translated descriptions");
 assert(!mainAi.includes("AI_RESPONSE_INVALID_MISSING_TRANSLATED_DESCRIPTION"), "Missing translatedDescription must not reject the whole Main AI response");
 assert(mainAi.includes("AI_RESPONSE_INVALID_DESCRIPTION_WITHOUT_SOURCE"), "Invented translated descriptions without a source must still be rejected");
@@ -198,6 +212,10 @@ assert(attributionValidator.includes("verifyAttributionEvidenceAI"), "Attributio
 assert(attributionValidator.includes("findDirectVisibleEvidence"), "Attribution validator must keep local direct visible-evidence validation");
 assert(attributionValidator.includes("buildDeterministicPreferenceReason"), "Attribution validator must replace free AI reasons with deterministic preference reasons");
 assert(!attributionValidator.includes("reason: recommendation.reason"), "Attribution validator must not pass free AI recommendation reasons through");
+
+const twoStepSchemas = read("apps/api/src/ai/twoStepRecommendationSchemas.ts");
+assert(twoStepSchemas.includes(".max(10, \"Main AI compact response must not contain more than 10 dishes\")"), "Compact Main AI schema must allow up to 10 dishes and reject more");
+assert(twoStepSchemas.includes("MainDishAICompactResponseSchema"), "Compact Main AI schema missing");
 
 const twoStepUtils = read("apps/api/src/ai/twoStepRecommendationAIUtils.ts");
 assert(twoStepUtils.includes('source.mainAiInputMode !== "extracted_text"'), "extracted-text PDF mode must skip PDF file input");

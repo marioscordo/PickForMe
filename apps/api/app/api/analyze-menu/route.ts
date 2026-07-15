@@ -308,10 +308,18 @@ export async function POST(request: Request) {
           );
         }
 
+        if (message.includes("TWO_STEP_MAIN_AI_TIMEOUT")) {
+          throw new AppError(
+            504,
+            "AI_TIMEOUT",
+            "Ich brauche fuer diese PDF-Speisekarte gerade zu lange. Bitte versuche es noch einmal.",
+            { retryable: true }
+          );
+        }
+
         if (
           message.includes("PDF_LOCALIZATION_FAILED") ||
-          message.includes("PDF_AI_TIMEOUT") ||
-          message.includes("TWO_STEP_MAIN_AI_TIMEOUT")
+          message.includes("PDF_AI_TIMEOUT")
         ) {
           throw new AppError(
             422,
