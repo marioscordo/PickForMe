@@ -1,10 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useAuth } from "./AuthProvider";
 import { DEFAULT_OUTPUT_LOCALE } from "../../config/outputLocales";
 import { filterControlledProfileValues } from "../../profile/profileInputPolicy";
 import type { UserProfile } from "../../types/profile";
 
 const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";
+const DEV_PROFILE_STORAGE_KEY = `${PROFILE_STORAGE_KEY}:dev`;
+const LEGACY_PROFILE_MIGRATION_KEY = `${PROFILE_STORAGE_KEY}:legacy-migrated-to`;
 
 const defaultProfile: UserProfile = {
   displayName: "",
@@ -29,19 +32,29 @@ type ProfileContextValue = {
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
+  const auth = useAuth();
   const [profile, setProfileState] = useState<UserProfile>(defaultProfile);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const profileStorageKey = getProfileStorageKey(auth.state);
 
   useEffect(() => {
-    let active = true;
+    if (!profileStorageKey) {
+      setProfileState(defaultProfile);
+      setProfileLoaded(false);
+      return;
+    }
 
-    AsyncStorage.getItem(PROFILE_STORAGE_KEY)
+    let active = true;
+    setProfileState(defaultProfile);
+    setProfileLoaded(false);
+
+    loadStoredProfile(profileStorageKey, () => active)
       .then((storedProfile) => {
-        if (!active) {
+        if (!active || !storedProfile) {
           return;
         }
 
-        setProfileState(mergeStoredProfile(storedProfile));
+        setProfileState(storedProfile);
       })
       .catch(() => {
         if (active) {
@@ -57,17 +70,17 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [profileStorageKey]);
 
   useEffect(() => {
-    if (!profileLoaded) {
+    if (!profileLoaded || !profileStorageKey) {
       return;
     }
 
-    AsyncStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(toStoredProfile(profile))).catch(() => {
+    AsyncStorage.setItem(profileStorageKey, JSON.stringify(toStoredProfile(profile))).catch(() => {
       // Profile changes remain available in memory for the current session.
     });
-  }, [profile, profileLoaded]);
+  }, [profile, profileLoaded, profileStorageKey]);
 
   function setProfile(nextProfile: UserProfile | ((current: UserProfile) => UserProfile)) {
     setProfileState((currentProfile) =>
@@ -108,6 +121,60 @@ function mergeStoredProfile(storedProfile: string | null): UserProfile {
   } catch {
     return defaultProfile;
   }
+}
+
+function getProfileStorageKey(authState: ReturnType<typeof useAuth>["state"]) {
+  if (authState.status === "authenticated") {
+    return `${PROFILE_STORAGE_KEY}:${authState.userId}`;
+  }
+
+  if (authState.status === "dev") {
+    return DEV_PROFILE_STORAGE_KEY;
+  }
+
+  return null;
+}
+
+async function loadStoredProfile(
+  profileStorageKey: string,
+  isActive: () => boolean
+): Promise<UserProfile | null> {
+  const storedProfile = await AsyncStorage.getItem(profileStorageKey);
+
+  if (!isActive()) {
+    return null;
+  }
+
+  if (storedProfile) {
+    return mergeStoredProfile(storedProfile);
+  }
+
+  const migratedTo = await AsyncStorage.getItem(LEGACY_PROFILE_MIGRATION_KEY);
+
+  if (!isActive()) {
+    return null;
+  }
+
+  if (migratedTo) {
+    return defaultProfile;
+  }
+
+  const legacyProfile = await AsyncStorage.getItem(PROFILE_STORAGE_KEY);
+
+  if (!isActive()) {
+    return null;
+  }
+
+  if (!legacyProfile) {
+    return defaultProfile;
+  }
+
+  await AsyncStorage.multiSet([
+    [profileStorageKey, legacyProfile],
+    [LEGACY_PROFILE_MIGRATION_KEY, profileStorageKey]
+  ]);
+
+  return mergeStoredProfile(legacyProfile);
 }
 
 function normalizeProfile(profile: Partial<UserProfile>): UserProfile {

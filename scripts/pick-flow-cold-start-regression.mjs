@@ -25,6 +25,12 @@ const pickformeApi = read("apps/mobile/src/api/pickformeApi.ts");
 const mobileContentDe = JSON.parse(read("apps/mobile/src/content/mobileContent.de-DE.json"));
 const supabaseClient = read("apps/mobile/src/services/supabaseClient.ts");
 
+const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";
+const DEV_PROFILE_STORAGE_KEY = `${PROFILE_STORAGE_KEY}:dev`;
+const USER_A_PROFILE_STORAGE_KEY = `${PROFILE_STORAGE_KEY}:test-user-a`;
+const USER_B_PROFILE_STORAGE_KEY = `${PROFILE_STORAGE_KEY}:test-user-b`;
+const LEGACY_PROFILE_MIGRATION_KEY = `${PROFILE_STORAGE_KEY}:legacy-migrated-to`;
+
 for (const [name, source] of [
   ["PickScreen", pickScreen],
   ["useAnalyzeMenu", useAnalyzeMenu],
@@ -38,9 +44,20 @@ for (const [name, source] of [
   assert(!source.includes("setItem("), `${name} must not persist Pick state to storage`);
 }
 
-assert(profileProvider.includes('const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";'), "profile storage key must remain explicit");
-assert(profileProvider.includes("AsyncStorage.getItem(PROFILE_STORAGE_KEY)"), "profile must still hydrate from its own storage key");
-assert(profileProvider.includes("AsyncStorage.setItem(PROFILE_STORAGE_KEY"), "profile must still persist to its own storage key");
+assert(profileProvider.includes('const PROFILE_STORAGE_KEY = "gustaroai:user-profile:v1";'), "profile legacy storage key must remain explicit");
+assert(profileProvider.includes("useAuth()"), "profile provider must derive profile storage from auth state");
+assert(profileProvider.includes("DEV_PROFILE_STORAGE_KEY") && profileProvider.includes(":dev"), "dev profile storage key must remain explicit and separate");
+assert(profileProvider.includes("LEGACY_PROFILE_MIGRATION_KEY") && profileProvider.includes("legacy-migrated-to"), "legacy migration marker must remain explicit");
+assert(profileProvider.includes('authState.status === "authenticated"') && profileProvider.includes("authState.userId"), "authenticated profile key must depend on Supabase user id");
+assert(profileProvider.includes('authState.status === "dev"') && profileProvider.includes("DEV_PROFILE_STORAGE_KEY"), "dev auth state must receive its own stable profile key");
+assert(profileProvider.includes("return null;"), "anonymous and loading auth states must not receive an active profile key");
+assert(profileProvider.includes("AsyncStorage.getItem(profileStorageKey)"), "profile must hydrate from the active storage key");
+assert(profileProvider.includes("AsyncStorage.setItem(profileStorageKey"), "profile must persist to the active storage key");
+assert(profileProvider.includes("!profileLoaded || !profileStorageKey"), "profile must not persist before loading and key resolution finish");
+assert(profileProvider.includes("setProfileState(defaultProfile)") && profileProvider.includes("setProfileLoaded(false)"), "profile provider must reset in-memory profile while auth/key is unresolved");
+assert(profileProvider.includes("let active = true") && profileProvider.includes("active = false"), "profile loading must keep cancellation state for auth changes");
+assert(profileProvider.includes("if (!active || !storedProfile)"), "late profile loads must not update state after auth changes");
+assert(profileProvider.includes("AsyncStorage.multiSet") && profileProvider.includes("[profileStorageKey, legacyProfile]") && profileProvider.includes("[LEGACY_PROFILE_MIGRATION_KEY, profileStorageKey]"), "legacy migration must write target profile and marker together");
 assert(supabaseClient.includes("persistSession: true"), "auth session persistence may remain separate from Pick state");
 assert(profileProvider.includes('displayName: "",'), "fresh profile must not include a sample displayName");
 assert(!profileProvider.includes('displayName: "Mario"'), "fresh profile must not include Mario as sample data");
@@ -85,7 +102,7 @@ assert(rootNavigator.includes('const [activeTab, setActiveTab] = useState<RootTa
 assert(rootNavigator.includes("<PickScreen"), "PickScreen remains mounted only within the current app session");
 
 const previousStorage = {
-  "gustaroai:user-profile:v1": JSON.stringify({
+  [PROFILE_STORAGE_KEY]: JSON.stringify({
     primaryLikes: ["Fisch"],
     customExclusions: ["Walnuesse"],
     allergens: ["Walnuesse"],
@@ -121,8 +138,54 @@ function coldStartPickState(_storage) {
   };
 }
 
-function hydrateProfile(storage) {
-  return JSON.parse(storage["gustaroai:user-profile:v1"]);
+function profileStorageKeyFor(authState) {
+  if (authState.status === "authenticated") {
+    return `${PROFILE_STORAGE_KEY}:${authState.userId}`;
+  }
+
+  if (authState.status === "dev") {
+    return DEV_PROFILE_STORAGE_KEY;
+  }
+
+  return null;
+}
+
+function hydrateProfile(storage, profileStorageKey) {
+  return profileStorageKey && storage[profileStorageKey]
+    ? JSON.parse(storage[profileStorageKey])
+    : freshProfileFromDefault();
+}
+
+function simulateLegacyProfileLoad(storage, profileStorageKey) {
+  if (storage[profileStorageKey]) {
+    return {
+      profile: JSON.parse(storage[profileStorageKey]),
+      storage
+    };
+  }
+
+  if (storage[LEGACY_PROFILE_MIGRATION_KEY]) {
+    return {
+      profile: freshProfileFromDefault(),
+      storage
+    };
+  }
+
+  if (!storage[PROFILE_STORAGE_KEY]) {
+    return {
+      profile: freshProfileFromDefault(),
+      storage
+    };
+  }
+
+  return {
+    profile: JSON.parse(storage[PROFILE_STORAGE_KEY]),
+    storage: {
+      ...storage,
+      [profileStorageKey]: storage[PROFILE_STORAGE_KEY],
+      [LEGACY_PROFILE_MIGRATION_KEY]: profileStorageKey
+    }
+  };
 }
 
 function freshProfileFromDefault() {
@@ -244,18 +307,76 @@ assert(firstAnalyzePayloadProfile.primaryLikes.length === 0, "first analysis pay
 assert(firstAnalyzePayloadProfile.customExclusions.length === 0, "first analysis payload must not include exclusions");
 assert(firstAnalyzePayloadProfile.allergens.length === 0, "first analysis payload must not include active allergens");
 
+assert(profileStorageKeyFor({ status: "loading" }) === null, "loading auth must not have a profile storage key");
+assert(profileStorageKeyFor({ status: "anonymous" }) === null, "anonymous auth must not have a profile storage key");
+assert(profileStorageKeyFor({ status: "dev" }) === DEV_PROFILE_STORAGE_KEY, "dev auth must use the stable dev profile key");
+assert(
+  profileStorageKeyFor({ status: "authenticated", userId: "test-user-a" }) === USER_A_PROFILE_STORAGE_KEY,
+  "authenticated user A must use a user-bound profile key"
+);
+assert(
+  profileStorageKeyFor({ status: "authenticated", userId: "test-user-b" }) === USER_B_PROFILE_STORAGE_KEY,
+  "authenticated user B must use a different user-bound profile key"
+);
+assert(USER_A_PROFILE_STORAGE_KEY !== USER_B_PROFILE_STORAGE_KEY, "different authenticated users must not share profile keys");
+assert(DEV_PROFILE_STORAGE_KEY !== USER_A_PROFILE_STORAGE_KEY, "dev profile key must be separate from authenticated user keys");
+
+const devStoredProfile = hydrateProfile({
+  [DEV_PROFILE_STORAGE_KEY]: JSON.stringify({
+    displayName: "Dev User",
+    primaryLikes: ["Pizza"],
+    customExclusions: ["Oliven"],
+    allergens: ["Eier"]
+  })
+}, DEV_PROFILE_STORAGE_KEY);
+assert(devStoredProfile.displayName === "Dev User", "dev restart must load the stored dev displayName");
+assert(devStoredProfile.primaryLikes.includes("Pizza"), "dev restart must load stored dev preferences");
+assert(devStoredProfile.customExclusions.includes("Oliven"), "dev restart must load stored dev exclusions");
+assert(devStoredProfile.allergens.includes("Eier"), "dev restart must load stored dev allergens");
+
 const storedProfile = hydrateProfile({
-  "gustaroai:user-profile:v1": JSON.stringify({
+  [USER_A_PROFILE_STORAGE_KEY]: JSON.stringify({
     displayName: "Mario",
     primaryLikes: ["Pasta"],
     customExclusions: ["Koriander"],
     allergens: ["Milch"]
   })
-});
+}, USER_A_PROFILE_STORAGE_KEY);
 assert(storedProfile.displayName === "Mario", "existing stored displayName must remain unchanged");
 assert(storedProfile.primaryLikes.includes("Pasta"), "existing stored preferences must remain unchanged");
 assert(storedProfile.customExclusions.includes("Koriander"), "existing stored exclusions must remain unchanged");
 assert(storedProfile.allergens.includes("Milch"), "existing stored active allergens must remain unchanged");
+
+const migratedLegacyToDev = simulateLegacyProfileLoad({
+  [PROFILE_STORAGE_KEY]: JSON.stringify({
+    displayName: "Legacy",
+    primaryLikes: ["Fisch"],
+    customExclusions: ["Walnuesse"],
+    allergens: ["Walnuesse"]
+  })
+}, DEV_PROFILE_STORAGE_KEY);
+assert(migratedLegacyToDev.profile.displayName === "Legacy", "legacy profile may migrate to the first active dev target");
+assert(migratedLegacyToDev.storage[DEV_PROFILE_STORAGE_KEY], "legacy migration must write the dev target key");
+assert(migratedLegacyToDev.storage[LEGACY_PROFILE_MIGRATION_KEY] === DEV_PROFILE_STORAGE_KEY, "legacy migration marker must point to the dev target key");
+
+const targetWinsOverLegacy = simulateLegacyProfileLoad({
+  [PROFILE_STORAGE_KEY]: JSON.stringify({ displayName: "Legacy" }),
+  [USER_A_PROFILE_STORAGE_KEY]: JSON.stringify({
+    displayName: "User A",
+    primaryLikes: ["Pasta"],
+    customExclusions: [],
+    allergens: []
+  })
+}, USER_A_PROFILE_STORAGE_KEY);
+assert(targetWinsOverLegacy.profile.displayName === "User A", "existing user target profile must win over legacy");
+assert(!targetWinsOverLegacy.storage[LEGACY_PROFILE_MIGRATION_KEY], "loading an existing target must not create a legacy marker");
+
+const alreadyMigrated = simulateLegacyProfileLoad({
+  [PROFILE_STORAGE_KEY]: JSON.stringify({ displayName: "Legacy" }),
+  [LEGACY_PROFILE_MIGRATION_KEY]: DEV_PROFILE_STORAGE_KEY
+}, USER_B_PROFILE_STORAGE_KEY);
+assert(alreadyMigrated.profile.displayName === "", "already migrated legacy profile must not be copied to another user");
+assert(!alreadyMigrated.storage[USER_B_PROFILE_STORAGE_KEY], "already migrated legacy profile must not create a second target key");
 
 const coldStart = coldStartPickState(previousStorage);
 assert(coldStart.menuText === "", "cold start must not restore menuText");
@@ -271,11 +392,14 @@ assert(coldStart.activeNestedDishIdRef === null, "cold start must not restore ne
 assert(Object.keys(coldStart.nestedRecommendationsByDishId).length === 0, "cold start must not restore nested recommendations");
 assert(coldStart.browserOpening === false, "cold start must not restore temporary browser guard");
 
-const profile = hydrateProfile(previousStorage);
+const coldStartProfileLoad = simulateLegacyProfileLoad(previousStorage, DEV_PROFILE_STORAGE_KEY);
+const profile = coldStartProfileLoad.profile;
 assert(profile.primaryLikes.includes("Fisch"), "profile likes must survive cold start");
 assert(profile.customExclusions.includes("Walnuesse"), "profile exclusions must survive cold start");
 assert(profile.allergens.includes("Walnuesse"), "profile allergens must survive cold start");
 assert(profile.outputLocale === "de", "output locale must survive cold start");
+assert(coldStartProfileLoad.storage[DEV_PROFILE_STORAGE_KEY], "legacy cold-start profile must be assigned to the active dev key");
+assert(coldStartProfileLoad.storage[LEGACY_PROFILE_MIGRATION_KEY] === DEV_PROFILE_STORAGE_KEY, "legacy cold-start migration must mark the active dev key");
 
 function backgroundResume(state) {
   return { ...state };
