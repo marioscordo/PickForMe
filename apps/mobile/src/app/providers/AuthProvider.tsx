@@ -4,6 +4,7 @@ import { deleteAccount as deleteAccountRequest } from "../../api/pickformeApi";
 import { env } from "../../config/env";
 import { getMobileContent } from "../../content/mobileContent";
 import { resolveGuiLanguageFromDevice } from "../../content/guiLanguage";
+import { processInitialAuthCallback, subscribeToAuthCallbacks } from "../../services/authLinkingService";
 import { supabase } from "../../services/supabaseClient";
 import type { AuthState } from "../../types/auth";
 
@@ -27,27 +28,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     let active = true;
+    let authRevision = 0;
 
-    supabase.auth.getSession()
-      .then(({ data }) => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      authRevision += 1;
+
+      if (active) {
+        setState(authStateFromSession(session));
+      }
+    });
+
+    const unsubscribeAuthCallbacks = subscribeToAuthCallbacks({
+      onStart: () => {
         if (active) {
-          setState(authStateFromSession(data.session));
+          setState({ status: "loading" });
         }
-      })
+      }
+    });
+
+    async function initializeAuth() {
+      await processInitialAuthCallback({
+        onStart: () => {
+          if (active) {
+            setState({ status: "loading" });
+          }
+        }
+      });
+
+      const revisionBeforeSessionLoad = authRevision;
+      const { data: sessionData } = await supabase.auth.getSession();
+
+      if (active && revisionBeforeSessionLoad === authRevision) {
+        setState(authStateFromSession(sessionData.session));
+      }
+    }
+
+    initializeAuth()
       .catch(() => {
         if (active) {
           setState({ status: "anonymous" });
         }
       });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) {
-        setState(authStateFromSession(session));
-      }
-    });
-
     return () => {
       active = false;
+      unsubscribeAuthCallbacks();
       data.subscription.unsubscribe();
     };
   }, []);

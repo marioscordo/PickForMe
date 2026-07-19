@@ -7,6 +7,7 @@ export const supabase = createClient(env.supabaseUrl, env.supabaseAnonKey, {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false
+    detectSessionInUrl: false,
+    flowType: "pkce"
   }
 });
