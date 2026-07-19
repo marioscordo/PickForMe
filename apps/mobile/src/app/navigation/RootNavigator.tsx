@@ -1,6 +1,8 @@
-﻿import React, { useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { ConfirmEmailScreen } from "../../screens/auth/ConfirmEmailScreen";
 import { LoginScreen } from "../../screens/auth/LoginScreen";
+import { RegisterScreen } from "../../screens/auth/RegisterScreen";
 import { ConciergeStartScreen } from "../../screens/home/ConciergeStartScreen";
 import { PickScreen } from "../../screens/pick/PickScreen";
 import { ProfileScreen, type ProfileSection } from "../../screens/profile/ProfileScreen";
@@ -9,12 +11,22 @@ import { styles } from "../../theme/styles";
 import { BottomTabs } from "./PickTabs";
 
 type RootTab = "home" | "pick" | "profile";
+type AuthScreen = "login" | "register" | "confirm-email";
 
 export function RootNavigator({ auth }: { auth: AuthState }) {
+  const [authScreen, setAuthScreen] = useState<AuthScreen>("login");
+  const [confirmationEmail, setConfirmationEmail] = useState("");
   const [activeTab, setActiveTab] = useState<RootTab>("home");
   const [activeProfileSection, setActiveProfileSection] = useState<ProfileSection | null>(null);
   const [profileReturnToPick, setProfileReturnToPick] = useState(false);
   const [pickReturnToMoodKey, setPickReturnToMoodKey] = useState(0);
+
+  useEffect(() => {
+    if (auth.status !== "anonymous") {
+      setAuthScreen("login");
+      setConfirmationEmail("");
+    }
+  }, [auth.status]);
 
   function openPickFromStart() {
     setActiveProfileSection(null);
@@ -48,7 +60,28 @@ export function RootNavigator({ auth }: { auth: AuthState }) {
   }
 
   if (auth.status === "anonymous") {
-    return <LoginScreen />;
+    if (authScreen === "register") {
+      return (
+        <RegisterScreen
+          onBackToLogin={() => setAuthScreen("login")}
+          onConfirmEmail={(email) => {
+            setConfirmationEmail(email);
+            setAuthScreen("confirm-email");
+          }}
+        />
+      );
+    }
+
+    if (authScreen === "confirm-email") {
+      return (
+        <ConfirmEmailScreen
+          email={confirmationEmail}
+          onBackToLogin={() => setAuthScreen("login")}
+        />
+      );
+    }
+
+    return <LoginScreen onCreateAccount={() => setAuthScreen("register")} />;
   }
 
   return (

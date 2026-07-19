@@ -92,10 +92,37 @@
     "continueButton": "Weiter zu GustaroAI",
     "genericError": "Login fehlgeschlagen."
   },
+  "auth": {
+    "login": {
+      "createAccount": "Konto erstellen"
+    },
+    "register": {
+      "title": "Konto erstellen",
+      "emailLabel": "E-Mail-Adresse",
+      "passwordLabel": "Passwort",
+      "confirmPasswordLabel": "Passwort bestätigen",
+      "submit": "Konto erstellen",
+      "loading": "Konto wird erstellt ...",
+      "backToLogin": "Zurück zum Login",
+      "privacyNoticePrefix": "Mit der Registrierung bestätigst Du, dass Du die",
+      "privacyLink": "Datenschutzerklärung",
+      "privacyNoticeSuffix": " zur Kenntnis genommen hast.",
+      "invalidEmail": "Bitte gib eine gültige E-Mail-Adresse ein.",
+      "passwordTooShort": "Das Passwort muss mindestens 8 Zeichen lang sein.",
+      "passwordMismatch": "Die Passwörter stimmen nicht überein.",
+      "genericError": "Die Registrierung konnte gerade nicht abgeschlossen werden. Bitte versuche es erneut.",
+      "checkEmailTitle": "Bestätige Deine E-Mail-Adresse",
+      "checkEmailBody": "Wir haben Dir eine Bestätigungs-E-Mail gesendet. Öffne den Link in der E-Mail, um Dein GustaroAI-Konto zu aktivieren.",
+      "checkSpam": "Bitte prüfe auch Deinen Spam-Ordner.",
+      "registeredEmailLabel": "Gesendet an:",
+      "neutralExistingAccountNotice": "Bitte prüfe Dein E-Mail-Postfach. Falls bereits ein Konto besteht, kannst Du Dich anmelden oder später die Passwort-Wiederherstellung nutzen."
+    }
+  },
   "authErrors": {
     "devNotConfigured": "Dev-Zugang ist nicht konfiguriert.",
     "devNotAllowed": "Dieser Zugang ist nicht freigeschaltet.",
     "loginFailed": "Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.",
+    "registrationFailed": "Die Registrierung konnte gerade nicht abgeschlossen werden. Bitte versuche es erneut.",
     "accountDeleteDevUnavailable": "Account-Löschung ist im lokalen Testzugang nicht verfügbar.",
     "accountDeleteFailed": "Account und Daten konnten gerade nicht gelöscht werden. Bitte versuche es später noch einmal.",
     "missingProvider": "useAuth muss innerhalb von AuthProvider genutzt werden."

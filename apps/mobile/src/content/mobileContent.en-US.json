@@ -92,10 +92,37 @@
     "continueButton": "Continue to GustaroAI",
     "genericError": "Login failed."
   },
+  "auth": {
+    "login": {
+      "createAccount": "Create account"
+    },
+    "register": {
+      "title": "Create account",
+      "emailLabel": "Email address",
+      "passwordLabel": "Password",
+      "confirmPasswordLabel": "Confirm password",
+      "submit": "Create account",
+      "loading": "Creating account ...",
+      "backToLogin": "Back to login",
+      "privacyNoticePrefix": "By registering, you confirm that you have read the",
+      "privacyLink": "privacy policy",
+      "privacyNoticeSuffix": ".",
+      "invalidEmail": "Please enter a valid email address.",
+      "passwordTooShort": "The password must be at least 8 characters long.",
+      "passwordMismatch": "The passwords do not match.",
+      "genericError": "Registration could not be completed right now. Please try again.",
+      "checkEmailTitle": "Confirm your email address",
+      "checkEmailBody": "We sent you a confirmation email. Open the link in the email to activate your GustaroAI account.",
+      "checkSpam": "Please also check your spam folder.",
+      "registeredEmailLabel": "Sent to:",
+      "neutralExistingAccountNotice": "Please check your email inbox. If an account already exists, you can sign in or use password recovery later."
+    }
+  },
   "authErrors": {
     "devNotConfigured": "Dev access is not configured.",
     "devNotAllowed": "This access is not enabled.",
     "loginFailed": "Login failed. Please check email and password.",
+    "registrationFailed": "Registration could not be completed right now. Please try again.",
     "accountDeleteDevUnavailable": "Account deletion is not available in the local test access.",
     "accountDeleteFailed": "Account and data could not be deleted right now. Please try again later.",
     "missingProvider": "useAuth must be used inside AuthProvider."

@@ -4,13 +4,19 @@ import { deleteAccount as deleteAccountRequest } from "../../api/pickformeApi";
 import { env } from "../../config/env";
 import { getMobileContent } from "../../content/mobileContent";
 import { resolveGuiLanguageFromDevice } from "../../content/guiLanguage";
-import { processInitialAuthCallback, subscribeToAuthCallbacks } from "../../services/authLinkingService";
+import { getAuthCallbackUrl, processInitialAuthCallback, subscribeToAuthCallbacks } from "../../services/authLinkingService";
 import { supabase } from "../../services/supabaseClient";
 import type { AuthState } from "../../types/auth";
+
+export type SignUpResult =
+  | { status: "confirmation-required"; email: string }
+  | { status: "authenticated" }
+  | { status: "error"; message: string };
 
 type AuthContextValue = {
   state: AuthState;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
 };
@@ -105,6 +111,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState(authStateFromSession(data.session));
   }
 
+  async function signUp(email: string, password: string): Promise<SignUpResult> {
+    const normalized = email.trim().toLowerCase();
+
+    const { data, error } = await supabase.auth.signUp({
+      email: normalized,
+      password,
+      options: {
+        emailRedirectTo: getAuthCallbackUrl()
+      }
+    });
+
+    if (error) {
+      return { status: "error", message: authContent.registrationFailed };
+    }
+
+    if (data.session) {
+      setState(authStateFromSession(data.session));
+      return { status: "authenticated" };
+    }
+
+    return { status: "confirmation-required", email: normalized };
+  }
+
   async function signOut() {
     if (!env.devMode) {
       await supabase.auth.signOut();
@@ -135,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       state,
       signIn,
+      signUp,
       signOut,
       deleteAccount
     }),
