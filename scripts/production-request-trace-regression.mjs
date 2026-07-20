@@ -47,6 +47,23 @@ const allowedFields = [
   "uncertainCount",
   "conflictCount",
   "invalidCount",
+  "safetyRequestedCandidateCount",
+  "mainCandidateIdCount",
+  "mainUniqueCandidateIdCount",
+  "safetyReturnedCandidateIdCount",
+  "safetyReturnedCheckCount",
+  "safetyUniqueReturnedCandidateIdCount",
+  "safetyMissingCandidateCount",
+  "safetyDuplicateCandidateIdCount",
+  "safetyUnknownCandidateIdCount",
+  "safetyMissingVerdictCount",
+  "safetyInvalidVerdictCount",
+  "safetyInvalidSchemaCount",
+  "safetyParseFailureCount",
+  "safetyExceptionCount",
+  "safetyTimeoutCount",
+  "safetyEmptyResponseCount",
+  "safetyTruncatedOrIncompleteCount",
   "finalSafeCount",
   "reviewCandidateCount",
   "reviewReturnedCount",
@@ -112,6 +129,7 @@ assert(
 assert(
   mainAi.includes("productionTrace?:") &&
     mainAi.includes("buildProductionSafetyTrace") &&
+    mainAi.includes("buildSafetyCallFailureDiagnostics") &&
     mainAi.includes('reason === "uncertain"') &&
     mainAi.includes('reason === "conflict"') &&
     mainAi.includes('reason === "invalid_response"'),

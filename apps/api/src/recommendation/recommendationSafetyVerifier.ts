@@ -37,6 +37,26 @@ export type RecommendationSafetyValidationResult = {
   reason?: "invalid_response" | "conflict" | "uncertain";
 };
 
+export type RecommendationSafetyDiagnostics = {
+  safetyRequestedCandidateCount: number;
+  mainCandidateIdCount: number;
+  mainUniqueCandidateIdCount: number;
+  safetyReturnedCandidateIdCount: number;
+  safetyReturnedCheckCount: number;
+  safetyUniqueReturnedCandidateIdCount: number;
+  safetyMissingCandidateCount: number;
+  safetyDuplicateCandidateIdCount: number;
+  safetyUnknownCandidateIdCount: number;
+  safetyMissingVerdictCount: number;
+  safetyInvalidVerdictCount: number;
+  safetyInvalidSchemaCount: number;
+  safetyParseFailureCount: number;
+  safetyExceptionCount: number;
+  safetyTimeoutCount: number;
+  safetyEmptyResponseCount: number;
+  safetyTruncatedOrIncompleteCount: number;
+};
+
 export function buildRecommendationSafetyRestrictions(profile: Partial<UserProfile>): RecommendationSafetyRestriction[] {
   return [
     ...arrayValue(profile.allergens).map((label, index) => ({
@@ -61,11 +81,45 @@ export function validateRecommendationSafetyResponse({
   candidates: RecommendationSafetyCandidate[];
   response: RecommendationSafetyVerifierResponse;
 }): RecommendationSafetyValidationResult[] {
+  return validateRecommendationSafetyResponseWithDiagnostics({
+    restrictions,
+    candidates,
+    response
+  }).validation;
+}
+
+export function validateRecommendationSafetyResponseWithDiagnostics({
+  restrictions,
+  candidates,
+  response,
+  callFailure
+}: {
+  restrictions: RecommendationSafetyRestriction[];
+  candidates: RecommendationSafetyCandidate[];
+  response: RecommendationSafetyVerifierResponse;
+  callFailure?: Partial<Pick<RecommendationSafetyDiagnostics,
+    "safetyParseFailureCount" |
+    "safetyExceptionCount" |
+    "safetyTimeoutCount"
+  >>;
+}): {
+  validation: RecommendationSafetyValidationResult[];
+  diagnostics: RecommendationSafetyDiagnostics;
+} {
+  const diagnostics = buildEmptySafetyDiagnostics({
+    candidates,
+    response,
+    callFailure
+  });
+
   if (restrictions.length === 0) {
-    return candidates.map((candidate) => ({
-      candidateId: candidate.id,
-      safe: true
-    }));
+    return {
+      validation: candidates.map((candidate) => ({
+        candidateId: candidate.id,
+        safe: true
+      })),
+      diagnostics
+    };
   }
 
   const restrictionIds = new Set(restrictions.map((restriction) => restriction.id));
@@ -85,13 +139,20 @@ export function validateRecommendationSafetyResponse({
   const seenCandidateIds = new Set<string>();
 
   for (const candidateResult of responseCandidates) {
+    if (!candidateResult || typeof candidateResult !== "object") {
+      diagnostics.safetyInvalidSchemaCount += 1;
+      continue;
+    }
+
     const candidateId = candidateResult.candidateId?.trim();
 
     if (!candidateId || !candidateIds.has(candidateId)) {
+      diagnostics.safetyUnknownCandidateIdCount += candidateId ? 1 : 0;
       continue;
     }
 
     if (seenCandidateIds.has(candidateId)) {
+      diagnostics.safetyDuplicateCandidateIdCount += 1;
       resultsById.set(candidateId, {
         candidateId,
         safe: false,
@@ -104,6 +165,7 @@ export function validateRecommendationSafetyResponse({
     const candidate = candidatesById.get(candidateId);
 
     if (!candidate || !Array.isArray(candidateResult.checks)) {
+      diagnostics.safetyInvalidSchemaCount += 1;
       continue;
     }
 
@@ -114,6 +176,7 @@ export function validateRecommendationSafetyResponse({
       const restrictionId = check.restrictionId?.trim();
 
       if (!restrictionId || !restrictionIds.has(restrictionId) || checksByRestrictionId.has(restrictionId)) {
+        diagnostics.safetyInvalidSchemaCount += 1;
         invalid = true;
         break;
       }
@@ -136,6 +199,11 @@ export function validateRecommendationSafetyResponse({
       const verdict = normalizeVerdict(check?.verdict);
 
       if (!check || !verdict) {
+        if (!check?.verdict?.trim()) {
+          diagnostics.safetyMissingVerdictCount += 1;
+        } else {
+          diagnostics.safetyInvalidVerdictCount += 1;
+        }
         unsafeReason = "invalid_response";
         break;
       }
@@ -168,32 +236,59 @@ export function validateRecommendationSafetyResponse({
     });
   }
 
-  return candidates.map((candidate) => resultsById.get(candidate.id) ?? {
+  const validation: RecommendationSafetyValidationResult[] = candidates.map((candidate) => resultsById.get(candidate.id) ?? {
     candidateId: candidate.id,
     safe: false,
-    reason: "invalid_response"
+    reason: "invalid_response" as const
   });
+  const seenKnownCandidateIds = new Set(
+    responseCandidates
+      .map((candidateResult) => candidateResult?.candidateId?.trim())
+      .filter((candidateId): candidateId is string => Boolean(candidateId && candidateIds.has(candidateId)))
+  );
+  diagnostics.safetyMissingCandidateCount = candidates.filter((candidate) => !seenKnownCandidateIds.has(candidate.id)).length;
+  const expectedCheckCount = candidates.length * restrictions.length;
+  if (
+    diagnostics.safetyEmptyResponseCount > 0 ||
+    diagnostics.safetyMissingCandidateCount > 0 ||
+    diagnostics.safetyReturnedCheckCount < expectedCheckCount
+  ) {
+    diagnostics.safetyTruncatedOrIncompleteCount = 1;
+  }
+
+  return {
+    validation,
+    diagnostics
+  };
 }
 
 export function filterSafeRecommendationCandidates<TCandidate extends RecommendationSafetyCandidate>({
   restrictions,
   candidates,
-  response
+  response,
+  callFailure
 }: {
   restrictions: RecommendationSafetyRestriction[];
   candidates: TCandidate[];
   response: RecommendationSafetyVerifierResponse;
+  callFailure?: Partial<Pick<RecommendationSafetyDiagnostics,
+    "safetyParseFailureCount" |
+    "safetyExceptionCount" |
+    "safetyTimeoutCount"
+  >>;
 }) {
-  const validation = validateRecommendationSafetyResponse({
+  const { validation, diagnostics } = validateRecommendationSafetyResponseWithDiagnostics({
     restrictions,
     candidates,
-    response
+    response,
+    callFailure
   });
   const safeIds = new Set(validation.filter((result) => result.safe).map((result) => result.candidateId));
 
   return {
     candidates: candidates.filter((candidate) => safeIds.has(candidate.id)),
-    validation
+    validation,
+    diagnostics
   };
 }
 
@@ -223,6 +318,48 @@ function normalizeVerdict(value: string | undefined): RecommendationSafetyVerdic
   }
 
   return null;
+}
+
+function buildEmptySafetyDiagnostics({
+  candidates,
+  response,
+  callFailure
+}: {
+  candidates: RecommendationSafetyCandidate[];
+  response: RecommendationSafetyVerifierResponse;
+  callFailure?: Partial<Pick<RecommendationSafetyDiagnostics,
+    "safetyParseFailureCount" |
+    "safetyExceptionCount" |
+    "safetyTimeoutCount"
+  >>;
+}): RecommendationSafetyDiagnostics {
+  const responseCandidates = Array.isArray(response.candidates) ? response.candidates : [];
+  const returnedCandidateIds = responseCandidates
+    .map((candidateResult) => candidateResult?.candidateId?.trim())
+    .filter((candidateId): candidateId is string => Boolean(candidateId));
+  const returnedCheckCount = responseCandidates.reduce((count, candidateResult) => (
+    count + (Array.isArray(candidateResult?.checks) ? candidateResult.checks.length : 0)
+  ), 0);
+
+  return {
+    safetyRequestedCandidateCount: candidates.length,
+    mainCandidateIdCount: candidates.length,
+    mainUniqueCandidateIdCount: new Set(candidates.map((candidate) => candidate.id)).size,
+    safetyReturnedCandidateIdCount: returnedCandidateIds.length,
+    safetyReturnedCheckCount: returnedCheckCount,
+    safetyUniqueReturnedCandidateIdCount: new Set(returnedCandidateIds).size,
+    safetyMissingCandidateCount: 0,
+    safetyDuplicateCandidateIdCount: 0,
+    safetyUnknownCandidateIdCount: 0,
+    safetyMissingVerdictCount: 0,
+    safetyInvalidVerdictCount: 0,
+    safetyInvalidSchemaCount: Array.isArray(response.candidates) ? 0 : 1,
+    safetyParseFailureCount: callFailure?.safetyParseFailureCount ?? 0,
+    safetyExceptionCount: callFailure?.safetyExceptionCount ?? 0,
+    safetyTimeoutCount: callFailure?.safetyTimeoutCount ?? 0,
+    safetyEmptyResponseCount: responseCandidates.length === 0 && candidates.length > 0 ? 1 : 0,
+    safetyTruncatedOrIncompleteCount: 0
+  };
 }
 
 function normalizeSource(value: string | null | undefined): RecommendationSafetyEvidenceSource | null {

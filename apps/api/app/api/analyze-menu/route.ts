@@ -1071,6 +1071,7 @@ export async function POST(request: Request) {
         uncertainCount: 0,
         conflictCount: 0,
         invalidCount: 0,
+        ...buildProductionSafetyTraceFields(),
         finalSafeCount: 0,
         reviewCandidateCount: 0,
         reviewReturnedCount: 0,
@@ -1454,6 +1455,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     uncertainCount: mainDishResult.productionTrace?.uncertainCount ?? 0,
     conflictCount: mainDishResult.productionTrace?.conflictCount ?? 0,
     invalidCount: mainDishResult.productionTrace?.invalidCount ?? 0,
+    ...buildProductionSafetyTraceFields(mainDishResult.productionTrace),
     finalSafeCount: allergySafeRecommendations.length,
     reviewCandidateCount: mainDishResult.uncertainReviewCandidates.length,
     reviewReturnedCount: 0,
@@ -1596,6 +1598,7 @@ function buildUncertainReviewResponse({
     uncertainCount: productionTrace?.uncertainCount ?? 0,
     conflictCount: productionTrace?.conflictCount ?? 0,
     invalidCount: productionTrace?.invalidCount ?? 0,
+    ...buildProductionSafetyTraceFields(productionTrace),
     finalSafeCount: 0,
     reviewCandidateCount: candidates.length,
     reviewReturnedCount: allergySafeRecommendations.length,
@@ -1646,6 +1649,23 @@ type ProductionRequestTraceFields = {
   uncertainCount: number;
   conflictCount: number;
   invalidCount: number;
+  safetyRequestedCandidateCount: number;
+  mainCandidateIdCount: number;
+  mainUniqueCandidateIdCount: number;
+  safetyReturnedCandidateIdCount: number;
+  safetyReturnedCheckCount: number;
+  safetyUniqueReturnedCandidateIdCount: number;
+  safetyMissingCandidateCount: number;
+  safetyDuplicateCandidateIdCount: number;
+  safetyUnknownCandidateIdCount: number;
+  safetyMissingVerdictCount: number;
+  safetyInvalidVerdictCount: number;
+  safetyInvalidSchemaCount: number;
+  safetyParseFailureCount: number;
+  safetyExceptionCount: number;
+  safetyTimeoutCount: number;
+  safetyEmptyResponseCount: number;
+  safetyTruncatedOrIncompleteCount: number;
   finalSafeCount: number;
   reviewCandidateCount: number;
   reviewReturnedCount: number;
@@ -1728,6 +1748,7 @@ function logNoSafeProductionRequestTrace({
     uncertainCount: mainDishResult.productionTrace?.uncertainCount ?? 0,
     conflictCount: mainDishResult.productionTrace?.conflictCount ?? 0,
     invalidCount: mainDishResult.productionTrace?.invalidCount ?? 0,
+    ...buildProductionSafetyTraceFields(mainDishResult.productionTrace),
     finalSafeCount,
     reviewCandidateCount: mainDishResult.uncertainReviewCandidates.length,
     reviewReturnedCount: 0,
@@ -1744,6 +1765,28 @@ function logProductionRequestTrace(fields: ProductionRequestTraceFields) {
   }
 
   console.info(`[gustaro-production-request-trace] ${JSON.stringify(fields)}`);
+}
+
+function buildProductionSafetyTraceFields(productionTrace?: MainDishRecommendationResult["productionTrace"]) {
+  return {
+    safetyRequestedCandidateCount: productionTrace?.safetyRequestedCandidateCount ?? 0,
+    mainCandidateIdCount: productionTrace?.mainCandidateIdCount ?? 0,
+    mainUniqueCandidateIdCount: productionTrace?.mainUniqueCandidateIdCount ?? 0,
+    safetyReturnedCandidateIdCount: productionTrace?.safetyReturnedCandidateIdCount ?? 0,
+    safetyReturnedCheckCount: productionTrace?.safetyReturnedCheckCount ?? 0,
+    safetyUniqueReturnedCandidateIdCount: productionTrace?.safetyUniqueReturnedCandidateIdCount ?? 0,
+    safetyMissingCandidateCount: productionTrace?.safetyMissingCandidateCount ?? 0,
+    safetyDuplicateCandidateIdCount: productionTrace?.safetyDuplicateCandidateIdCount ?? 0,
+    safetyUnknownCandidateIdCount: productionTrace?.safetyUnknownCandidateIdCount ?? 0,
+    safetyMissingVerdictCount: productionTrace?.safetyMissingVerdictCount ?? 0,
+    safetyInvalidVerdictCount: productionTrace?.safetyInvalidVerdictCount ?? 0,
+    safetyInvalidSchemaCount: productionTrace?.safetyInvalidSchemaCount ?? 0,
+    safetyParseFailureCount: productionTrace?.safetyParseFailureCount ?? 0,
+    safetyExceptionCount: productionTrace?.safetyExceptionCount ?? 0,
+    safetyTimeoutCount: productionTrace?.safetyTimeoutCount ?? 0,
+    safetyEmptyResponseCount: productionTrace?.safetyEmptyResponseCount ?? 0,
+    safetyTruncatedOrIncompleteCount: productionTrace?.safetyTruncatedOrIncompleteCount ?? 0
+  };
 }
 
 function buildProductionSourceHash(source: TwoStepMenuSourceInput) {

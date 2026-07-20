@@ -29,7 +29,8 @@ import { verifyRecommendationSafetyAI } from "./verifyRecommendationSafetyAI";
 import {
   buildRecommendationSafetyRestrictions,
   candidateContainsEvidence,
-  filterSafeRecommendationCandidates
+  filterSafeRecommendationCandidates,
+  type RecommendationSafetyDiagnostics
 } from "../recommendation/recommendationSafetyVerifier";
 import { validateMainDishAttributions } from "../recommendation/attributionValidator";
 
@@ -43,7 +44,7 @@ export type MainDishRecommendationResult = {
     uncertainCount: number;
     conflictCount: number;
     invalidCount: number;
-  };
+  } & RecommendationSafetyDiagnostics;
 };
 
 type MainDishAIWorkingResponse = ReturnType<typeof MainDishAIResponseSchema.parse> & {
@@ -535,7 +536,8 @@ async function applyMainDishVerifierSafety(
       validation: response.safeCandidates.map((candidate, index) => ({
         candidateId: `candidate_${index}`,
         safe: true as const
-      }))
+      })),
+      diagnostics: buildNoSafetyCallDiagnostics(response.safeCandidates.length)
     });
 
     logDevAnalyzeTiming({
@@ -570,12 +572,20 @@ async function applyMainDishVerifierSafety(
     descriptionOriginal: candidate.descriptionOriginal
   }));
   const verifierStartedAt = Date.now();
+  let verifierCallFailure: Partial<Pick<RecommendationSafetyDiagnostics,
+    "safetyParseFailureCount" |
+    "safetyExceptionCount" |
+    "safetyTimeoutCount"
+  >> | undefined;
   const verifierResponse = await verifyRecommendationSafetyAI({
     restrictions,
     candidates: verifierCandidates,
     runId,
     signal
-  }).catch(() => ({ candidates: [] }));
+  }).catch((error) => {
+    verifierCallFailure = buildSafetyCallFailureDiagnostics(error);
+    return { candidates: [] };
+  });
   logDevAnalyzeTiming({
     runId,
     phase: "api.safety_verifier_request",
@@ -590,12 +600,14 @@ async function applyMainDishVerifierSafety(
   const verifierResult = filterSafeRecommendationCandidates({
     restrictions,
     candidates,
-    response: verifierResponse
+    response: verifierResponse,
+    callFailure: verifierCallFailure
   });
   const productionTrace = buildProductionSafetyTrace({
     mainCandidateCount: response.safeCandidates.length,
     restrictionCount: restrictions.length,
-    validation: verifierResult.validation
+    validation: verifierResult.validation,
+    diagnostics: verifierResult.diagnostics
   });
   logVerifierDecisionDiagnostics({
     restrictions,
@@ -679,11 +691,13 @@ async function applyMainDishVerifierSafety(
 function buildProductionSafetyTrace({
   mainCandidateCount,
   restrictionCount,
-  validation
+  validation,
+  diagnostics
 }: {
   mainCandidateCount: number;
   restrictionCount: number;
   validation: Array<{ safe: boolean; reason?: "invalid_response" | "conflict" | "uncertain" }>;
+  diagnostics: RecommendationSafetyDiagnostics;
 }) {
   return {
     mainCandidateCount,
@@ -691,8 +705,59 @@ function buildProductionSafetyTrace({
     safeCount: validation.filter((result) => result.safe).length,
     uncertainCount: validation.filter((result) => result.reason === "uncertain").length,
     conflictCount: validation.filter((result) => result.reason === "conflict").length,
-    invalidCount: validation.filter((result) => result.reason === "invalid_response").length
+    invalidCount: validation.filter((result) => result.reason === "invalid_response").length,
+    ...diagnostics
   };
+}
+
+function buildNoSafetyCallDiagnostics(candidateCount: number): RecommendationSafetyDiagnostics {
+  return {
+    safetyRequestedCandidateCount: candidateCount,
+    mainCandidateIdCount: candidateCount,
+    mainUniqueCandidateIdCount: candidateCount,
+    safetyReturnedCandidateIdCount: candidateCount,
+    safetyReturnedCheckCount: 0,
+    safetyUniqueReturnedCandidateIdCount: candidateCount,
+    safetyMissingCandidateCount: 0,
+    safetyDuplicateCandidateIdCount: 0,
+    safetyUnknownCandidateIdCount: 0,
+    safetyMissingVerdictCount: 0,
+    safetyInvalidVerdictCount: 0,
+    safetyInvalidSchemaCount: 0,
+    safetyParseFailureCount: 0,
+    safetyExceptionCount: 0,
+    safetyTimeoutCount: 0,
+    safetyEmptyResponseCount: 0,
+    safetyTruncatedOrIncompleteCount: 0
+  };
+}
+
+function buildSafetyCallFailureDiagnostics(error: unknown): Partial<Pick<RecommendationSafetyDiagnostics,
+  "safetyParseFailureCount" |
+  "safetyExceptionCount" |
+  "safetyTimeoutCount"
+>> {
+  if (isSafetyTimeoutError(error)) {
+    return { safetyTimeoutCount: 1 };
+  }
+
+  if (error instanceof SyntaxError || error instanceof Error && /json|parse/i.test(error.message)) {
+    return { safetyParseFailureCount: 1 };
+  }
+
+  return { safetyExceptionCount: 1 };
+}
+
+function isSafetyTimeoutError(error: unknown) {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return true;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /abort|timeout/i.test(`${error.name} ${error.message}`);
 }
 
 function rebuildMainDishRecommendationsFromSafeCandidates({
