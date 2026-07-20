@@ -36,10 +36,19 @@ import { validateMainDishAttributions } from "../recommendation/attributionValid
 export type MainDishRecommendationResult = {
   recommendations: MainDishAIRecommendation[];
   uncertainReviewCandidates: MainDishAISafeCandidate[];
+  productionTrace?: {
+    mainCandidateCount: number;
+    restrictionCount: number;
+    safeCount: number;
+    uncertainCount: number;
+    conflictCount: number;
+    invalidCount: number;
+  };
 };
 
 type MainDishAIWorkingResponse = ReturnType<typeof MainDishAIResponseSchema.parse> & {
   uncertainReviewCandidates?: MainDishAISafeCandidate[];
+  productionTrace?: MainDishRecommendationResult["productionTrace"];
 };
 
 type MainDishAiDiagnosticRow = {
@@ -170,7 +179,8 @@ export async function recommendMainDishesAI({
       const attributionValidated = await validateMainDishAttributions(verifierSafe, profile, runId, signal);
       parsed = {
         ...attributionValidated,
-        uncertainReviewCandidates
+        uncertainReviewCandidates,
+        productionTrace: verifierSafe.productionTrace
       };
       parsed.recommendations = backfillMainDishRecommendationsWithValidatedCandidates({
         recommendations: parsed.recommendations,
@@ -232,7 +242,8 @@ export async function recommendMainDishesAI({
 
   return {
     recommendations: parsed.recommendations,
-    uncertainReviewCandidates: parsed.uncertainReviewCandidates ?? []
+    uncertainReviewCandidates: parsed.uncertainReviewCandidates ?? [],
+    productionTrace: parsed.productionTrace
   };
 }
 
@@ -518,6 +529,15 @@ async function applyMainDishVerifierSafety(
   const restrictions = buildRecommendationSafetyRestrictions(profile);
 
   if (restrictions.length === 0 || response.safeCandidates.length === 0) {
+    const productionTrace = buildProductionSafetyTrace({
+      mainCandidateCount: response.safeCandidates.length,
+      restrictionCount: restrictions.length,
+      validation: response.safeCandidates.map((candidate, index) => ({
+        candidateId: `candidate_${index}`,
+        safe: true as const
+      }))
+    });
+
     logDevAnalyzeTiming({
       runId,
       phase: "api.safety_verifier_request",
@@ -535,7 +555,8 @@ async function applyMainDishVerifierSafety(
     });
     return {
       ...response,
-      uncertainReviewCandidates: []
+      uncertainReviewCandidates: [],
+      productionTrace
     };
   }
 
@@ -571,6 +592,11 @@ async function applyMainDishVerifierSafety(
     candidates,
     response: verifierResponse
   });
+  const productionTrace = buildProductionSafetyTrace({
+    mainCandidateCount: response.safeCandidates.length,
+    restrictionCount: restrictions.length,
+    validation: verifierResult.validation
+  });
   logVerifierDecisionDiagnostics({
     restrictions,
     candidates,
@@ -605,7 +631,8 @@ async function applyMainDishVerifierSafety(
   if (safeCandidates.length === response.safeCandidates.length) {
     return {
       ...response,
-      uncertainReviewCandidates
+      uncertainReviewCandidates,
+      productionTrace
     };
   }
 
@@ -635,6 +662,7 @@ async function applyMainDishVerifierSafety(
     ],
     safeCandidates,
     uncertainReviewCandidates,
+    productionTrace,
     recommendations,
     resultSummary: {
       ...response.resultSummary,
@@ -645,6 +673,25 @@ async function applyMainDishVerifierSafety(
         ? response.resultSummary.lessThanThreeReason ?? "Weniger als drei sichere Kandidaten nach Safety-Verifier-Pruefung."
         : null
     }
+  };
+}
+
+function buildProductionSafetyTrace({
+  mainCandidateCount,
+  restrictionCount,
+  validation
+}: {
+  mainCandidateCount: number;
+  restrictionCount: number;
+  validation: Array<{ safe: boolean; reason?: "invalid_response" | "conflict" | "uncertain" }>;
+}) {
+  return {
+    mainCandidateCount,
+    restrictionCount,
+    safeCount: validation.filter((result) => result.safe).length,
+    uncertainCount: validation.filter((result) => result.reason === "uncertain").length,
+    conflictCount: validation.filter((result) => result.reason === "conflict").length,
+    invalidCount: validation.filter((result) => result.reason === "invalid_response").length
   };
 }
 

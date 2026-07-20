@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "../../../src/auth/requireUser";
@@ -88,6 +89,7 @@ const SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE =
   "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen";
 const TEXT_AI_TIMEOUT_MS = 90000;
 const MAX_ANALYZE_IMAGE_BASE64_LENGTH = 10_000_000;
+const PRODUCTION_REQUEST_TRACE_LOGGED = Symbol("gustaro.productionRequestTraceLogged");
 const UPLOADED_IMAGE_AI_TIMEOUT_MS = 70000;
 const PDF_AI_TIMEOUT_MS = 90000;
 const DISH_ROLE_CLASSIFICATION_TIMEOUT_MS = 30000;
@@ -1050,6 +1052,33 @@ export async function POST(request: Request) {
       errorClass: getAnalyzeOpsErrorClass(error),
       diagnosticReason: getAnalyzeOpsDiagnosticReason(error)
     });
+    if (!isProductionRequestTraceLogged(error)) {
+      logProductionRequestTrace({
+        requestId: requestRunId,
+        runId: requestRunId,
+        analysisMode: "unknown",
+        sourceKind: "unknown",
+        sourceHash: "",
+        primaryLikeCount: 0,
+        allergenCount: 0,
+        customExclusionCount: 0,
+        restrictionCount: 0,
+        hasLactoseCanonicalRule: false,
+        supportsUncertainReviewCandidates: false,
+        uncertainReviewFeatureEnabled: isUncertainReviewFeatureEnabled(),
+        mainCandidateCount: 0,
+        safeCount: 0,
+        uncertainCount: 0,
+        conflictCount: 0,
+        invalidCount: 0,
+        finalSafeCount: 0,
+        reviewCandidateCount: 0,
+        reviewReturnedCount: 0,
+        recommendationResultType: error instanceof AppError ? error.code : "INTERNAL_ERROR",
+        httpStatus: error instanceof AppError ? error.status : 500,
+        totalDurationMs: Date.now() - requestStartedAt
+      });
+    }
     return errorResponse(error);
   }
 }
@@ -1278,10 +1307,13 @@ async function analyzeMenuWithTwoStepMainFlow({
   if (mapped.recommendations.length === 0) {
     const reviewResponse = buildUncertainReviewResponse({
       candidates: mainDishResult.uncertainReviewCandidates,
+      source,
+      productionTrace: mainDishResult.productionTrace,
       localizedRestaurantDescription,
       htmlMenuExtraction,
       profile,
       requestedDishRoles,
+      preferredDishRole,
       responseMode,
       sourceKind,
       sourceCount,
@@ -1299,12 +1331,26 @@ async function analyzeMenuWithTwoStepMainFlow({
       return reviewResponse;
     }
 
-    throw new AppError(
+    const error = new AppError(
       422,
       "NO_SAFE_RECOMMENDATIONS",
       "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
       buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
     );
+    logNoSafeProductionRequestTrace({
+      error,
+      runId,
+      responseMode,
+      source,
+      profile,
+      requestedDishRoles,
+      preferredDishRole,
+      supportsUncertainReviewCandidates,
+      mainDishResult,
+      finalSafeCount: 0,
+      requestStartedAt
+    });
+    throw error;
   }
 
   const allergySafeRecommendations = applyAllergySafetyGate({
@@ -1316,10 +1362,13 @@ async function analyzeMenuWithTwoStepMainFlow({
   if (allergySafeRecommendations.length === 0) {
     const reviewResponse = buildUncertainReviewResponse({
       candidates: mainDishResult.uncertainReviewCandidates,
+      source,
+      productionTrace: mainDishResult.productionTrace,
       localizedRestaurantDescription,
       htmlMenuExtraction,
       profile,
       requestedDishRoles,
+      preferredDishRole,
       responseMode,
       sourceKind,
       sourceCount,
@@ -1337,12 +1386,26 @@ async function analyzeMenuWithTwoStepMainFlow({
       return reviewResponse;
     }
 
-    throw new AppError(
+    const error = new AppError(
       422,
       "NO_SAFE_RECOMMENDATIONS",
       "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
       buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
     );
+    logNoSafeProductionRequestTrace({
+      error,
+      runId,
+      responseMode,
+      source,
+      profile,
+      requestedDishRoles,
+      preferredDishRole,
+      supportsUncertainReviewCandidates,
+      mainDishResult,
+      finalSafeCount: 0,
+      requestStartedAt
+    });
+    throw error;
   }
 
   const conciergeHero = buildFallbackConciergeHero({
@@ -1375,6 +1438,29 @@ async function analyzeMenuWithTwoStepMainFlow({
       ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
     }
   });
+  logProductionRequestTrace({
+    ...buildProductionRequestTraceBase({
+      runId,
+      responseMode,
+      source,
+      profile,
+      requestedDishRoles,
+      preferredDishRole,
+      supportsUncertainReviewCandidates
+    }),
+    mainCandidateCount: mainDishResult.productionTrace?.mainCandidateCount ?? proposedMainDishes.length,
+    restrictionCount: mainDishResult.productionTrace?.restrictionCount ?? countHardRestrictions(profile),
+    safeCount: mainDishResult.productionTrace?.safeCount ?? proposedMainDishes.length,
+    uncertainCount: mainDishResult.productionTrace?.uncertainCount ?? 0,
+    conflictCount: mainDishResult.productionTrace?.conflictCount ?? 0,
+    invalidCount: mainDishResult.productionTrace?.invalidCount ?? 0,
+    finalSafeCount: allergySafeRecommendations.length,
+    reviewCandidateCount: mainDishResult.uncertainReviewCandidates.length,
+    reviewReturnedCount: 0,
+    recommendationResultType: "standard",
+    httpStatus: 200,
+    totalDurationMs: Date.now() - requestStartedAt
+  });
   logDevAnalyzeTiming({
     runId,
     phase: "api.response_serialization",
@@ -1400,10 +1486,13 @@ async function analyzeMenuWithTwoStepMainFlow({
 
 function buildUncertainReviewResponse({
   candidates,
+  source,
+  productionTrace,
   localizedRestaurantDescription,
   htmlMenuExtraction,
   profile,
   requestedDishRoles,
+  preferredDishRole,
   responseMode,
   sourceKind,
   sourceCount,
@@ -1417,10 +1506,13 @@ function buildUncertainReviewResponse({
   supportsUncertainReviewCandidates
 }: {
   candidates: MainDishRecommendationResult["uncertainReviewCandidates"];
+  source: TwoStepMenuSourceInput;
+  productionTrace: MainDishRecommendationResult["productionTrace"];
   localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null;
   htmlMenuExtraction: MenuExtractionResult | null;
   profile: AnalyzeMenuRequest["profile"];
   requestedDishRoles: RequestedDishRole[];
+  preferredDishRole?: PreferredDishRole;
   responseMode: TwoStepAnalyzeResponseMode;
   sourceKind: TwoStepMenuSourceInput["kind"];
   sourceCount: number;
@@ -1488,6 +1580,29 @@ function buildUncertainReviewResponse({
       ...buildMenuExtractionPayload(htmlMenuExtraction)
     }
   });
+  logProductionRequestTrace({
+    ...buildProductionRequestTraceBase({
+      runId,
+      responseMode,
+      source,
+      profile,
+      requestedDishRoles,
+      preferredDishRole,
+      supportsUncertainReviewCandidates
+    }),
+    mainCandidateCount: productionTrace?.mainCandidateCount ?? 0,
+    restrictionCount: productionTrace?.restrictionCount ?? countHardRestrictions(profile),
+    safeCount: productionTrace?.safeCount ?? 0,
+    uncertainCount: productionTrace?.uncertainCount ?? 0,
+    conflictCount: productionTrace?.conflictCount ?? 0,
+    invalidCount: productionTrace?.invalidCount ?? 0,
+    finalSafeCount: 0,
+    reviewCandidateCount: candidates.length,
+    reviewReturnedCount: allergySafeRecommendations.length,
+    recommendationResultType: "uncertain_review",
+    httpStatus: 200,
+    totalDurationMs: Date.now() - requestStartedAt
+  });
 
   logDevAnalyzeTiming({
     runId,
@@ -1504,6 +1619,174 @@ function buildUncertainReviewResponse({
   });
 
   return response;
+}
+
+type ProductionRequestTraceResultType =
+  | "standard"
+  | "uncertain_review"
+  | "NO_SAFE_RECOMMENDATIONS"
+  | "INTERNAL_ERROR"
+  | string;
+
+type ProductionRequestTraceFields = {
+  requestId: string;
+  runId: string;
+  analysisMode: string;
+  sourceKind: string;
+  sourceHash: string;
+  primaryLikeCount: number;
+  allergenCount: number;
+  customExclusionCount: number;
+  restrictionCount: number;
+  hasLactoseCanonicalRule: boolean;
+  supportsUncertainReviewCandidates: boolean;
+  uncertainReviewFeatureEnabled: boolean;
+  mainCandidateCount: number;
+  safeCount: number;
+  uncertainCount: number;
+  conflictCount: number;
+  invalidCount: number;
+  finalSafeCount: number;
+  reviewCandidateCount: number;
+  reviewReturnedCount: number;
+  recommendationResultType: ProductionRequestTraceResultType;
+  httpStatus: number;
+  totalDurationMs: number;
+};
+
+function buildProductionRequestTraceBase({
+  runId,
+  responseMode,
+  source,
+  profile,
+  requestedDishRoles,
+  preferredDishRole,
+  supportsUncertainReviewCandidates
+}: {
+  runId: string;
+  responseMode: TwoStepAnalyzeResponseMode;
+  source: TwoStepMenuSourceInput;
+  profile: AnalyzeMenuRequest["profile"];
+  requestedDishRoles: RequestedDishRole[];
+  preferredDishRole?: PreferredDishRole;
+  supportsUncertainReviewCandidates?: boolean;
+}) {
+  return {
+    requestId: runId,
+    runId,
+    analysisMode: `${responseMode}:${getAnalyzeRequestKind(requestedDishRoles, preferredDishRole)}`,
+    sourceKind: source.kind,
+    sourceHash: buildProductionSourceHash(source),
+    primaryLikeCount: stringArrayValue(profile.primaryLikes).length,
+    allergenCount: stringArrayValue(profile.allergens).length,
+    customExclusionCount: stringArrayValue(profile.customExclusions).length,
+    restrictionCount: countHardRestrictions(profile),
+    hasLactoseCanonicalRule: hasLactoseCanonicalRule(profile),
+    supportsUncertainReviewCandidates: supportsUncertainReviewCandidates === true,
+    uncertainReviewFeatureEnabled: isUncertainReviewFeatureEnabled()
+  };
+}
+
+function logNoSafeProductionRequestTrace({
+  error,
+  runId,
+  responseMode,
+  source,
+  profile,
+  requestedDishRoles,
+  preferredDishRole,
+  supportsUncertainReviewCandidates,
+  mainDishResult,
+  finalSafeCount,
+  requestStartedAt
+}: {
+  error: AppError;
+  runId: string;
+  responseMode: TwoStepAnalyzeResponseMode;
+  source: TwoStepMenuSourceInput;
+  profile: AnalyzeMenuRequest["profile"];
+  requestedDishRoles: RequestedDishRole[];
+  preferredDishRole?: PreferredDishRole;
+  supportsUncertainReviewCandidates?: boolean;
+  mainDishResult: MainDishRecommendationResult;
+  finalSafeCount: number;
+  requestStartedAt: number;
+}) {
+  logProductionRequestTrace({
+    ...buildProductionRequestTraceBase({
+      runId,
+      responseMode,
+      source,
+      profile,
+      requestedDishRoles,
+      preferredDishRole,
+      supportsUncertainReviewCandidates
+    }),
+    mainCandidateCount: mainDishResult.productionTrace?.mainCandidateCount ?? mainDishResult.recommendations.length,
+    restrictionCount: mainDishResult.productionTrace?.restrictionCount ?? countHardRestrictions(profile),
+    safeCount: mainDishResult.productionTrace?.safeCount ?? mainDishResult.recommendations.length,
+    uncertainCount: mainDishResult.productionTrace?.uncertainCount ?? 0,
+    conflictCount: mainDishResult.productionTrace?.conflictCount ?? 0,
+    invalidCount: mainDishResult.productionTrace?.invalidCount ?? 0,
+    finalSafeCount,
+    reviewCandidateCount: mainDishResult.uncertainReviewCandidates.length,
+    reviewReturnedCount: 0,
+    recommendationResultType: error.code,
+    httpStatus: error.status,
+    totalDurationMs: Date.now() - requestStartedAt
+  });
+  markProductionRequestTraceLogged(error);
+}
+
+function logProductionRequestTrace(fields: ProductionRequestTraceFields) {
+  if (process.env.GUSTARO_PRODUCTION_REQUEST_TRACE !== "true") {
+    return;
+  }
+
+  console.info(`[gustaro-production-request-trace] ${JSON.stringify(fields)}`);
+}
+
+function buildProductionSourceHash(source: TwoStepMenuSourceInput) {
+  const payload = JSON.stringify({
+    kind: source.kind,
+    mainAiInputMode: source.mainAiInputMode ?? "",
+    text: source.text ?? "",
+    sourceUrl: source.sourceUrl ?? "",
+    urls: source.urls ?? []
+  });
+
+  return createHash("sha256").update(payload).digest("hex").slice(0, 16);
+}
+
+function countHardRestrictions(profile: AnalyzeMenuRequest["profile"]) {
+  return stringArrayValue(profile.allergens).length + stringArrayValue(profile.customExclusions).length;
+}
+
+function hasLactoseCanonicalRule(profile: AnalyzeMenuRequest["profile"]) {
+  return stringArrayValue(profile.allergens).some((value) => {
+    const normalized = value
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    return normalized === "lactose" || normalized === "laktose";
+  });
+}
+
+function markProductionRequestTraceLogged(error: unknown) {
+  if (typeof error === "object" && error !== null) {
+    Object.defineProperty(error, PRODUCTION_REQUEST_TRACE_LOGGED, {
+      configurable: true,
+      value: true
+    });
+  }
+}
+
+function isProductionRequestTraceLogged(error: unknown) {
+  return typeof error === "object" &&
+    error !== null &&
+    (error as Record<symbol, unknown>)[PRODUCTION_REQUEST_TRACE_LOGGED] === true;
 }
 
 function mapUncertainReviewCandidatesToAnalyzeData(
