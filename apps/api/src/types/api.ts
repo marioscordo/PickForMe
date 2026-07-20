@@ -13,6 +13,7 @@ export type AnalyzeMenuRequest = {
   requestedDishRoles?: RequestedDishRole[];
   preferredDishRole?: PreferredDishRole;
   diagnosticRunId?: string;
+  supportsUncertainReviewCandidates?: boolean;
   profile: UserProfile;
   userLocale?: string;
   deviceLocale?: string;

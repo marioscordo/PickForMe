@@ -147,6 +147,7 @@
     "fallbackTitle": "Das passt heute zu Dir",
     "fallbackText": "Ich ordne die erkannten Gerichte für Deinen Moment ein.",
     "warningTitle": "Wichtiger Hinweis",
+    "uncertainReviewWarning": "Die Speisekarte enthält nicht genügend Angaben für eine verlässliche Auswahl. Diese Gerichte könnten infrage kommen – bitte kläre die relevanten Punkte direkt mit dem Restaurant.",
     "unsafeKicker": "Das ist mir zu unsicher",
     "unsafeTitle": "Ich kann Dir daraus nichts verlässlich empfehlen",
     "unsafeText": "Zeig mir bitte eine klarere Speisekarte oder füge den Speisekartentext ein.",

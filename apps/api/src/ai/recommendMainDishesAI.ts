@@ -33,6 +33,15 @@ import {
 } from "../recommendation/recommendationSafetyVerifier";
 import { validateMainDishAttributions } from "../recommendation/attributionValidator";
 
+export type MainDishRecommendationResult = {
+  recommendations: MainDishAIRecommendation[];
+  uncertainReviewCandidates: MainDishAISafeCandidate[];
+};
+
+type MainDishAIWorkingResponse = ReturnType<typeof MainDishAIResponseSchema.parse> & {
+  uncertainReviewCandidates?: MainDishAISafeCandidate[];
+};
+
 type MainDishAiDiagnosticRow = {
   index: number;
   nameOriginal: string;
@@ -73,7 +82,7 @@ export async function recommendMainDishesAI({
   userLocale?: string;
   runId?: string;
   signal?: AbortSignal;
-}): Promise<MainDishAIRecommendation[]> {
+}): Promise<MainDishRecommendationResult> {
   const client = createTwoStepOpenAIClient();
   const targetLocale = normalizeTargetLocale(userLocale ?? profile.outputLocale);
   const targetLanguage = getLanguageNameForLocale(targetLocale);
@@ -100,7 +109,7 @@ export async function recommendMainDishesAI({
     ]
   };
 
-  let parsed: ReturnType<typeof MainDishAIResponseSchema.parse> | undefined;
+  let parsed: MainDishAIWorkingResponse | undefined;
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const requestStartedAt = Date.now();
@@ -156,8 +165,12 @@ export async function recommendMainDishesAI({
         recommendationCount: parsed.recommendations.length
       });
       const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, runId, signal);
+      const uncertainReviewCandidates = verifierSafe.uncertainReviewCandidates ?? [];
       const attributionValidated = await validateMainDishAttributions(verifierSafe, profile, runId, signal);
-      parsed = attributionValidated;
+      parsed = {
+        ...attributionValidated,
+        uncertainReviewCandidates
+      };
       parsed.recommendations = backfillMainDishRecommendationsWithValidatedCandidates({
         recommendations: parsed.recommendations,
         safeCandidates: parsed.safeCandidates
@@ -216,7 +229,10 @@ export async function recommendMainDishesAI({
 
   logMainDishAiResponseDiagnostic(parsed, runId);
 
-  return parsed.recommendations;
+  return {
+    recommendations: parsed.recommendations,
+    uncertainReviewCandidates: parsed.uncertainReviewCandidates ?? []
+  };
 }
 
 function normalizeMissingCompactTranslatedDescriptions(
@@ -413,6 +429,7 @@ function logMainDishAiResponseDiagnostic(
     safeCandidates: MainDishAISafeCandidate[];
     recommendations: MainDishAIRecommendation[];
     resultSummary: MainDishAIResultSummary;
+    uncertainReviewCandidates?: MainDishAISafeCandidate[];
   },
   runId?: string
 ) {
@@ -515,7 +532,10 @@ async function applyMainDishVerifierSafety(
       candidateCount: response.safeCandidates.length,
       recommendationCount: response.recommendations.length
     });
-    return response;
+    return {
+      ...response,
+      uncertainReviewCandidates: []
+    };
   }
 
   const candidates = response.safeCandidates.map((candidate, index) => ({
@@ -574,9 +594,18 @@ async function applyMainDishVerifierSafety(
     diagnosticReason: verifierResult.candidates.length === 0 ? "safety_removed_all" : undefined
   });
   const safeCandidates = verifierResult.candidates.map(({ id: _id, ...candidate }) => candidate);
+  const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  const uncertainReviewCandidates = verifierResult.validation
+    .filter((result) => result.reason === "uncertain")
+    .map((result) => candidatesById.get(result.candidateId))
+    .filter((candidate): candidate is MainDishAISafeCandidate & { id: string } => Boolean(candidate))
+    .map(({ id: _id, ...candidate }) => candidate);
 
   if (safeCandidates.length === response.safeCandidates.length) {
-    return response;
+    return {
+      ...response,
+      uncertainReviewCandidates
+    };
   }
 
   const rebuildStartedAt = Date.now();
@@ -604,6 +633,7 @@ async function applyMainDishVerifierSafety(
         }))
     ],
     safeCandidates,
+    uncertainReviewCandidates,
     recommendations,
     resultSummary: {
       ...response.resultSummary,

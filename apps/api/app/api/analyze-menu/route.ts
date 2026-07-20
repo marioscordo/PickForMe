@@ -4,7 +4,7 @@ import { requireUser } from "../../../src/auth/requireUser";
 import { classifyDishRolesAI } from "../../../src/ai/classifyDishRolesAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
-import { recommendMainDishesAI } from "../../../src/ai/recommendMainDishesAI";
+import { recommendMainDishesAI, type MainDishRecommendationResult } from "../../../src/ai/recommendMainDishesAI";
 import {
   isAnalyzeDiagnosticsEnabled,
   logAnalyzeOpsDiagnostic
@@ -46,6 +46,11 @@ type FallbackHeroContext = {
   recommendationMode?: "single_dishes" | "whole_menu" | "sharing_menu";
   restaurantContextText?: string;
   officialWebsiteText?: string;
+};
+
+type TwoStepAnalyzeDataParts = {
+  dishes: Dish[];
+  recommendations: Recommendation[];
 };
 
 type LinkedPdfMenu = {
@@ -164,7 +169,8 @@ export async function POST(request: Request) {
           extraPayload: {},
           timeoutMs: UPLOADED_IMAGE_AI_TIMEOUT_MS,
           requestStartedAt,
-          runId: requestRunId
+          runId: requestRunId,
+          supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true
         });
       } catch (imageAiError) {
         if (imageAiError instanceof AppError) {
@@ -351,7 +357,8 @@ export async function POST(request: Request) {
           },
           timeoutMs: PDF_AI_TIMEOUT_MS,
           requestStartedAt,
-          runId: requestRunId
+          runId: requestRunId,
+          supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true
         });
       } catch (pdfAiError) {
         const message = pdfAiError instanceof Error ? pdfAiError.message : "";
@@ -456,7 +463,8 @@ export async function POST(request: Request) {
           },
           timeoutMs: 45000,
           requestStartedAt,
-          runId: requestRunId
+          runId: requestRunId,
+          supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true
         });
       } catch (imageAiError) {
         if (imageAiError instanceof AppError) {
@@ -621,7 +629,8 @@ export async function POST(request: Request) {
               },
               timeoutMs: 60000,
               requestStartedAt,
-              runId: requestRunId
+              runId: requestRunId,
+              supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true
             });
           } catch (tildaImageAiError) {
             if (tildaImageAiError instanceof AppError) {
@@ -736,7 +745,8 @@ export async function POST(request: Request) {
         },
         timeoutMs: TEXT_AI_TIMEOUT_MS,
         requestStartedAt,
-        runId: requestRunId
+        runId: requestRunId,
+        supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true
       });
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : "";
@@ -1079,7 +1089,8 @@ async function analyzeMenuWithTwoStepMainFlow({
   extraPayload = {},
   timeoutMs,
   requestStartedAt,
-  runId
+  runId,
+  supportsUncertainReviewCandidates
 }: {
   source: TwoStepMenuSourceInput;
   responseMode: TwoStepAnalyzeResponseMode;
@@ -1099,6 +1110,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   timeoutMs: number;
   requestStartedAt: number;
   runId: string;
+  supportsUncertainReviewCandidates?: boolean;
 }) {
   const flowStartedAt = Date.now();
   const sourceKind = source.kind;
@@ -1131,12 +1143,13 @@ async function analyzeMenuWithTwoStepMainFlow({
     responseMode,
     runId
   });
-  let proposedMainDishes: Awaited<ReturnType<typeof recommendMainDishesAI>>;
+  let mainDishResult: MainDishRecommendationResult;
+  let proposedMainDishes: MainDishRecommendationResult["recommendations"];
   let mainAiDurationMs = 0;
 
   const mainStartedAt = Date.now();
   try {
-    proposedMainDishes = await withAbortTimeout(
+    mainDishResult = await withAbortTimeout(
       (signal) => recommendMainDishesAI({
         source: augmentedSourceForMainAi,
         profile,
@@ -1150,6 +1163,7 @@ async function analyzeMenuWithTwoStepMainFlow({
       timeoutMs,
       "TWO_STEP_MAIN_AI_TIMEOUT"
     );
+    proposedMainDishes = mainDishResult.recommendations;
     mainAiDurationMs = Date.now() - mainStartedAt;
     logTwoStepMain({
       phase: "main-ai",
@@ -1262,6 +1276,29 @@ async function analyzeMenuWithTwoStepMainFlow({
   });
 
   if (mapped.recommendations.length === 0) {
+    const reviewResponse = buildUncertainReviewResponse({
+      candidates: mainDishResult.uncertainReviewCandidates,
+      localizedRestaurantDescription,
+      htmlMenuExtraction,
+      profile,
+      requestedDishRoles,
+      responseMode,
+      sourceKind,
+      sourceCount,
+      fallbackHeroContextText,
+      extraPayload,
+      runId,
+      outputLocale,
+      requestStartedAt,
+      flowStartedAt,
+      mainAiDurationMs,
+      supportsUncertainReviewCandidates
+    });
+
+    if (reviewResponse) {
+      return reviewResponse;
+    }
+
     throw new AppError(
       422,
       "NO_SAFE_RECOMMENDATIONS",
@@ -1277,6 +1314,29 @@ async function analyzeMenuWithTwoStepMainFlow({
   });
 
   if (allergySafeRecommendations.length === 0) {
+    const reviewResponse = buildUncertainReviewResponse({
+      candidates: mainDishResult.uncertainReviewCandidates,
+      localizedRestaurantDescription,
+      htmlMenuExtraction,
+      profile,
+      requestedDishRoles,
+      responseMode,
+      sourceKind,
+      sourceCount,
+      fallbackHeroContextText,
+      extraPayload,
+      runId,
+      outputLocale,
+      requestStartedAt,
+      flowStartedAt,
+      mainAiDurationMs,
+      supportsUncertainReviewCandidates
+    });
+
+    if (reviewResponse) {
+      return reviewResponse;
+    }
+
     throw new AppError(
       422,
       "NO_SAFE_RECOMMENDATIONS",
@@ -1336,6 +1396,227 @@ async function analyzeMenuWithTwoStepMainFlow({
   });
 
   return response;
+}
+
+function buildUncertainReviewResponse({
+  candidates,
+  localizedRestaurantDescription,
+  htmlMenuExtraction,
+  profile,
+  requestedDishRoles,
+  responseMode,
+  sourceKind,
+  sourceCount,
+  fallbackHeroContextText,
+  extraPayload,
+  runId,
+  outputLocale,
+  requestStartedAt,
+  flowStartedAt,
+  mainAiDurationMs,
+  supportsUncertainReviewCandidates
+}: {
+  candidates: MainDishRecommendationResult["uncertainReviewCandidates"];
+  localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null;
+  htmlMenuExtraction: MenuExtractionResult | null;
+  profile: AnalyzeMenuRequest["profile"];
+  requestedDishRoles: RequestedDishRole[];
+  responseMode: TwoStepAnalyzeResponseMode;
+  sourceKind: TwoStepMenuSourceInput["kind"];
+  sourceCount: number;
+  fallbackHeroContextText: string;
+  extraPayload: Record<string, unknown>;
+  runId: string;
+  outputLocale: string;
+  requestStartedAt: number;
+  flowStartedAt: number;
+  mainAiDurationMs: number;
+  supportsUncertainReviewCandidates?: boolean;
+}) {
+  if (!isUncertainReviewFeatureEnabled() || supportsUncertainReviewCandidates !== true) {
+    return null;
+  }
+
+  const mapped = mapUncertainReviewCandidatesToAnalyzeData(candidates, requestedDishRoles, outputLocale);
+  const allergySafeRecommendations = applyAllergySafetyGate({
+    dishes: mapped.dishes,
+    recommendations: mapped.recommendations,
+    profile
+  });
+
+  if (allergySafeRecommendations.length === 0) {
+    return null;
+  }
+
+  const allowedDishIds = new Set(allergySafeRecommendations.map((recommendation) => recommendation.dishId));
+  const dishes = mapped.dishes.filter((dish) => allowedDishIds.has(dish.id));
+  const conciergeHero = buildFallbackConciergeHero({
+    dishes,
+    restaurantContextText: fallbackHeroContextText
+  });
+
+  logAnalyzePerf({
+    phase: "response",
+    skippedRestaurantIntro: true,
+    skippedHero: true,
+    skippedStarterCandidates: true,
+    mainAiDurationMs,
+    totalDurationMs: Date.now() - flowStartedAt,
+    responseMode,
+    sourceKind,
+    sourceCount,
+    runId
+  });
+
+  logAnalyzeOpsDiagnostic({
+    runId,
+    phase: "uncertain_review",
+    candidateCount: candidates.length,
+    recommendationCount: allergySafeRecommendations.length
+  });
+
+  const response = NextResponse.json({
+    ok: true,
+    data: {
+      mode: responseMode,
+      recommendationResultType: "uncertain_review" as const,
+      dishes,
+      recommendations: allergySafeRecommendations,
+      conciergeHero,
+      ...extraPayload,
+      ...buildRestaurantDescriptionPayload(localizedRestaurantDescription),
+      ...buildMenuExtractionPayload(htmlMenuExtraction)
+    }
+  });
+
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.total",
+    durationMs: Date.now() - requestStartedAt,
+    success: true
+  });
+  logAnalyzeOpsDiagnostic({
+    runId,
+    phase: "total",
+    durationMs: Date.now() - requestStartedAt,
+    httpStatus: 200,
+    recommendationCount: allergySafeRecommendations.length
+  });
+
+  return response;
+}
+
+function mapUncertainReviewCandidatesToAnalyzeData(
+  candidates: MainDishRecommendationResult["uncertainReviewCandidates"],
+  requestedDishRoles: RequestedDishRole[],
+  outputLocale: string
+): TwoStepAnalyzeDataParts {
+  const roleMetadata = buildUncertainReviewRoleMetadata(requestedDishRoles);
+  const reason = buildUncertainReviewReason(outputLocale);
+  const validCandidates = candidates
+    .map((candidate) => candidate.recommendationPayload)
+    .filter((payload): payload is NonNullable<typeof payload> => Boolean(payload))
+    .filter((payload) =>
+      Boolean(
+        payload.nameOriginal?.trim() &&
+        payload.translatedName?.trim() &&
+        payload.confidence &&
+        payload.profileSafety &&
+        payload.profileSafety.hasKnownConflict === false &&
+        payload.profileSafety.uncertainForAllergy === false
+      )
+    )
+    .slice(0, 3);
+
+  const dishes: Dish[] = validCandidates.map((item, index) => {
+    const evidence = normalizeOptionalResponseText(item.sourceEvidence);
+    const descriptionOriginal = normalizeOptionalResponseText(item.descriptionOriginal);
+    const translatedDescription = normalizeOptionalResponseText(item.translatedDescription);
+
+    return {
+      id: `uncertain_review_${String(index + 1).padStart(3, "0")}`,
+      nameOriginal: item.nameOriginal!.trim(),
+      ...(translatedDescription ? { description: translatedDescription } : {}),
+      ...(descriptionOriginal ? { descriptionOriginal } : {}),
+      price: parseReviewPrice(item.priceRaw),
+      category: roleMetadata.category,
+      itemType: "dish",
+      sourceFormat: "ai",
+      sourceCategoryOriginal: normalizeOptionalResponseText(item.sourceCategoryOriginal),
+      sourceUrl: normalizeOptionalResponseText(item.sourceUrl),
+      dishRole: roleMetadata.dishRole,
+      dishRoles: [...roleMetadata.dishRoles],
+      primaryRole: roleMetadata.primaryRole,
+      roleConfidence: 0.4,
+      roleEvidence: evidence,
+      isMainCourseCandidate: roleMetadata.primaryRole === "main",
+      isSafeRecommendationCandidate: false,
+      sourceLine: [item.nameOriginal, descriptionOriginal, evidence]
+        .filter((value): value is string => Boolean(value?.trim()))
+        .join(" ")
+    };
+  });
+
+  const recommendations: Recommendation[] = validCandidates.map((item, index) => ({
+    dishId: dishes[index]!.id,
+    rank: index + 1,
+    reason,
+    facts: normalizeOptionalResponseText(item.sourceEvidence),
+    translatedName: item.translatedName!.trim(),
+    ...(normalizeOptionalResponseText(item.translatedDescription) ? { translatedDescription: normalizeOptionalResponseText(item.translatedDescription) } : {}),
+    ...(normalizeOptionalResponseText(item.descriptionOriginal) ? { descriptionOriginal: normalizeOptionalResponseText(item.descriptionOriginal) } : {})
+  }));
+
+  return {
+    dishes,
+    recommendations
+  };
+}
+
+function buildUncertainReviewRoleMetadata(values: RequestedDishRole[]) {
+  const includesStarterOrSalad = values.includes("starter") || values.includes("salad");
+
+  if (includesStarterOrSalad) {
+    return {
+      category: "AI-Pruefkandidat Vorspeise/Salat",
+      dishRole: "starter" as const,
+      dishRoles: ["starter", "salad"] as const,
+      primaryRole: "starter" as const
+    };
+  }
+
+  return {
+    category: "AI-Pruefkandidat",
+    dishRole: "main" as const,
+    dishRoles: ["main"] as const,
+    primaryRole: "main" as const
+  };
+}
+
+function buildUncertainReviewReason(outputLocale: string) {
+  return normalizeTargetLocale(outputLocale).startsWith("en")
+    ? "Selected for review because the menu information is incomplete."
+    : "Aufgrund unvollstaendiger Angaben nur zur Pruefung ausgewaehlt.";
+}
+
+function isUncertainReviewFeatureEnabled() {
+  return process.env.GUSTARO_UNCERTAIN_REVIEW_CANDIDATES === "true";
+}
+
+function normalizeOptionalResponseText(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function parseReviewPrice(value: string | null | undefined) {
+  const normalized = normalizeOptionalResponseText(value);
+  if (!normalized) return undefined;
+
+  const match = normalized.replace(",", ".").match(/(\d+(?:\.\d{1,2})?)/);
+  if (!match) return undefined;
+
+  const price = Number(match[1]);
+  return Number.isFinite(price) ? price : undefined;
 }
 
 type TwoStepMainLogValue = string | number | boolean | null | undefined;

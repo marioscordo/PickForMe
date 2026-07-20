@@ -147,6 +147,7 @@
     "fallbackTitle": "This fits you today",
     "fallbackText": "I am putting the recognized dishes into context for your moment.",
     "warningTitle": "Important note",
+    "uncertainReviewWarning": "The menu does not provide enough information for a reliable selection. These dishes may be suitable — please clarify the relevant details directly with the restaurant.",
     "unsafeKicker": "This is too uncertain",
     "unsafeTitle": "I cannot recommend anything from this reliably",
     "unsafeText": "Please show me a clearer menu or paste the menu text.",

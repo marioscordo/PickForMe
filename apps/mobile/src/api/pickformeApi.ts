@@ -47,6 +47,7 @@ type AnalyzeMenuApiBody = {
   requestedDishRoles: RequestedDishRole[];
   preferredDishRole?: PreferredDishRole;
   diagnosticRunId?: string;
+  supportsUncertainReviewCandidates?: boolean;
   profile: UserProfile;
   userLocale: string;
   deviceLocale?: string;
@@ -136,6 +137,7 @@ export function analyzeMenu(args: AnalyzeMenuMobileArgs) {
     requestedDishRoles: args.requestedDishRoles,
     ...(args.preferredDishRole ? { preferredDishRole: args.preferredDishRole } : {}),
     ...(args.diagnosticRunId ? { diagnosticRunId: args.diagnosticRunId } : {}),
+    supportsUncertainReviewCandidates: true,
     profile: sanitizeProfileForApi(args.profile),
     userLocale: resolveGuiLanguageFromDevice(),
     ...(resolveDeviceLocaleFromDevice() ? { deviceLocale: resolveDeviceLocaleFromDevice() } : {})

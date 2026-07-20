@@ -31,6 +31,7 @@ export type AnalyzeData = {
   conciergeHero?: string;
   analysisStatus?: "analysis_not_safe";
   analysisWarning?: string;
+  recommendationResultType?: "uncertain_review";
   restaurantDescription?: string;
   restaurantDescriptionSource?: "official_website";
   restaurantDescriptionUrl?: string;

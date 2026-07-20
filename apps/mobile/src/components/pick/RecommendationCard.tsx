@@ -228,6 +228,7 @@ export function RecommendationCard({
 
   const dishesById = useMemo(() => new Map(result.dishes.map((dish) => [dish.id, dish])), [result.dishes]);
   const visibleRecommendations = result.recommendations;
+  const isUncertainReview = result.recommendationResultType === "uncertain_review";
   const outputLocale = resolveOutputLocale(profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE);
   const profileFingerprint = useMemo(
     () =>
@@ -333,7 +334,9 @@ export function RecommendationCard({
       ) : null}
     </Surface>
   );
-  const analysisWarning = result.analysisWarning?.trim() ?? "";
+  const analysisWarning = isUncertainReview
+    ? content.recommendation.uncertainReviewWarning
+    : result.analysisWarning?.trim() ?? "";
   const warningBox = analysisWarning ? (
     <Surface tone="soft" style={local.warningBox}>
       <Text style={local.warningTitle}>{content.recommendation.warningTitle}</Text>
@@ -666,7 +669,7 @@ export function RecommendationCard({
 
                 {priceText ? <Text style={[local.price, isPrimaryRecommendation && local.pricePrimary]}>{priceText}</Text> : null}
 
-                {showStartersAndSaladsAction ? (
+                {showStartersAndSaladsAction && !isUncertainReview ? (
                   <View style={local.nestedActionBox}>
                     <PremiumCardAction
                       disabled={nestedActionDisabled}
