@@ -66,10 +66,38 @@ assert(
   route.includes(".slice(0, 3)"),
   "Review fallback must return at most three candidates"
 );
+const uncertainReviewFunction = sliceBetween(
+  route,
+  "function buildUncertainReviewResponse({",
+  "function mapUncertainReviewCandidatesToAnalyzeData"
+);
+const uncertainReviewGateIndex = uncertainReviewFunction.search(
+  /const\s+allergySafeRecommendations\s*=\s*applyAllergySafetyGate\s*\(\s*{\s*dishes:\s*mapped\.dishes,\s*recommendations:\s*mapped\.recommendations,\s*profile\s*}\s*\)/m
+);
+const uncertainReviewResponseIndex = uncertainReviewFunction.indexOf('recommendationResultType: "uncertain_review"');
 assert(
-  route.includes("applyAllergySafetyGate({\n    dishes: mapped.dishes,\n    recommendations: mapped.recommendations,\n    profile\n  })"),
+  uncertainReviewGateIndex >= 0 && uncertainReviewGateIndex < uncertainReviewResponseIndex,
   "Review candidates must pass through the final hard allergy safety gate"
 );
+const twoStepFlowBeforeReviewHelper = sliceBetween(
+  route,
+  "async function analyzeMenuWithTwoStepMainFlow({",
+  "function buildUncertainReviewResponse({"
+);
+for (const noSafeIndex of indexesOf(twoStepFlowBeforeReviewHelper, '"NO_SAFE_RECOMMENDATIONS"')) {
+  const previousReviewFallbackIndex = twoStepFlowBeforeReviewHelper.lastIndexOf(
+    "const reviewResponse = buildUncertainReviewResponse({",
+    noSafeIndex
+  );
+  assert(previousReviewFallbackIndex >= 0, "NO_SAFE_RECOMMENDATIONS must be preceded by a review fallback attempt");
+  const betweenReviewAndNoSafe = normalizeWhitespace(
+    twoStepFlowBeforeReviewHelper.slice(previousReviewFallbackIndex, noSafeIndex)
+  );
+  assert(
+    betweenReviewAndNoSafe.includes("if (reviewResponse) { return reviewResponse; }"),
+    "NO_SAFE_RECOMMENDATIONS must only be reached after an unsuccessful review fallback"
+  );
+}
 assert(
   !route.includes("verifyRecommendationSafetyAI(") &&
     !route.includes("validateMainDishAttributions("),
@@ -92,3 +120,27 @@ assert(
 );
 
 console.log("uncertain-review-candidates-regression: passed");
+
+function sliceBetween(value, startMarker, endMarker) {
+  const start = value.indexOf(startMarker);
+  assert(start >= 0, `missing start marker: ${startMarker}`);
+  const end = value.indexOf(endMarker, start + startMarker.length);
+  assert(end >= 0, `missing end marker: ${endMarker}`);
+  return value.slice(start, end);
+}
+
+function normalizeWhitespace(value) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function indexesOf(value, needle) {
+  const indexes = [];
+  let index = value.indexOf(needle);
+
+  while (index >= 0) {
+    indexes.push(index);
+    index = value.indexOf(needle, index + needle.length);
+  }
+
+  return indexes;
+}

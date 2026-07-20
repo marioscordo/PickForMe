@@ -94,7 +94,8 @@ export async function recommendMainDishesAI({
       requestedDishRoles,
       preferredDishRole,
       targetLocale,
-      targetLanguage
+      targetLanguage,
+      source
     }),
     source
   });
@@ -910,7 +911,8 @@ function buildMainDishPrompt({
   requestedDishRoles,
   preferredDishRole,
   targetLocale,
-  targetLanguage
+  targetLanguage,
+  source
 }: {
   profile: UserProfile;
   situation?: Situation;
@@ -918,11 +920,13 @@ function buildMainDishPrompt({
   preferredDishRole?: PreferredDishRole;
   targetLocale: string;
   targetLanguage: string;
+  source: TwoStepMenuSourceInput;
 }) {
   const roleAssignment = buildRequestedDishRoleAssignment(requestedDishRoles);
   const rolePreferenceAssignment = buildPreferredDishRoleAssignment(preferredDishRole, roleAssignment);
   const activePreferences = getActivePreferenceValues(profile);
   const searchAssignment = buildActivePreferenceSearchAssignment(activePreferences);
+  const pdfFileFallbackRules = buildPdfFileFallbackRules(source, activePreferences);
   const structuredAssignment = buildStructuredMainDishAssignment({
     profile,
     situation,
@@ -956,6 +960,7 @@ function buildMainDishPrompt({
     ...roleAssignment.rules,
     ...rolePreferenceAssignment.rules,
     ...searchAssignment.rules,
+    ...pdfFileFallbackRules,
     "- Alle Ausschluesse, Unvertraeglichkeiten und aktiven Allergene sind harte Tabus.",
     "- Harte Tabus stehen immer ueber Vorlieben, Situation, Beliebtheit, Preis, Kategorie oder Restaurantklassikern.",
     "- Vorlieben sind positive Orientierung; sie duerfen harte Tabus niemals ueberstimmen.",
@@ -1014,6 +1019,30 @@ function buildMainDishPrompt({
     "  ]",
     "}"
   ].join("\n");
+}
+
+function buildPdfFileFallbackRules(source: TwoStepMenuSourceInput, activePreferences: string[]) {
+  if (source.kind !== "pdf" || source.mainAiInputMode !== "pdf_file_fallback") {
+    return [];
+  }
+
+  const preferenceList = listOrNone(activePreferences);
+
+  return [
+    "PDF-Datei-Fallback ohne extrahierbaren Text:",
+    "- Pruefe jede Seite der bereitgestellten PDF-Datei vollstaendig.",
+    "- Beende die Suche nicht nach den ersten passenden Gerichten.",
+    "- Beruecksichtige Gerichte aus allen Seiten; ignoriere keine spaetere Seite nur deshalb, weil auf einer frueheren Seite bereits Kandidaten gefunden wurden.",
+    `- Suche auf allen Seiten ausdruecklich nach Gerichten, die zu den aktiven Vorlieben passen: ${preferenceList}.`,
+    "- Bevorzuge bestaetigte Vorliebenuebereinstimmungen im Kandidatenpool, solange sie im angeforderten Rollenraum liegen und nicht sichtbar harte Tabus verletzen.",
+    "- Ergaenze Kandidaten ohne Vorliebenuebereinstimmung nur, wenn nicht genuegend passende Kandidaten vorhanden sind.",
+    "- Erfinde keinen Vorliebenbezug; matchedPreferenceValue darf nur ein exakt aktiver primaryLikes-Wert sein.",
+    "- Uebernehme sichtbare Originalbeschreibungen aus der PDF in descriptionOriginal.",
+    "- Wenn keine Beschreibung sichtbar ist, lasse descriptionOriginal und translatedDescription null.",
+    "- Erfinde keine Zutaten, Zubereitungsarten oder Beschreibungen aus allgemeinem Kuechenwissen.",
+    "- Kandidaten muessen tatsaechlich in der PDF sichtbar sein; Name und Beschreibung muessen aus der Quelle stammen.",
+    "- Halte das bestehende Kandidatenlimit ein; fuehre keine starre Kategoriequote ein."
+  ];
 }
 
 function buildMainDishProfileContext(
