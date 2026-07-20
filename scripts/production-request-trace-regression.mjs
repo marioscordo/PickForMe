@@ -47,6 +47,39 @@ const allowedFields = [
   "uncertainCount",
   "conflictCount",
   "invalidCount",
+  "mainRawOutputItemCount",
+  "mainParsedCandidateCount",
+  "mainInvalidStructureCount",
+  "mainMissingNameCount",
+  "mainMissingRoleCount",
+  "mainInvalidRoleCount",
+  "mainParseFailureCount",
+  "mainEmptyResponseCount",
+  "mainExceptionCount",
+  "mainTimeoutCount",
+  "mainTruncatedOrIncompleteCount",
+  "mainNormalizedCandidateCount",
+  "mainCourseFilteredCount",
+  "mainRoleFilteredCount",
+  "mainDuplicateCandidateCount",
+  "mainMissingDescriptionCount",
+  "mainMissingEvidenceCount",
+  "mainInvalidCandidateCount",
+  "mainHardRestrictionPrefilteredCount",
+  "mainPreferenceMatchedCount",
+  "mainPreferenceUnmatchedCount",
+  "mainPreferenceMultiMatchedCount",
+  "mainPreferenceEvidenceMissingCount",
+  "mainCandidateLimit",
+  "mainCandidateCountBeforeLimit",
+  "mainCandidateLimitDropCount",
+  "mainCandidateCountAfterLimit",
+  "mainCandidatesSentToSafetyCount",
+  "mainResponseStatusKnown",
+  "mainIncompleteStatusKnown",
+  "mainOutputTokenLimitReached",
+  "mainRefusalCount",
+  "mainRawOutputCount",
   "safetyRequestedCandidateCount",
   "mainCandidateIdCount",
   "mainUniqueCandidateIdCount",
@@ -88,6 +121,9 @@ const forbiddenTraceFields = [
   "menuText",
   "prompt",
   "rawResponse",
+  "rawCompactJson",
+  "compactJson",
+  "matchedPreferenceValue",
   "sourceUrl",
   "urls",
   "email",
@@ -128,6 +164,8 @@ assert(
 );
 assert(
   mainAi.includes("productionTrace?:") &&
+    mainAi.includes("buildMainAICandidateFunnelDiagnostics") &&
+    mainAi.includes("mainCandidatesSentToSafetyCount") &&
     mainAi.includes("buildProductionSafetyTrace") &&
     mainAi.includes("buildSafetyCallFailureDiagnostics") &&
     mainAi.includes('reason === "uncertain"') &&
@@ -140,5 +178,10 @@ const verifySafetyCallCount = (mainAi.match(/verifyRecommendationSafetyAI\(/g) ?
 assert(verifySafetyCallCount === 1, "Production request trace must not add a second Safety call");
 const mainAiCreateCallCount = (mainAi.match(/client\.responses\.create\(/g) ?? []).length;
 assert(mainAiCreateCallCount === 1, "Production request trace must not add a second Main-AI call");
+assert(
+  route.includes("buildProductionMainFunnelTraceFields") &&
+    route.includes("buildProductionSafetyTraceFields"),
+  "Route must map Main-AI funnel and Safety diagnostics into the same trace line"
+);
 
 console.log("production-request-trace-regression: passed");

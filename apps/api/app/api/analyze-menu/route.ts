@@ -1071,6 +1071,7 @@ export async function POST(request: Request) {
         uncertainCount: 0,
         conflictCount: 0,
         invalidCount: 0,
+        ...buildProductionMainFunnelTraceFields(),
         ...buildProductionSafetyTraceFields(),
         finalSafeCount: 0,
         reviewCandidateCount: 0,
@@ -1455,6 +1456,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     uncertainCount: mainDishResult.productionTrace?.uncertainCount ?? 0,
     conflictCount: mainDishResult.productionTrace?.conflictCount ?? 0,
     invalidCount: mainDishResult.productionTrace?.invalidCount ?? 0,
+    ...buildProductionMainFunnelTraceFields(mainDishResult.productionTrace),
     ...buildProductionSafetyTraceFields(mainDishResult.productionTrace),
     finalSafeCount: allergySafeRecommendations.length,
     reviewCandidateCount: mainDishResult.uncertainReviewCandidates.length,
@@ -1598,6 +1600,7 @@ function buildUncertainReviewResponse({
     uncertainCount: productionTrace?.uncertainCount ?? 0,
     conflictCount: productionTrace?.conflictCount ?? 0,
     invalidCount: productionTrace?.invalidCount ?? 0,
+    ...buildProductionMainFunnelTraceFields(productionTrace),
     ...buildProductionSafetyTraceFields(productionTrace),
     finalSafeCount: 0,
     reviewCandidateCount: candidates.length,
@@ -1649,6 +1652,39 @@ type ProductionRequestTraceFields = {
   uncertainCount: number;
   conflictCount: number;
   invalidCount: number;
+  mainRawOutputItemCount: number;
+  mainParsedCandidateCount: number;
+  mainInvalidStructureCount: number;
+  mainMissingNameCount: number;
+  mainMissingRoleCount: number;
+  mainInvalidRoleCount: number;
+  mainParseFailureCount: number;
+  mainEmptyResponseCount: number;
+  mainExceptionCount: number;
+  mainTimeoutCount: number;
+  mainTruncatedOrIncompleteCount: number;
+  mainNormalizedCandidateCount: number;
+  mainCourseFilteredCount: number;
+  mainRoleFilteredCount: number;
+  mainDuplicateCandidateCount: number;
+  mainMissingDescriptionCount: number;
+  mainMissingEvidenceCount: number;
+  mainInvalidCandidateCount: number;
+  mainHardRestrictionPrefilteredCount: number;
+  mainPreferenceMatchedCount: number;
+  mainPreferenceUnmatchedCount: number;
+  mainPreferenceMultiMatchedCount: number;
+  mainPreferenceEvidenceMissingCount: number;
+  mainCandidateLimit: number;
+  mainCandidateCountBeforeLimit: number;
+  mainCandidateLimitDropCount: number;
+  mainCandidateCountAfterLimit: number;
+  mainCandidatesSentToSafetyCount: number;
+  mainResponseStatusKnown: boolean;
+  mainIncompleteStatusKnown: boolean;
+  mainOutputTokenLimitReached: boolean;
+  mainRefusalCount: number;
+  mainRawOutputCount: number;
   safetyRequestedCandidateCount: number;
   mainCandidateIdCount: number;
   mainUniqueCandidateIdCount: number;
@@ -1748,6 +1784,7 @@ function logNoSafeProductionRequestTrace({
     uncertainCount: mainDishResult.productionTrace?.uncertainCount ?? 0,
     conflictCount: mainDishResult.productionTrace?.conflictCount ?? 0,
     invalidCount: mainDishResult.productionTrace?.invalidCount ?? 0,
+    ...buildProductionMainFunnelTraceFields(mainDishResult.productionTrace),
     ...buildProductionSafetyTraceFields(mainDishResult.productionTrace),
     finalSafeCount,
     reviewCandidateCount: mainDishResult.uncertainReviewCandidates.length,
@@ -1765,6 +1802,44 @@ function logProductionRequestTrace(fields: ProductionRequestTraceFields) {
   }
 
   console.info(`[gustaro-production-request-trace] ${JSON.stringify(fields)}`);
+}
+
+function buildProductionMainFunnelTraceFields(productionTrace?: MainDishRecommendationResult["productionTrace"]) {
+  return {
+    mainRawOutputItemCount: productionTrace?.mainRawOutputItemCount ?? 0,
+    mainParsedCandidateCount: productionTrace?.mainParsedCandidateCount ?? 0,
+    mainInvalidStructureCount: productionTrace?.mainInvalidStructureCount ?? 0,
+    mainMissingNameCount: productionTrace?.mainMissingNameCount ?? 0,
+    mainMissingRoleCount: productionTrace?.mainMissingRoleCount ?? 0,
+    mainInvalidRoleCount: productionTrace?.mainInvalidRoleCount ?? 0,
+    mainParseFailureCount: productionTrace?.mainParseFailureCount ?? 0,
+    mainEmptyResponseCount: productionTrace?.mainEmptyResponseCount ?? 0,
+    mainExceptionCount: productionTrace?.mainExceptionCount ?? 0,
+    mainTimeoutCount: productionTrace?.mainTimeoutCount ?? 0,
+    mainTruncatedOrIncompleteCount: productionTrace?.mainTruncatedOrIncompleteCount ?? 0,
+    mainNormalizedCandidateCount: productionTrace?.mainNormalizedCandidateCount ?? 0,
+    mainCourseFilteredCount: productionTrace?.mainCourseFilteredCount ?? 0,
+    mainRoleFilteredCount: productionTrace?.mainRoleFilteredCount ?? 0,
+    mainDuplicateCandidateCount: productionTrace?.mainDuplicateCandidateCount ?? 0,
+    mainMissingDescriptionCount: productionTrace?.mainMissingDescriptionCount ?? 0,
+    mainMissingEvidenceCount: productionTrace?.mainMissingEvidenceCount ?? 0,
+    mainInvalidCandidateCount: productionTrace?.mainInvalidCandidateCount ?? 0,
+    mainHardRestrictionPrefilteredCount: productionTrace?.mainHardRestrictionPrefilteredCount ?? 0,
+    mainPreferenceMatchedCount: productionTrace?.mainPreferenceMatchedCount ?? 0,
+    mainPreferenceUnmatchedCount: productionTrace?.mainPreferenceUnmatchedCount ?? 0,
+    mainPreferenceMultiMatchedCount: productionTrace?.mainPreferenceMultiMatchedCount ?? 0,
+    mainPreferenceEvidenceMissingCount: productionTrace?.mainPreferenceEvidenceMissingCount ?? 0,
+    mainCandidateLimit: productionTrace?.mainCandidateLimit ?? 0,
+    mainCandidateCountBeforeLimit: productionTrace?.mainCandidateCountBeforeLimit ?? 0,
+    mainCandidateLimitDropCount: productionTrace?.mainCandidateLimitDropCount ?? 0,
+    mainCandidateCountAfterLimit: productionTrace?.mainCandidateCountAfterLimit ?? 0,
+    mainCandidatesSentToSafetyCount: productionTrace?.mainCandidatesSentToSafetyCount ?? 0,
+    mainResponseStatusKnown: productionTrace?.mainResponseStatusKnown ?? false,
+    mainIncompleteStatusKnown: productionTrace?.mainIncompleteStatusKnown ?? false,
+    mainOutputTokenLimitReached: productionTrace?.mainOutputTokenLimitReached ?? false,
+    mainRefusalCount: productionTrace?.mainRefusalCount ?? 0,
+    mainRawOutputCount: productionTrace?.mainRawOutputCount ?? 0
+  };
 }
 
 function buildProductionSafetyTraceFields(productionTrace?: MainDishRecommendationResult["productionTrace"]) {

@@ -44,12 +44,48 @@ export type MainDishRecommendationResult = {
     uncertainCount: number;
     conflictCount: number;
     invalidCount: number;
-  } & RecommendationSafetyDiagnostics;
+  } & RecommendationSafetyDiagnostics & MainAICandidateFunnelDiagnostics;
 };
 
 type MainDishAIWorkingResponse = ReturnType<typeof MainDishAIResponseSchema.parse> & {
   uncertainReviewCandidates?: MainDishAISafeCandidate[];
   productionTrace?: MainDishRecommendationResult["productionTrace"];
+};
+
+type MainAICandidateFunnelDiagnostics = {
+  mainRawOutputItemCount: number;
+  mainParsedCandidateCount: number;
+  mainInvalidStructureCount: number;
+  mainMissingNameCount: number;
+  mainMissingRoleCount: number;
+  mainInvalidRoleCount: number;
+  mainParseFailureCount: number;
+  mainEmptyResponseCount: number;
+  mainExceptionCount: number;
+  mainTimeoutCount: number;
+  mainTruncatedOrIncompleteCount: number;
+  mainNormalizedCandidateCount: number;
+  mainCourseFilteredCount: number;
+  mainRoleFilteredCount: number;
+  mainDuplicateCandidateCount: number;
+  mainMissingDescriptionCount: number;
+  mainMissingEvidenceCount: number;
+  mainInvalidCandidateCount: number;
+  mainHardRestrictionPrefilteredCount: number;
+  mainPreferenceMatchedCount: number;
+  mainPreferenceUnmatchedCount: number;
+  mainPreferenceMultiMatchedCount: number;
+  mainPreferenceEvidenceMissingCount: number;
+  mainCandidateLimit: number;
+  mainCandidateCountBeforeLimit: number;
+  mainCandidateLimitDropCount: number;
+  mainCandidateCountAfterLimit: number;
+  mainCandidatesSentToSafetyCount: number;
+  mainResponseStatusKnown: boolean;
+  mainIncompleteStatusKnown: boolean;
+  mainOutputTokenLimitReached: boolean;
+  mainRefusalCount: number;
+  mainRawOutputCount: number;
 };
 
 type MainDishAiDiagnosticRow = {
@@ -155,8 +191,15 @@ export async function recommendMainDishesAI({
     const parseStartedAt = Date.now();
 
     try {
-      const compactJson = limitUploadedBase64ImageCompactDishes(JSON.parse(stripJsonFence(response.output_text ?? "{}")), source);
+      const rawCompactJson = JSON.parse(stripJsonFence(response.output_text ?? "{}"));
+      const compactJson = limitUploadedBase64ImageCompactDishes(rawCompactJson, source);
+      const mainFunnelDiagnostics = buildMainAICandidateFunnelDiagnostics({
+        rawCompactJson,
+        compactJson,
+        response
+      });
       const compactParsed = MainDishAICompactResponseSchema.parse(compactJson);
+      mainFunnelDiagnostics.mainParsedCandidateCount = compactParsed.dishes.length;
       normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale);
       validateCompactDescriptionTranslationContract(compactParsed);
       parsed = buildMainDishResponseFromCompactDishes({
@@ -164,6 +207,17 @@ export async function recommendMainDishesAI({
         source,
         outputLocale: profile.outputLocale
       });
+      mainFunnelDiagnostics.mainNormalizedCandidateCount = parsed.safeCandidates.length;
+      mainFunnelDiagnostics.mainMissingDescriptionCount = compactParsed.dishes
+        .filter((dish) => !dish.descriptionOriginal?.trim()).length;
+      mainFunnelDiagnostics.mainMissingEvidenceCount = compactParsed.dishes
+        .filter((dish) => !dish.sourceEvidence?.trim()).length;
+      mainFunnelDiagnostics.mainPreferenceMatchedCount = compactParsed.dishes
+        .filter((dish) => Boolean(dish.matchedPreferenceValue?.trim())).length;
+      mainFunnelDiagnostics.mainPreferenceUnmatchedCount =
+        compactParsed.dishes.length - mainFunnelDiagnostics.mainPreferenceMatchedCount;
+      mainFunnelDiagnostics.mainPreferenceEvidenceMissingCount =
+        mainFunnelDiagnostics.mainPreferenceUnmatchedCount;
       logAnalyzeOpsDiagnostic({
         runId,
         phase: "main_ai_parse",
@@ -175,7 +229,7 @@ export async function recommendMainDishesAI({
         candidateCount: parsed.safeCandidates.length,
         recommendationCount: parsed.recommendations.length
       });
-      const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, runId, signal);
+      const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, runId, signal, mainFunnelDiagnostics);
       const uncertainReviewCandidates = verifierSafe.uncertainReviewCandidates ?? [];
       const attributionValidated = await validateMainDishAttributions(verifierSafe, profile, runId, signal);
       parsed = {
@@ -525,7 +579,8 @@ async function applyMainDishVerifierSafety(
   },
   profile: UserProfile,
   runId?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  mainFunnelDiagnostics: MainAICandidateFunnelDiagnostics = buildEmptyMainAICandidateFunnelDiagnostics()
 ) {
   const restrictions = buildRecommendationSafetyRestrictions(profile);
 
@@ -537,7 +592,8 @@ async function applyMainDishVerifierSafety(
         candidateId: `candidate_${index}`,
         safe: true as const
       })),
-      diagnostics: buildNoSafetyCallDiagnostics(response.safeCandidates.length)
+      diagnostics: buildNoSafetyCallDiagnostics(response.safeCandidates.length),
+      mainFunnelDiagnostics: withSafetyCandidateCount(mainFunnelDiagnostics, response.safeCandidates.length)
     });
 
     logDevAnalyzeTiming({
@@ -607,7 +663,8 @@ async function applyMainDishVerifierSafety(
     mainCandidateCount: response.safeCandidates.length,
     restrictionCount: restrictions.length,
     validation: verifierResult.validation,
-    diagnostics: verifierResult.diagnostics
+    diagnostics: verifierResult.diagnostics,
+    mainFunnelDiagnostics: withSafetyCandidateCount(mainFunnelDiagnostics, verifierCandidates.length)
   });
   logVerifierDecisionDiagnostics({
     restrictions,
@@ -692,12 +749,14 @@ function buildProductionSafetyTrace({
   mainCandidateCount,
   restrictionCount,
   validation,
-  diagnostics
+  diagnostics,
+  mainFunnelDiagnostics
 }: {
   mainCandidateCount: number;
   restrictionCount: number;
   validation: Array<{ safe: boolean; reason?: "invalid_response" | "conflict" | "uncertain" }>;
   diagnostics: RecommendationSafetyDiagnostics;
+  mainFunnelDiagnostics: MainAICandidateFunnelDiagnostics;
 }) {
   return {
     mainCandidateCount,
@@ -706,8 +765,189 @@ function buildProductionSafetyTrace({
     uncertainCount: validation.filter((result) => result.reason === "uncertain").length,
     conflictCount: validation.filter((result) => result.reason === "conflict").length,
     invalidCount: validation.filter((result) => result.reason === "invalid_response").length,
-    ...diagnostics
+    ...diagnostics,
+    ...mainFunnelDiagnostics
   };
+}
+
+function buildMainAICandidateFunnelDiagnostics({
+  rawCompactJson,
+  compactJson,
+  response
+}: {
+  rawCompactJson: unknown;
+  compactJson: unknown;
+  response: Awaited<ReturnType<ReturnType<typeof createTwoStepOpenAIClient>["responses"]["create"]>>;
+}): MainAICandidateFunnelDiagnostics {
+  const rawDishes = getCompactDishesArray(rawCompactJson);
+  const limitedDishes = getCompactDishesArray(compactJson);
+  const rawOutputItemCount = rawDishes.length;
+  const candidateCountAfterLimit = limitedDishes.length;
+  const missingNameCount = rawDishes.filter((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return false;
+    }
+
+    const value = (item as { nameOriginal?: unknown }).nameOriginal;
+    return typeof value !== "string" || value.trim().length === 0;
+  }).length;
+  const duplicateCandidateCount = countDuplicateCompactDishNames(rawDishes);
+
+  return {
+    mainRawOutputItemCount: rawOutputItemCount,
+    mainParsedCandidateCount: 0,
+    mainInvalidStructureCount: rawDishes.filter((item) => !item || typeof item !== "object" || Array.isArray(item)).length,
+    mainMissingNameCount: missingNameCount,
+    mainMissingRoleCount: 0,
+    mainInvalidRoleCount: 0,
+    mainParseFailureCount: 0,
+    mainEmptyResponseCount: rawOutputItemCount === 0 ? 1 : 0,
+    mainExceptionCount: 0,
+    mainTimeoutCount: 0,
+    mainTruncatedOrIncompleteCount: isMainResponseIncomplete(response),
+    mainNormalizedCandidateCount: 0,
+    mainCourseFilteredCount: 0,
+    mainRoleFilteredCount: 0,
+    mainDuplicateCandidateCount: duplicateCandidateCount,
+    mainMissingDescriptionCount: 0,
+    mainMissingEvidenceCount: 0,
+    mainInvalidCandidateCount: 0,
+    mainHardRestrictionPrefilteredCount: 0,
+    mainPreferenceMatchedCount: 0,
+    mainPreferenceUnmatchedCount: 0,
+    mainPreferenceMultiMatchedCount: 0,
+    mainPreferenceEvidenceMissingCount: 0,
+    mainCandidateLimit: 10,
+    mainCandidateCountBeforeLimit: rawOutputItemCount,
+    mainCandidateLimitDropCount: Math.max(0, rawOutputItemCount - candidateCountAfterLimit),
+    mainCandidateCountAfterLimit: candidateCountAfterLimit,
+    mainCandidatesSentToSafetyCount: 0,
+    mainResponseStatusKnown: typeof (response as { status?: unknown }).status === "string",
+    mainIncompleteStatusKnown: Boolean((response as { incomplete_details?: unknown }).incomplete_details),
+    mainOutputTokenLimitReached: isOutputTokenLimitReached(response),
+    mainRefusalCount: countMainResponseRefusals(response),
+    mainRawOutputCount: Array.isArray((response as { output?: unknown }).output)
+      ? (response as { output: unknown[] }).output.length
+      : 0
+  };
+}
+
+function buildEmptyMainAICandidateFunnelDiagnostics(): MainAICandidateFunnelDiagnostics {
+  return {
+    mainRawOutputItemCount: 0,
+    mainParsedCandidateCount: 0,
+    mainInvalidStructureCount: 0,
+    mainMissingNameCount: 0,
+    mainMissingRoleCount: 0,
+    mainInvalidRoleCount: 0,
+    mainParseFailureCount: 0,
+    mainEmptyResponseCount: 0,
+    mainExceptionCount: 0,
+    mainTimeoutCount: 0,
+    mainTruncatedOrIncompleteCount: 0,
+    mainNormalizedCandidateCount: 0,
+    mainCourseFilteredCount: 0,
+    mainRoleFilteredCount: 0,
+    mainDuplicateCandidateCount: 0,
+    mainMissingDescriptionCount: 0,
+    mainMissingEvidenceCount: 0,
+    mainInvalidCandidateCount: 0,
+    mainHardRestrictionPrefilteredCount: 0,
+    mainPreferenceMatchedCount: 0,
+    mainPreferenceUnmatchedCount: 0,
+    mainPreferenceMultiMatchedCount: 0,
+    mainPreferenceEvidenceMissingCount: 0,
+    mainCandidateLimit: 10,
+    mainCandidateCountBeforeLimit: 0,
+    mainCandidateLimitDropCount: 0,
+    mainCandidateCountAfterLimit: 0,
+    mainCandidatesSentToSafetyCount: 0,
+    mainResponseStatusKnown: false,
+    mainIncompleteStatusKnown: false,
+    mainOutputTokenLimitReached: false,
+    mainRefusalCount: 0,
+    mainRawOutputCount: 0
+  };
+}
+
+function withSafetyCandidateCount(
+  diagnostics: MainAICandidateFunnelDiagnostics,
+  count: number
+): MainAICandidateFunnelDiagnostics {
+  return {
+    ...diagnostics,
+    mainCandidatesSentToSafetyCount: count
+  };
+}
+
+function getCompactDishesArray(value: unknown): unknown[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  const dishes = (value as { dishes?: unknown }).dishes;
+  return Array.isArray(dishes) ? dishes : [];
+}
+
+function countDuplicateCompactDishNames(values: unknown[]) {
+  const seen = new Set<string>();
+  let duplicateCount = 0;
+
+  for (const value of values) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      continue;
+    }
+
+    const name = (value as { nameOriginal?: unknown }).nameOriginal;
+    if (typeof name !== "string" || !name.trim()) {
+      continue;
+    }
+
+    const key = name.trim().toLowerCase();
+    if (seen.has(key)) {
+      duplicateCount += 1;
+      continue;
+    }
+
+    seen.add(key);
+  }
+
+  return duplicateCount;
+}
+
+function isMainResponseIncomplete(response: unknown) {
+  const status = typeof (response as { status?: unknown }).status === "string"
+    ? (response as { status: string }).status.toLowerCase()
+    : "";
+
+  return status === "incomplete" || Boolean((response as { incomplete_details?: unknown }).incomplete_details) ? 1 : 0;
+}
+
+function isOutputTokenLimitReached(response: unknown) {
+  const incompleteDetails = (response as { incomplete_details?: unknown }).incomplete_details;
+
+  if (!incompleteDetails || typeof incompleteDetails !== "object") {
+    return false;
+  }
+
+  const reason = (incompleteDetails as { reason?: unknown }).reason;
+  return typeof reason === "string" && /token|output/i.test(reason);
+}
+
+function countMainResponseRefusals(response: unknown) {
+  const output = (response as { output?: unknown }).output;
+  if (!Array.isArray(output)) {
+    return 0;
+  }
+
+  return output.filter((item) => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+
+    const type = (item as { type?: unknown }).type;
+    return type === "refusal";
+  }).length;
 }
 
 function buildNoSafetyCallDiagnostics(candidateCount: number): RecommendationSafetyDiagnostics {
