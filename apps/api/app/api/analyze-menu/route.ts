@@ -1214,6 +1214,7 @@ async function analyzeMenuWithTwoStepMainFlow({
       recommendationCount: proposedMainDishes.length
     });
   } catch (error) {
+    const controlledError = mapStarterSaladInvalidMainAiSchemaError(error, requestedDishRoles);
     logTwoStepMainError({
       phase: "main-ai-error",
       runId,
@@ -1221,16 +1222,16 @@ async function analyzeMenuWithTwoStepMainFlow({
       sourceKind,
       sourceCount,
       durationMs: Date.now() - mainStartedAt,
-      error
+      error: controlledError
     });
     logAnalyzeOpsDiagnostic({
       ...opsBase,
       phase: "main_ai_request",
       durationMs: Date.now() - mainStartedAt,
-      errorClass: getAnalyzeOpsErrorClass(error),
-      diagnosticReason: getAnalyzeOpsDiagnosticReason(error)
+      errorClass: getAnalyzeOpsErrorClass(controlledError),
+      diagnosticReason: getAnalyzeOpsDiagnosticReason(controlledError)
     });
-    throw error;
+    throw controlledError;
   }
 
   const gatekeeperStartedAt = Date.now();
@@ -3480,6 +3481,28 @@ function getAnalyzeRequestKind(
   preferredDishRole: PreferredDishRole | undefined
 ) {
   return preferredDishRole === "starter" && roles.includes("starter") ? "embedded" : "topLevel";
+}
+
+function mapStarterSaladInvalidMainAiSchemaError(error: unknown, roles: RequestedDishRole[]) {
+  if (!isStarterSaladRoleClassificationRequest(roles)) {
+    return error;
+  }
+
+  if (!(error instanceof SyntaxError) || error.message !== "AI_RESPONSE_INVALID_SCHEMA") {
+    return error;
+  }
+
+  const controlledError = new AppError(
+    422,
+    "NO_SAFE_RECOMMENDATIONS",
+    "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+  );
+  attachAnalyzeOpsDiagnosticReason(controlledError, "main_ai_invalid_starter_salad_schema");
+  return controlledError;
+}
+
+function isStarterSaladRoleClassificationRequest(roles: RequestedDishRole[]) {
+  return roles.includes("starter") || roles.includes("salad");
 }
 
 function attachAnalyzeOpsDiagnosticReason(error: AppError, reason: string | undefined) {
