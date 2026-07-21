@@ -3,7 +3,7 @@ import type { Dish } from "../types/menu";
 import type { Recommendation } from "../types/recommendations";
 import type { TwoStepAnalyzeDataParts } from "./twoStepRecommendationMappers";
 
-export type PriceCompatibilityCurrency = "EUR" | "CHF" | "USD" | "RUB" | "INR" | "EGP" | "GBP" | "UNKNOWN";
+export type PriceCompatibilityCurrency = "EUR" | "CHF" | "USD" | "MXN" | "RUB" | "INR" | "EGP" | "GBP" | "UNKNOWN";
 
 type PriceCompatibilityInput = {
   acceptedRecommendations: MainDishAIRecommendation[];
@@ -44,7 +44,7 @@ export async function enrichPriceCompatibility({
 
   acceptedRecommendations.forEach((item, index) => {
     const dishId = data.dishes[index]?.id;
-    const priceParts = parsePriceParts(item.priceRaw, sourceCurrencyFallback);
+    const priceParts = parsePriceParts(item.priceRaw, sourceCurrencyFallback, sourceContext);
 
     if (dishId && priceParts) {
       pricePartsByDishId.set(dishId, priceParts);
@@ -97,13 +97,17 @@ export async function enrichPriceCompatibility({
 
 export function parsePriceParts(
   priceRaw: string | null | undefined,
-  fallbackCurrency?: PriceCompatibilityCurrency
+  fallbackCurrency?: PriceCompatibilityCurrency,
+  sourceContext?: string
 ): PriceParts | null {
   const raw = priceRaw?.trim();
   if (!raw) return null;
 
   const explicitCurrency = inferCurrencyFromPriceRaw(raw);
-  const currency = explicitCurrency ?? fallbackCurrency ?? "UNKNOWN";
+  const currency = explicitCurrency ??
+    resolveAmbiguousDollarCurrency(raw, sourceContext) ??
+    fallbackCurrency ??
+    "UNKNOWN";
   const amounts = extractPriceAmounts(raw);
 
   if (amounts.length === 0) {
@@ -170,8 +174,8 @@ export function inferCurrencyFromPriceRaw(value: string): PriceCompatibilityCurr
 
   if (/[€]|(?:^|[\s\d.,])eur(?:$|[\s\d.,])|\beuro\b/i.test(value)) return "EUR";
   if (/\bchf\b|\bsfr\.?\b/i.test(value)) return "CHF";
-  if (/\busd\b|us\$/i.test(value)) return "USD";
-  if (/\$/.test(value)) return "USD";
+  if (/\busd\b|\bus\s*\$/i.test(value)) return "USD";
+  if (/\bmxn\b|\bmx\s*\$/i.test(value)) return "MXN";
   if (/₽|\brub\b|руб\.?/i.test(value)) return "RUB";
   if (/₹|\binr\b|\brs\.?\b/i.test(value)) return "INR";
   if (/\begp\b|e£|\ble\b|ج\.م/i.test(value)) return "EGP";
@@ -184,9 +188,11 @@ export function inferSourceCurrencyFromContext(value: string | undefined): Price
   if (!value) return undefined;
 
   const normalized = value.toLowerCase();
+  const comparable = normalizeCurrencyContextText(value);
   const hostMatches = Array.from(normalized.matchAll(/https?:\/\/([^/\s"')]+)/g)).map((match) => match[1] ?? "");
   const hosts = hostMatches.length > 0 ? hostMatches : [normalized];
 
+  if (hasMexicanPesoContext(comparable, hosts)) return "MXN";
   if (hosts.some((host) => /\.ru(?::\d+)?$/.test(host))) return "RUB";
   if (hosts.some((host) => /\.in(?::\d+)?$/.test(host))) return "INR";
   if (hosts.some((host) => /\.eg(?::\d+)?$/.test(host))) return "EGP";
@@ -256,6 +262,37 @@ function hasEuroCountryDomain(host: string) {
   return /\.(?:at|be|cy|de|ee|es|fi|fr|gr|hr|ie|it|lt|lu|lv|mt|nl|pt|si|sk)(?::\d+)?$/.test(host);
 }
 
+function resolveAmbiguousDollarCurrency(
+  raw: string,
+  sourceContext: string | undefined
+): PriceCompatibilityCurrency | undefined {
+  if (!hasAmbiguousDollarPrice(raw)) {
+    return undefined;
+  }
+
+  return inferSourceCurrencyFromContext(sourceContext) ?? "UNKNOWN";
+}
+
+function hasMexicanPesoContext(comparable: string, hosts: string[]) {
+  return /\bmxn\b/.test(comparable) ||
+    /\bmx\s*\$/.test(comparable) ||
+    /\bpesos?\s+mexicanos?\b/.test(comparable) ||
+    /\bprecios?\s+en\s+pesos?\s+mexicanos?\b/.test(comparable) ||
+    /\bmexico\b/.test(comparable) ||
+    hosts.some((host) => /\.mx(?::\d+)?$/.test(host) || /\.com\.mx(?::\d+)?$/.test(host));
+}
+
+function hasAmbiguousDollarPrice(value: string) {
+  return /\$/.test(value) && !inferCurrencyFromPriceRaw(value);
+}
+
+function normalizeCurrencyContextText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function isPlainNumericPrice(value: string) {
   return /^\s*\d+(?:[,.]\d{1,2})?\s*$/.test(value);
 }
@@ -276,8 +313,24 @@ function formatOriginalPrice(priceParts: PriceParts) {
     return cleaned;
   }
 
+  if (priceParts.currency === "MXN" && hasAmbiguousDollarPrice(cleaned)) {
+    return formatResolvedMexicanPesoPrice(cleaned);
+  }
+
   const symbol = currencySymbol(priceParts.currency);
   return symbol ? `${cleaned} ${symbol}` : cleaned;
+}
+
+function formatResolvedMexicanPesoPrice(value: string) {
+  if (/^\$\s*/.test(value)) {
+    return value.replace(/^\$\s*/, "MX$");
+  }
+
+  if (/\s*\$$/.test(value)) {
+    return value.replace(/\s*\$$/, " MX$");
+  }
+
+  return value;
 }
 
 function formatApproximatePrice({
@@ -309,6 +362,8 @@ function currencySymbol(currency: PriceCompatibilityCurrency) {
       return "CHF";
     case "USD":
       return "$";
+    case "MXN":
+      return "MX$";
     case "RUB":
       return "₽";
     case "INR":

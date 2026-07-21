@@ -23,6 +23,7 @@ globalThis.fetch = async (value) => {
     CHF_EUR: 1.05,
     EGP_EUR: 0.019,
     INR_EUR: 0.011,
+    MXN_EUR: 0.05,
     RUB_EUR: 0.0098,
     USD_EUR: 0.92
   };
@@ -54,7 +55,15 @@ assert.equal(resolveTargetCurrencyFromDeviceLocale("en"), undefined);
 
 assert.equal(inferCurrencyFromPriceRaw("12,50 €"), "EUR");
 assert.equal(inferCurrencyFromPriceRaw("CHF 24"), "CHF");
-assert.equal(inferCurrencyFromPriceRaw("$18"), "USD");
+assert.equal(inferCurrencyFromPriceRaw("USD 100"), "USD");
+assert.equal(inferCurrencyFromPriceRaw("100 USD"), "USD");
+assert.equal(inferCurrencyFromPriceRaw("US$100"), "USD");
+assert.equal(inferCurrencyFromPriceRaw("US $100"), "USD");
+assert.equal(inferCurrencyFromPriceRaw("MXN 100"), "MXN");
+assert.equal(inferCurrencyFromPriceRaw("100 MXN"), "MXN");
+assert.equal(inferCurrencyFromPriceRaw("MX$100"), "MXN");
+assert.equal(inferCurrencyFromPriceRaw("MX $100"), "MXN");
+assert.equal(inferCurrencyFromPriceRaw("$18"), undefined);
 assert.equal(inferCurrencyFromPriceRaw("890 ₽"), "RUB");
 assert.equal(inferCurrencyFromPriceRaw("₹450"), "INR");
 assert.equal(inferCurrencyFromPriceRaw("EGP 320"), "EGP");
@@ -62,9 +71,21 @@ assert.equal(inferCurrencyFromPriceRaw("market price"), undefined);
 
 assert.equal(inferSourceCurrencyFromContext("https://hacha.ru/theater"), "RUB");
 assert.equal(inferSourceCurrencyFromContext("https://example.ch/menu"), "CHF");
+assert.equal(inferSourceCurrencyFromContext("Carta Mexico precios en pesos mexicanos"), "MXN");
+assert.equal(inferSourceCurrencyFromContext("https://example.mx/carta"), "MXN");
+assert.equal(inferSourceCurrencyFromContext("Santo Habanero"), undefined);
+assert.equal(inferSourceCurrencyFromContext("Entradas, sopas, ensaladas y tacos"), undefined);
+assert.equal(inferSourceCurrencyFromContext("https://assets.zyrosite.com/menu.pdf"), undefined);
 assert.equal(inferSourceCurrencyFromContext("https://example.test/menu"), undefined);
 
 assert.deepEqual(parsePriceParts("890–1190 ₽")?.amounts, [890, 1190]);
+assert.equal(parsePriceParts("$1300", undefined, "Carta Mexico precios en pesos mexicanos")?.currency, "MXN");
+assert.equal(parsePriceParts("$340", undefined, "https://santohabanero.example.mx/carta")?.currency, "MXN");
+assert.equal(parsePriceParts("$100", undefined, "https://example.us/menu")?.currency, "USD");
+assert.equal(parsePriceParts("$100", undefined, "https://example.test/menu")?.currency, "UNKNOWN");
+assert.equal(parsePriceParts("$100", undefined, "Entradas, sopas, ensaladas y tacos")?.currency, "UNKNOWN");
+assert.equal(parsePriceParts("$100", undefined, "Santo Habanero")?.currency, "UNKNOWN");
+assert.equal(parsePriceParts("US$100", undefined, "Carta Mexico precios en pesos mexicanos")?.currency, "USD");
 assert.equal(parsePriceParts("market price")?.currency, "UNKNOWN");
 assert.equal(parsePriceParts(undefined), null);
 
@@ -114,7 +135,7 @@ assert.equal(chf.dishes[0].priceDisplay, "CHF 24");
 assert.match(chf.dishes[0].priceApproxDisplay, /^ca\. /);
 assert.equal(chf.dishes[0].priceExchangeRateDate, "2026-07-14");
 
-const usdSame = await enrich("$18", { deviceLocale: "en-US" });
+const usdSame = await enrich("US$18", { deviceLocale: "en-US" });
 assert.equal(usdSame.dishes[0].priceDisplay, undefined);
 
 const rub = await enrich("890 ₽");
@@ -139,6 +160,28 @@ assert.match(range.dishes[0].priceApproxDisplay, /–/);
 const fallbackRub = await enrich("890", { sourceContext: "https://hacha.ru/theater" });
 assert.equal(fallbackRub.dishes[0].priceCurrency, "RUB");
 assert.equal(fallbackRub.dishes[0].priceDisplay, "890 ₽");
+
+const santoHabaneroContext = [
+  "Santo Habanero",
+  "Mexico",
+  "precios en pesos mexicanos",
+  "https://www.santohabanero.example.mx/carta"
+].join("\n");
+const santoHabaneroExpensive = await enrich("$1300", { sourceContext: santoHabaneroContext });
+assert.equal(santoHabaneroExpensive.dishes[0].priceCurrency, "MXN");
+assert.equal(santoHabaneroExpensive.dishes[0].priceDisplay, "MX$1300");
+assert.match(santoHabaneroExpensive.dishes[0].priceApproxDisplay, /^ca\. /);
+assert.equal(santoHabaneroExpensive.dishes[0].priceExchangeRateDate, "2026-07-14");
+
+const santoHabaneroSmall = await enrich("$340", { sourceContext: santoHabaneroContext });
+assert.equal(santoHabaneroSmall.dishes[0].priceCurrency, "MXN");
+assert.equal(santoHabaneroSmall.dishes[0].priceDisplay, "MX$340");
+assert.match(santoHabaneroSmall.dishes[0].priceApproxDisplay, /^ca\. /);
+
+const unknownDollar = await enrich("$100", { sourceContext: "https://assets.zyrosite.com/menu.pdf" });
+assert.equal(unknownDollar.dishes[0].priceCurrency, "UNKNOWN");
+assert.equal(unknownDollar.dishes[0].priceDisplay, "$100");
+assert.equal(unknownDollar.dishes[0].priceApproxDisplay, undefined);
 
 const unknown = await enrich("market price");
 assert.equal(unknown.dishes[0].priceCurrency, "UNKNOWN");
