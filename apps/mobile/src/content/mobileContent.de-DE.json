@@ -519,6 +519,7 @@
       "points": [
         "Empfehlung 1 ist GustaroAIs beste Wahl aus der erkannten Speisekarte.",
         "Speisekarten sind nicht immer vollständig lesbar. Deshalb kann es vorkommen, dass nicht alle Gerichte erkannt werden.",
+        "Du kannst einmalig zusätzlich „Vorspeisen & Salate“ auswählen und dafür passende Empfehlungen aus derselben Speisekarte erhalten.",
         "„Neue Speisekarte zeigen“ verwirft die aktuelle Empfehlung und startet den Weg zu einer neuen Analyse.",
         "Wenn Du unsicher bist, kannst Du die Original-Speisekarte öffnen und selbst nachprüfen."
       ],

@@ -191,12 +191,18 @@ assert(mainAi.includes("nimm auch sichtbare Salate in den Kandidatenpool auf"), 
 assert(mainAi.includes("verifyRecommendationSafetyAI"), "Safety verifier must remain active");
 assert(mainAi.includes("MainDishAICompactResponseSchema.parse"), "Main AI must parse the compact deduplicated response contract");
 assert(mainAi.includes("buildMainDishResponseFromCompactDishes"), "Main AI compact response must be converted to the existing backend candidate shape");
-assert(mainAi.includes("applyMainDishVerifierSafety(parsed, profile, runId, signal)"), "Main AI must run hard safety before soft preference attribution");
+assert(mainAi.includes("applyMainDishVerifierSafety(parsed, profile, runId, signal, mainFunnelDiagnostics)"), "Main AI must run hard safety before soft preference attribution");
 assert(mainAi.includes("validateMainDishAttributions(verifierSafe, profile, runId, signal)"), "Attribution validator must run after hard safety in the shared Main AI path");
 assert(mainAi.includes("backfillMainDishRecommendationsWithValidatedCandidates"), "Main AI must backfill only from attribution-validated safe candidates");
 assert(mainAi.includes('"dishes": ['), "Main AI prompt must request a single compact dishes list");
-assert(mainAi.includes("Liefere bis zu 10 unterschiedliche Gerichte"), "Main AI prompt must allow a broader compact candidate pool");
-assert(mainAi.includes("Liefere maximal 10 Compact-Dishes"), "Main AI prompt must cap compact dishes at 10");
+assert(
+  mainAi.includes("const MAIN_DISH_DEFAULT_CANDIDATE_LIMIT = 10;") &&
+    mainAi.includes("const MAIN_DISH_HARD_RESTRICTION_CANDIDATE_LIMIT = 15;") &&
+    mainAi.includes("const candidateLimit = getMainDishCandidateLimit(profile);") &&
+    mainAi.includes("`- Liefere bis zu ${candidateLimit} unterschiedliche Gerichte aus dem angeforderten Rollenraum.`"),
+  "Main AI prompt must allow the dynamic broader compact candidate pool"
+);
+assert(mainAi.includes("`- Liefere maximal ${candidateLimit} Compact-Dishes.`"), "Main AI prompt must cap compact dishes at the active candidate limit");
 assert(!/Empfiehl genau 3|waehle genau 3|Wähle die besten 3|besten 3|3 Empfehlungen erreicht|weniger als 3 Empfehlungen/.test(mainAi), "Main AI prompt must not ask the model to pick exactly three dishes");
 assert(!mainAi.includes('"allDishes": ['), "Main AI prompt must not request duplicated allDishes output");
 assert(!mainAi.includes('"safeCandidates": ['), "Main AI prompt must not request duplicated safeCandidates output");
@@ -204,12 +210,14 @@ assert(!mainAi.includes('"recommendationPayload": {'), "Main AI prompt must not 
 assert(!mainAi.includes('"recommendations": ['), "Main AI prompt must not request duplicated final recommendations output");
 assert(mainAi.includes("const candidates = dishes.map"), "Compact adapter must take all supplied dishes into the backend candidate pool");
 assert(!mainAi.includes("compactParsed.dishes.slice"), "Compact parser must not trim the model candidate pool before the adapter");
-assert(mainAi.includes("limitUploadedBase64ImageCompactDishes(JSON.parse(stripJsonFence(response.output_text ?? \"{}\")), source)"), "Main AI must apply upload-only compact overflow handling before schema validation");
-assert(mainAi.includes("function isUploadedBase64ImageSource(source: TwoStepMenuSourceInput)"), "Compact overflow handling must be gated by the existing source structure");
-assert(mainAi.includes('source.kind === "image"'), "Compact overflow handling must only consider image sources");
-assert(mainAi.includes("!source.sourceUrl"), "Compact overflow handling must not affect remote image or Tilda image sources with sourceUrl");
-assert(mainAi.includes("/^data:image\\/[a-z0-9.+-]+;base64,/i.test(url)"), "Compact overflow handling must require a data image URL");
-assert(mainAi.includes("response.dishes.slice(0, 10)"), "Uploaded Base64 compact overflow must keep the first ten dishes in order");
+assert(mainAi.includes("const rawCompactJson = JSON.parse(stripJsonFence(response.output_text ?? \"{}\"));"), "Main AI must parse compact JSON before overflow limiting");
+assert(mainAi.includes("const compactJson = limitCompactDishesToCandidateLimit(rawCompactJson, candidateLimit);"), "Main AI must apply general candidate-limit overflow handling before schema validation");
+assert(mainAi.indexOf("const rawCompactJson = JSON.parse(stripJsonFence(response.output_text ?? \"{}\"));") < mainAi.indexOf("const compactJson = limitCompactDishesToCandidateLimit(rawCompactJson, candidateLimit);"), "Main AI compact overflow path must parse before limiting");
+assert(mainAi.indexOf("const compactJson = limitCompactDishesToCandidateLimit(rawCompactJson, candidateLimit);") < mainAi.indexOf("const compactParsed = parseMainDishCompactResponse(compactJson, usesStarterSaladRoleClassification);"), "Main AI compact overflow path must limit before Zod parsing");
+assert(mainAi.includes("function limitCompactDishesToCandidateLimit(value: unknown, candidateLimit: number)"), "Compact overflow handling must use the general candidate-limit helper");
+assert(mainAi.includes("response.dishes.slice(0, candidateLimit)"), "Compact overflow handling must keep the first active-limit dishes in order");
+assert(!mainAi.includes("limitUploadedBase64ImageCompactDishes") && !mainAi.includes("isUploadedBase64ImageSource"), "Compact overflow handling must not depend on the retired upload-only helper");
+assert(mainAi.includes("mainCandidateLimitDropCount: Math.max(0, rawOutputItemCount - candidateCountAfterLimit)"), "Compact overflow drops must remain diagnostically visible");
 assert(!mainAi.includes("GUSTARO_COMPACT_SCHEMA_DIAG"), "Temporary compact schema diagnostic must be removed");
 assert(!mainAi.includes("logCompactMainAiSchemaDiagnostic"), "Temporary compact schema diagnostic helper must be removed");
 assert(!mainAi.includes("jsonParseSucceeded"), "Temporary compact schema JSON/Zod diagnostic state must be removed");
@@ -230,7 +238,7 @@ assert(attributionValidator.includes("buildDeterministicPreferenceReason"), "Att
 assert(!attributionValidator.includes("reason: recommendation.reason"), "Attribution validator must not pass free AI recommendation reasons through");
 
 const twoStepSchemas = read("apps/api/src/ai/twoStepRecommendationSchemas.ts");
-assert(twoStepSchemas.includes(".max(10, \"Main AI compact response must not contain more than 10 dishes\")"), "Compact Main AI schema must allow up to 10 dishes and reject more");
+assert(twoStepSchemas.includes(".max(15, \"Main AI compact response must not contain more than 15 dishes\")"), "Compact Main AI schema must allow the hard-restriction limit and reject more");
 assert(twoStepSchemas.includes("MainDishAICompactResponseSchema"), "Compact Main AI schema missing");
 
 const twoStepUtils = read("apps/api/src/ai/twoStepRecommendationAIUtils.ts");

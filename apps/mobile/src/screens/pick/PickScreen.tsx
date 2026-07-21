@@ -329,13 +329,11 @@ export function PickScreen({
       <Screen
         bottomScrollInset={RESULT_BOTTOM_SCROLL_INSET}
         contentContainerStyle={local.resultScreenContent}
+        floatingAccessory={<GustaroHelp common={content.help.common} topic={content.help.result} />}
         scrollHintBottomOffset={s(18)}
         scrollHintHideThreshold={s(96)}
         scrollToTopKey="analysis-result"
       >
-        <View style={local.resultHelpRow}>
-          <GustaroHelp common={content.help.common} topic={content.help.result} />
-        </View>
         <RecommendationCard
           result={analyze.result}
           menuText={menuText}
@@ -668,12 +666,8 @@ const local = StyleSheet.create({
   },
 
   resultScreenContent: {
-    paddingBottom: s(18)
-  },
-
-  resultHelpRow: {
-    alignItems: "flex-end",
-    marginBottom: s(10)
+    paddingBottom: s(18),
+    paddingTop: s(68)
   },
 
   conciergeIntro: {

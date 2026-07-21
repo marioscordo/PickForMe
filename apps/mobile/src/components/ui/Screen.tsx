@@ -7,6 +7,7 @@ type ScreenProps = {
   bottomScrollInset?: number;
   children: React.ReactNode;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  floatingAccessory?: React.ReactNode;
   scrollHintBottomOffset?: number;
   scrollHintHideThreshold?: number;
   scrollToEndKey?: string | number;
@@ -20,6 +21,7 @@ export function Screen({
   bottomScrollInset = 0,
   children,
   contentContainerStyle,
+  floatingAccessory,
   scrollHintBottomOffset = 18,
   scrollHintHideThreshold = 36,
   scrollToEndKey,
@@ -99,6 +101,11 @@ export function Screen({
           {children}
           {bottomScrollInset > 0 ? <View pointerEvents="none" style={{ height: bottomScrollInset }} /> : null}
         </ScrollView>
+        {floatingAccessory ? (
+          <View pointerEvents="box-none" style={local.floatingAccessory}>
+            {floatingAccessory}
+          </View>
+        ) : null}
         {showScrollHint && canScrollFurther ? (
           <View pointerEvents="none" style={[local.scrollHint, { bottom: scrollHintBottomOffset }]}>
             <Feather color="#C6A04A" name="chevron-down" size={18} />
@@ -111,6 +118,13 @@ export function Screen({
 
 
 const local = StyleSheet.create({
+  floatingAccessory: {
+    elevation: 6,
+    position: "absolute",
+    right: 18,
+    top: 20,
+    zIndex: 6
+  },
   scrollHint: {
     alignItems: "center",
     alignSelf: "center",

@@ -519,6 +519,7 @@
       "points": [
         "Recommendation 1 is GustaroAI's best choice from the recognized menu.",
         "Menus are not always fully readable. Some dishes may not be detected.",
+        "You can also select “Starters & Salads” once and receive suitable recommendations from the same menu.",
         "'Show new menu' discards the current recommendation and starts the path to a new analysis.",
         "If you are unsure, you can open the original menu and check it yourself."
       ],
