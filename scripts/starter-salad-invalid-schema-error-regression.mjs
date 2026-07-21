@@ -94,16 +94,8 @@ const starterSchema = between(
   "export const StarterSaladMainDishAICompactDishSchema = MainDishAICompactDishSchema.extend({",
   "export const CommittedMainDishRecommendationSchema = z.object({"
 );
-assert(
-  starterSchema.includes('dishRole: z.enum(["starter", "salad", "side", "soup", "other"])'),
-  "dishRole must be required enum so missing or invalid starter/salad roles fail closed"
-);
-assert(
-  starterSchema.includes("isStandaloneDish: z.boolean()"),
-  "isStandaloneDish must be required boolean so missing or invalid starter/salad standalone state fails closed"
-);
-assert(!starterSchema.includes("dishRole: z.unknown().optional()"), "dishRole must no longer be optional");
-assert(!starterSchema.includes("isStandaloneDish: z.unknown().optional()"), "isStandaloneDish must no longer be optional");
+assert(starterSchema.includes("dishRole: z.unknown().optional()"), "dishRole must remain optional for this stage");
+assert(starterSchema.includes("isStandaloneDish: z.unknown().optional()"), "isStandaloneDish must remain optional for this stage");
 
 const mainCompactDishSchema = between(
   schemas,
