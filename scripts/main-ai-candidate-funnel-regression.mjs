@@ -50,11 +50,30 @@ for (const field of requiredMainFields) {
   assert(route.includes(`${field}:`), `Production route trace must include ${field}`);
 }
 
+const parseSequence = [
+  "const rawCompactJson = JSON.parse(stripJsonFence(response.output_text ?? \"{}\"));",
+  "const compactJson = limitCompactDishesToCandidateLimit(rawCompactJson, candidateLimit);",
+  "const mainFunnelDiagnostics = buildMainAICandidateFunnelDiagnostics({",
+  "const compactParsed = parseMainDishCompactResponse(compactJson, usesStarterSaladRoleClassification);",
+  "mainFunnelDiagnostics.mainParsedCandidateCount = compactParsed.dishes.length",
+  "normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale);",
+  "const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, runId, signal, mainFunnelDiagnostics);"
+];
+let previousIndex = -1;
+for (const marker of parseSequence) {
+  const index = mainAi.indexOf(marker);
+  assert(index > previousIndex, `Main-AI funnel must preserve parse order around ${marker}`);
+  previousIndex = index;
+}
 assert(
-  mainAi.includes("const rawCompactJson = JSON.parse(stripJsonFence(response.output_text ?? \"{}\"));") &&
-    mainAi.includes("const compactJson = limitCompactDishesToCandidateLimit(rawCompactJson, candidateLimit);") &&
-    mainAi.includes("const compactParsed = MainDishAICompactResponseSchema.parse(compactJson);"),
-  "Main-AI funnel must observe the existing raw parse, active candidate limit, and schema parse order"
+  mainAi.includes("const usesStarterSaladRoleClassification = isStarterSaladRoleClassificationEnabled(requestedDishRoles);") &&
+    mainAi.includes("? StarterSaladMainDishAICompactResponseSchema.parse(value)") &&
+    mainAi.includes(": MainDishAICompactResponseSchema.parse(value)"),
+  "Main-AI funnel must use the role-aware compact parser with unchanged main schema and starter/salad schema branch"
+);
+assert(
+  (mainAi.match(/parseMainDishCompactResponse\(compactJson, usesStarterSaladRoleClassification\)/g) ?? []).length === 1,
+  "Main-AI funnel must parse compact candidates exactly once"
 );
 assert(
   mainAi.includes("mainFunnelDiagnostics.mainParsedCandidateCount = compactParsed.dishes.length") &&

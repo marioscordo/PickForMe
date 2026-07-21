@@ -16,6 +16,7 @@ import {
 } from "./twoStepRecommendationDiagnostics";
 import {
   MainDishAICompactResponseSchema,
+  StarterSaladMainDishAICompactResponseSchema,
   MainDishAIResponseSchema,
   type MainDishAICompactDish,
   type MainDishAIAnalyzedDish,
@@ -36,6 +37,7 @@ import { validateMainDishAttributions } from "../recommendation/attributionValid
 
 const MAIN_DISH_DEFAULT_CANDIDATE_LIMIT = 10;
 const MAIN_DISH_HARD_RESTRICTION_CANDIDATE_LIMIT = 15;
+const STARTER_SALAD_DIAGNOSTIC_ROLE_VALUES = ["starter", "salad", "side", "soup", "other"] as const;
 
 export type MainDishRecommendationResult = {
   recommendations: MainDishAIRecommendation[];
@@ -89,6 +91,15 @@ type MainAICandidateFunnelDiagnostics = {
   mainOutputTokenLimitReached: boolean;
   mainRefusalCount: number;
   mainRawOutputCount: number;
+  mainStarterRoleCount?: number;
+  mainSaladRoleCount?: number;
+  mainSideRoleCount?: number;
+  mainSoupRoleCount?: number;
+  mainOtherRoleCount?: number;
+  mainStandaloneDishCount?: number;
+  mainNonStandaloneDishCount?: number;
+  mainMissingRoleClassificationCount?: number;
+  mainInvalidRoleClassificationCount?: number;
 };
 
 type MainDishAiDiagnosticRow = {
@@ -137,6 +148,7 @@ export async function recommendMainDishesAI({
   const targetLanguage = getLanguageNameForLocale(targetLocale);
   const model = getTwoStepModelForSource(source);
   const candidateLimit = getMainDishCandidateLimit(profile);
+  const usesStarterSaladRoleClassification = isStarterSaladRoleClassificationEnabled(requestedDishRoles);
   const sourceContent = buildTwoStepSourceContent({
     prompt: buildMainDishPrompt({
       profile,
@@ -204,7 +216,7 @@ export async function recommendMainDishesAI({
         response,
         candidateLimit
       });
-      const compactParsed = MainDishAICompactResponseSchema.parse(compactJson);
+      const compactParsed = parseMainDishCompactResponse(compactJson, usesStarterSaladRoleClassification);
       mainFunnelDiagnostics.mainParsedCandidateCount = compactParsed.dishes.length;
       normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale);
       validateCompactDescriptionTranslationContract(compactParsed);
@@ -224,6 +236,11 @@ export async function recommendMainDishesAI({
         compactParsed.dishes.length - mainFunnelDiagnostics.mainPreferenceMatchedCount;
       mainFunnelDiagnostics.mainPreferenceEvidenceMissingCount =
         mainFunnelDiagnostics.mainPreferenceUnmatchedCount;
+      applyStarterSaladRoleClassificationDiagnostics(
+        mainFunnelDiagnostics,
+        compactParsed.dishes,
+        usesStarterSaladRoleClassification
+      );
       logAnalyzeOpsDiagnostic({
         runId,
         phase: "main_ai_parse",
@@ -309,7 +326,7 @@ export async function recommendMainDishesAI({
 }
 
 function normalizeMissingCompactTranslatedDescriptions(
-  response: ReturnType<typeof MainDishAICompactResponseSchema.parse>,
+  response: { dishes: MainDishAICompactDish[] },
   targetLocale: string
 ) {
   for (const item of response.dishes) {
@@ -327,7 +344,7 @@ function normalizeMissingCompactTranslatedDescriptions(
 }
 
 function validateCompactDescriptionTranslationContract(
-  response: ReturnType<typeof MainDishAICompactResponseSchema.parse>,
+  response: { dishes: MainDishAICompactDish[] },
 ) {
   for (const item of response.dishes) {
     const descriptionOriginal = item.descriptionOriginal?.trim();
@@ -418,6 +435,74 @@ function buildBackendSafeProfileSafety() {
     uncertainForAllergy: false,
     conflictReason: null
   };
+}
+
+function parseMainDishCompactResponse(value: unknown, usesStarterSaladRoleClassification: boolean) {
+  return usesStarterSaladRoleClassification
+    ? StarterSaladMainDishAICompactResponseSchema.parse(value)
+    : MainDishAICompactResponseSchema.parse(value);
+}
+
+function isStarterSaladRoleClassificationEnabled(values: RequestedDishRole[] | undefined) {
+  const roles = normalizeRequestedDishRoles(values);
+  return roles.includes("starter") || roles.includes("salad");
+}
+
+function applyStarterSaladRoleClassificationDiagnostics(
+  diagnostics: MainAICandidateFunnelDiagnostics,
+  dishes: Array<MainDishAICompactDish & { dishRole?: unknown; isStandaloneDish?: unknown }>,
+  enabled: boolean
+) {
+  if (!enabled) {
+    return;
+  }
+
+  diagnostics.mainStarterRoleCount = 0;
+  diagnostics.mainSaladRoleCount = 0;
+  diagnostics.mainSideRoleCount = 0;
+  diagnostics.mainSoupRoleCount = 0;
+  diagnostics.mainOtherRoleCount = 0;
+  diagnostics.mainStandaloneDishCount = 0;
+  diagnostics.mainNonStandaloneDishCount = 0;
+  diagnostics.mainMissingRoleClassificationCount = 0;
+  diagnostics.mainInvalidRoleClassificationCount = 0;
+
+  for (const dish of dishes) {
+    const hasRole = Object.prototype.hasOwnProperty.call(dish, "dishRole");
+    const hasStandalone = Object.prototype.hasOwnProperty.call(dish, "isStandaloneDish");
+    const role = dish.dishRole;
+    const standalone = dish.isStandaloneDish;
+    const validRole = typeof role === "string" && isStarterSaladDiagnosticRole(role);
+    const validStandalone = typeof standalone === "boolean";
+
+    if (!hasRole || !hasStandalone) {
+      diagnostics.mainMissingRoleClassificationCount += 1;
+    }
+
+    if ((hasRole && !validRole) || (hasStandalone && !validStandalone)) {
+      diagnostics.mainInvalidRoleClassificationCount += 1;
+    }
+
+    if (validRole) {
+      if (role === "starter") diagnostics.mainStarterRoleCount += 1;
+      if (role === "salad") diagnostics.mainSaladRoleCount += 1;
+      if (role === "side") diagnostics.mainSideRoleCount += 1;
+      if (role === "soup") diagnostics.mainSoupRoleCount += 1;
+      if (role === "other") diagnostics.mainOtherRoleCount += 1;
+    }
+
+    if (validStandalone) {
+      if (standalone) {
+        diagnostics.mainStandaloneDishCount += 1;
+      } else {
+        diagnostics.mainNonStandaloneDishCount += 1;
+      }
+    }
+  }
+}
+
+function isStarterSaladDiagnosticRole(value: string): value is typeof STARTER_SALAD_DIAGNOSTIC_ROLE_VALUES[number] {
+  return (STARTER_SALAD_DIAGNOSTIC_ROLE_VALUES as readonly string[]).includes(value);
 }
 
 function buildBackendNeutralReason(outputLocale: string | undefined) {
@@ -1557,7 +1642,13 @@ function buildRequestedDishRoleAssignment(values: RequestedDishRole[] | undefine
         "- Der aktive Rollenraum ist ausschliesslich starter und salad.",
         "- Identifiziere sichtbare Vorspeisen, Antipasti, Suppen nur wenn als Vorspeise erkennbar, und Salate.",
         "- Hauptgerichte, Pasta-/Pizza-/Fleisch-/Fisch-Hauptspeisen und vollwertige Hauptplatten duerfen nicht als Ersatz empfohlen werden.",
-        `- Wenn weniger als ${candidateLimit} sichtbare Vorspeisen oder Salate vorhanden sind, liefere alle geeigneten statt mit Hauptgerichten aufzufuellen.`
+        `- Wenn weniger als ${candidateLimit} sichtbare Vorspeisen oder Salate vorhanden sind, liefere alle geeigneten statt mit Hauptgerichten aufzufuellen.`,
+        "- Diagnose nur fuer diesen Rollenraum: Klassifiziere jeden Kandidaten zusaetzlich mit dishRole und isStandaloneDish.",
+        "- dishRole muss exakt einer dieser Werte sein: starter, salad, side, soup, other.",
+        "- starter = eigenstaendige Vorspeise; salad = eigenstaendiger Salat; side = reine Beilage oder Beilagensalat; soup = als eigenstaendige Vorspeise bestellbare Suppe; other = sonstige Rolle.",
+        "- isStandaloneDish muss true sein, wenn der Kandidat als eigenstaendiges Gericht bestellt werden kann, sonst false.",
+        "- Ein Beilagensalat ist dishRole side und isStandaloneDish false; klassifiziere ein Gericht nicht allein wegen des Wortes Salat im Namen als salad.",
+        "- Wende wegen dishRole oder isStandaloneDish keine Filterung, Sortierung, Priorisierung oder Entfernung an."
       ]
     };
   }

@@ -1708,6 +1708,15 @@ type ProductionRequestTraceFields = {
   recommendationResultType: ProductionRequestTraceResultType;
   httpStatus: number;
   totalDurationMs: number;
+  mainStarterRoleCount?: number;
+  mainSaladRoleCount?: number;
+  mainSideRoleCount?: number;
+  mainSoupRoleCount?: number;
+  mainOtherRoleCount?: number;
+  mainStandaloneDishCount?: number;
+  mainNonStandaloneDishCount?: number;
+  mainMissingRoleClassificationCount?: number;
+  mainInvalidRoleClassificationCount?: number;
 };
 
 function buildProductionRequestTraceBase({
@@ -1838,7 +1847,18 @@ function buildProductionMainFunnelTraceFields(productionTrace?: MainDishRecommen
     mainIncompleteStatusKnown: productionTrace?.mainIncompleteStatusKnown ?? false,
     mainOutputTokenLimitReached: productionTrace?.mainOutputTokenLimitReached ?? false,
     mainRefusalCount: productionTrace?.mainRefusalCount ?? 0,
-    mainRawOutputCount: productionTrace?.mainRawOutputCount ?? 0
+    mainRawOutputCount: productionTrace?.mainRawOutputCount ?? 0,
+    ...(productionTrace?.mainStarterRoleCount !== undefined ? {
+      mainStarterRoleCount: productionTrace.mainStarterRoleCount,
+      mainSaladRoleCount: productionTrace.mainSaladRoleCount ?? 0,
+      mainSideRoleCount: productionTrace.mainSideRoleCount ?? 0,
+      mainSoupRoleCount: productionTrace.mainSoupRoleCount ?? 0,
+      mainOtherRoleCount: productionTrace.mainOtherRoleCount ?? 0,
+      mainStandaloneDishCount: productionTrace.mainStandaloneDishCount ?? 0,
+      mainNonStandaloneDishCount: productionTrace.mainNonStandaloneDishCount ?? 0,
+      mainMissingRoleClassificationCount: productionTrace.mainMissingRoleClassificationCount ?? 0,
+      mainInvalidRoleClassificationCount: productionTrace.mainInvalidRoleClassificationCount ?? 0
+    } : {})
   };
 }
 

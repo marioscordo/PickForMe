@@ -147,6 +147,31 @@ export const MainDishAICompactResponseSchema = z.object({
     }, "Main AI compact response must not contain duplicate dish names")
 });
 
+export const StarterSaladMainDishAICompactDishSchema = MainDishAICompactDishSchema.extend({
+  dishRole: z.unknown().optional(),
+  isStandaloneDish: z.unknown().optional()
+});
+
+export const StarterSaladMainDishAICompactResponseSchema = z.object({
+  dishes: z.array(StarterSaladMainDishAICompactDishSchema)
+    .max(15, "Main AI compact response must not contain more than 15 dishes")
+    .refine((values) => {
+      const seen = new Set<string>();
+
+      for (const value of values) {
+        const key = value.nameOriginal.trim().toLowerCase();
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+      }
+
+      return true;
+    }, "Main AI compact response must not contain duplicate dish names")
+});
+
 export const CommittedMainDishRecommendationSchema = z.object({
   committed: z.literal(true),
   rank: z.number(),
