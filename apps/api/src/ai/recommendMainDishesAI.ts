@@ -34,6 +34,9 @@ import {
 } from "../recommendation/recommendationSafetyVerifier";
 import { validateMainDishAttributions } from "../recommendation/attributionValidator";
 
+const MAIN_DISH_DEFAULT_CANDIDATE_LIMIT = 10;
+const MAIN_DISH_HARD_RESTRICTION_CANDIDATE_LIMIT = 15;
+
 export type MainDishRecommendationResult = {
   recommendations: MainDishAIRecommendation[];
   uncertainReviewCandidates: MainDishAISafeCandidate[];
@@ -133,6 +136,7 @@ export async function recommendMainDishesAI({
   const targetLocale = normalizeTargetLocale(userLocale ?? profile.outputLocale);
   const targetLanguage = getLanguageNameForLocale(targetLocale);
   const model = getTwoStepModelForSource(source);
+  const candidateLimit = getMainDishCandidateLimit(profile);
   const sourceContent = buildTwoStepSourceContent({
     prompt: buildMainDishPrompt({
       profile,
@@ -141,7 +145,8 @@ export async function recommendMainDishesAI({
       preferredDishRole,
       targetLocale,
       targetLanguage,
-      source
+      source,
+      candidateLimit
     }),
     source
   });
@@ -192,11 +197,12 @@ export async function recommendMainDishesAI({
 
     try {
       const rawCompactJson = JSON.parse(stripJsonFence(response.output_text ?? "{}"));
-      const compactJson = limitUploadedBase64ImageCompactDishes(rawCompactJson, source);
+      const compactJson = limitCompactDishesToCandidateLimit(rawCompactJson, candidateLimit);
       const mainFunnelDiagnostics = buildMainAICandidateFunnelDiagnostics({
         rawCompactJson,
         compactJson,
-        response
+        response,
+        candidateLimit
       });
       const compactParsed = MainDishAICompactResponseSchema.parse(compactJson);
       mainFunnelDiagnostics.mainParsedCandidateCount = compactParsed.dishes.length;
@@ -467,26 +473,31 @@ function toSyntaxError(error: unknown) {
   return error;
 }
 
-function limitUploadedBase64ImageCompactDishes(value: unknown, source: TwoStepMenuSourceInput) {
-  if (!isUploadedBase64ImageSource(source) || value === null || typeof value !== "object" || Array.isArray(value)) {
+function limitCompactDishesToCandidateLimit(value: unknown, candidateLimit: number) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return value;
   }
 
   const response = value as { dishes?: unknown };
-  if (!Array.isArray(response.dishes) || response.dishes.length <= 10) {
+  if (!Array.isArray(response.dishes) || response.dishes.length <= candidateLimit) {
     return value;
   }
 
   return {
     ...(value as Record<string, unknown>),
-    dishes: response.dishes.slice(0, 10)
+    dishes: response.dishes.slice(0, candidateLimit)
   };
 }
 
-function isUploadedBase64ImageSource(source: TwoStepMenuSourceInput) {
-  return source.kind === "image" &&
-    !source.sourceUrl &&
-    (source.urls ?? []).some((url) => /^data:image\/[a-z0-9.+-]+;base64,/i.test(url));
+function getMainDishCandidateLimit(profile: UserProfile) {
+  return hasActiveMainDishHardRestrictions(profile)
+    ? MAIN_DISH_HARD_RESTRICTION_CANDIDATE_LIMIT
+    : MAIN_DISH_DEFAULT_CANDIDATE_LIMIT;
+}
+
+function hasActiveMainDishHardRestrictions(profile: UserProfile) {
+  return arrayValue(profile.allergens).length > 0 ||
+    arrayValue(profile.customExclusions).length > 0;
 }
 
 function logMainDishAiResponseDiagnostic(
@@ -773,11 +784,13 @@ function buildProductionSafetyTrace({
 function buildMainAICandidateFunnelDiagnostics({
   rawCompactJson,
   compactJson,
-  response
+  response,
+  candidateLimit
 }: {
   rawCompactJson: unknown;
   compactJson: unknown;
   response: Awaited<ReturnType<ReturnType<typeof createTwoStepOpenAIClient>["responses"]["create"]>>;
+  candidateLimit: number;
 }): MainAICandidateFunnelDiagnostics {
   const rawDishes = getCompactDishesArray(rawCompactJson);
   const limitedDishes = getCompactDishesArray(compactJson);
@@ -817,7 +830,7 @@ function buildMainAICandidateFunnelDiagnostics({
     mainPreferenceUnmatchedCount: 0,
     mainPreferenceMultiMatchedCount: 0,
     mainPreferenceEvidenceMissingCount: 0,
-    mainCandidateLimit: 10,
+    mainCandidateLimit: candidateLimit,
     mainCandidateCountBeforeLimit: rawOutputItemCount,
     mainCandidateLimitDropCount: Math.max(0, rawOutputItemCount - candidateCountAfterLimit),
     mainCandidateCountAfterLimit: candidateCountAfterLimit,
@@ -857,7 +870,7 @@ function buildEmptyMainAICandidateFunnelDiagnostics(): MainAICandidateFunnelDiag
     mainPreferenceUnmatchedCount: 0,
     mainPreferenceMultiMatchedCount: 0,
     mainPreferenceEvidenceMissingCount: 0,
-    mainCandidateLimit: 10,
+    mainCandidateLimit: MAIN_DISH_DEFAULT_CANDIDATE_LIMIT,
     mainCandidateCountBeforeLimit: 0,
     mainCandidateLimitDropCount: 0,
     mainCandidateCountAfterLimit: 0,
@@ -1264,7 +1277,8 @@ function buildMainDishPrompt({
   preferredDishRole,
   targetLocale,
   targetLanguage,
-  source
+  source,
+  candidateLimit
 }: {
   profile: UserProfile;
   situation?: Situation;
@@ -1273,11 +1287,12 @@ function buildMainDishPrompt({
   targetLocale: string;
   targetLanguage: string;
   source: TwoStepMenuSourceInput;
+  candidateLimit: number;
 }) {
-  const roleAssignment = buildRequestedDishRoleAssignment(requestedDishRoles);
+  const roleAssignment = buildRequestedDishRoleAssignment(requestedDishRoles, candidateLimit);
   const rolePreferenceAssignment = buildPreferredDishRoleAssignment(preferredDishRole, roleAssignment);
   const activePreferences = getActivePreferenceValues(profile);
-  const searchAssignment = buildActivePreferenceSearchAssignment(activePreferences);
+  const searchAssignment = buildActivePreferenceSearchAssignment(activePreferences, candidateLimit);
   const pdfFileFallbackRules = buildPdfFileFallbackRules(source, activePreferences);
   const structuredAssignment = buildStructuredMainDishAssignment({
     profile,
@@ -1285,7 +1300,8 @@ function buildMainDishPrompt({
     roleAssignment,
     activePreferences,
     searchAssignment,
-    targetLocale
+    targetLocale,
+    candidateLimit
   });
 
   return [
@@ -1293,8 +1309,8 @@ function buildMainDishPrompt({
     "Du bist der Main-AI-Concierge fuer rollenbasierte Speisekartenempfehlungen.",
     "Du bekommst Profil, Gerichtsrollen, Regeln und Speisekarte vollstaendig strukturiert.",
     `Liefere jeden klar erkennbaren Kandidaten aus diesem Rollenraum genau einmal: ${roleAssignment.label}.`,
-    "- Liefere bis zu 10 unterschiedliche Gerichte aus dem angeforderten Rollenraum.",
-    "- Wenn weniger als 10 rollenpassende Gerichte vorhanden sind, liefere alle geeigneten.",
+    `- Liefere bis zu ${candidateLimit} unterschiedliche Gerichte aus dem angeforderten Rollenraum.`,
+    `- Wenn weniger als ${candidateLimit} rollenpassende Gerichte vorhanden sind, liefere alle geeigneten.`,
     "- Erfinde keine kuenstliche Mindestanzahl.",
     `Aufgabe: Erzeuge einen entdoppelten Kandidatenpool aus ${roleAssignment.label}; Backend-Safety, Vorliebengewichtung, Backfill und finale Auswahl passieren danach.`,
     "Arbeite in dieser Reihenfolge:",
@@ -1319,7 +1335,7 @@ function buildMainDishPrompt({
     "- Backend-Safety entfernt harte Konflikte nachgelagert fail-closed; du darfst im Main-AI-Output keine Gerichte wegen Safety oder Vorlieben entfernen.",
     "- Gib keine removedDishes, safeCandidates, recommendations, recommendationPayload, reason, scoreReason, detectedConflicts, isSafe oder profileSafety aus.",
     `- Nutze nur echte Gerichte aus dem Rollenraum ${roleAssignment.label}, die belegbar in der Speisekarte vorkommen.`,
-    "- Liefere maximal 10 Compact-Dishes.",
+    `- Liefere maximal ${candidateLimit} Compact-Dishes.`,
     "- Vorlieben duerfen die Reihenfolge beeinflussen, aber neutrale Gerichte nicht aus dem Kandidatenpool verdraengen.",
     "- Keine rollenfremden Gerichte, Desserts, Getraenke, Beilagen, Zutaten oder Beschreibungsteile empfehlen.",
     "- Ein Gericht darf im JSON nur einmal vorkommen.",
@@ -1430,7 +1446,8 @@ function buildStructuredMainDishAssignment({
   roleAssignment,
   activePreferences,
   searchAssignment,
-  targetLocale
+  targetLocale,
+  candidateLimit
 }: {
   profile: UserProfile;
   situation?: Situation;
@@ -1438,6 +1455,7 @@ function buildStructuredMainDishAssignment({
   activePreferences: string[];
   searchAssignment: ActivePreferenceSearchAssignment;
   targetLocale: string;
+  candidateLimit: number;
 }) {
   const hardExclusions = uniqueValues(arrayValue(profile.customExclusions));
   const hardAllergens = uniqueValues(arrayValue(profile.allergens));
@@ -1462,8 +1480,8 @@ function buildStructuredMainDishAssignment({
         keine_rollenfremde_auffuellung: true,
         gerichtsnamen_und_vollstaendige_sichtbare_beschreibungen_pruefen: true,
         jedes_gericht_nur_einmal_ausgeben: true,
-        maximal_10_compact_dishes: true,
-        weniger_als_10_liefert_alle_geeigneten: true,
+        aktives_compact_dish_limit: candidateLimit,
+        weniger_als_aktives_limit_liefert_alle_geeigneten: true,
         keine_kuenstliche_mindestanzahl: true,
         neutrale_gerichte_nicht_durch_vorlieben_verdraengen: true,
         keine_finale_empfehlung_im_main_ai_output: true,
@@ -1508,7 +1526,7 @@ type RequestedDishRoleAssignment = {
   rules: string[];
 };
 
-function buildRequestedDishRoleAssignment(values?: RequestedDishRole[]): RequestedDishRoleAssignment {
+function buildRequestedDishRoleAssignment(values: RequestedDishRole[] | undefined, candidateLimit: number): RequestedDishRoleAssignment {
   const roles = normalizeRequestedDishRoles(values);
 
   if (roles.includes("starter") || roles.includes("salad")) {
@@ -1523,7 +1541,7 @@ function buildRequestedDishRoleAssignment(values?: RequestedDishRole[]): Request
         "- Der aktive Rollenraum ist ausschliesslich starter und salad.",
         "- Identifiziere sichtbare Vorspeisen, Antipasti, Suppen nur wenn als Vorspeise erkennbar, und Salate.",
         "- Hauptgerichte, Pasta-/Pizza-/Fleisch-/Fisch-Hauptspeisen und vollwertige Hauptplatten duerfen nicht als Ersatz empfohlen werden.",
-        "- Wenn weniger als 10 sichtbare Vorspeisen oder Salate vorhanden sind, liefere alle geeigneten statt mit Hauptgerichten aufzufuellen."
+        `- Wenn weniger als ${candidateLimit} sichtbare Vorspeisen oder Salate vorhanden sind, liefere alle geeigneten statt mit Hauptgerichten aufzufuellen.`
       ]
     };
   }
@@ -1539,7 +1557,7 @@ function buildRequestedDishRoleAssignment(values?: RequestedDishRole[]): Request
       "- Der aktive Rollenraum ist ausschliesslich main.",
       "- Identifiziere sichtbare Hauptgerichte und vollwertige Hauptspeisen.",
       "- Vorspeisen, Salate als reine Vorspeisen, Desserts, Getraenke und Beilagen duerfen nicht als Ersatz empfohlen werden.",
-      "- Wenn weniger als 10 sichtbare Hauptspeisen vorhanden sind, liefere alle geeigneten statt mit Vorspeisen oder Salaten aufzufuellen."
+      `- Wenn weniger als ${candidateLimit} sichtbare Hauptspeisen vorhanden sind, liefere alle geeigneten statt mit Vorspeisen oder Salaten aufzufuellen.`
     ]
   };
 }
@@ -1591,15 +1609,15 @@ function getActivePreferenceValues(profile: UserProfile) {
   ]);
 }
 
-function buildActivePreferenceSearchAssignment(values: string[]): ActivePreferenceSearchAssignment {
+function buildActivePreferenceSearchAssignment(values: string[], candidateLimit: number): ActivePreferenceSearchAssignment {
   if (values.length === 0) {
     return {
       kind: "none",
-      instruction: "Liefere bis zu 10 passende Kandidaten aus dem angeforderten Rollenraum.",
+      instruction: `Liefere bis zu ${candidateLimit} passende Kandidaten aus dem angeforderten Rollenraum.`,
       searchSpaceLabel: "allgemeine passende Gerichte im angeforderten Rollenraum",
       rules: [
-        "- Es gibt keine aktive Wunschrichtung; liefere bis zu 10 echte Kandidaten aus dem angeforderten Rollenraum.",
-        "- Wenn weniger als 10 rollenpassende Gerichte sichtbar sind, liefere alle geeigneten.",
+        `- Es gibt keine aktive Wunschrichtung; liefere bis zu ${candidateLimit} echte Kandidaten aus dem angeforderten Rollenraum.`,
+        `- Wenn weniger als ${candidateLimit} rollenpassende Gerichte sichtbar sind, liefere alle geeigneten.`,
         "- Harte Ausschluesse, Allergien und Unvertraeglichkeiten werden nachgelagert vom Backend geprueft."
       ]
     };
@@ -1610,11 +1628,11 @@ function buildActivePreferenceSearchAssignment(values: string[]): ActivePreferen
 
     return {
       kind: "single",
-      instruction: `Liefere bis zu 10 Kandidaten aus dem angeforderten Rollenraum und priorisiere dabei den aktiven Suchraum: ${searchTarget}.`,
+      instruction: `Liefere bis zu ${candidateLimit} Kandidaten aus dem angeforderten Rollenraum und priorisiere dabei den aktiven Suchraum: ${searchTarget}.`,
       searchSpaceLabel: searchTarget,
       rules: [
         `- Wenn die Speisekarte passende ${searchTarget} enthaelt, sortiere diese im Kandidatenpool nach vorne.`,
-        `- Wenn weniger passende ${searchTarget} sichtbar sind, ergaenze mit anderen sichtbaren Gerichten aus dem angeforderten Rollenraum, bis maximal 10 Kandidaten erreicht sind.`,
+        `- Wenn weniger passende ${searchTarget} sichtbar sind, ergaenze mit anderen sichtbaren Gerichten aus dem angeforderten Rollenraum, bis maximal ${candidateLimit} Kandidaten erreicht sind.`,
         "- Verdraenge neutrale rollenpassende Gerichte nicht nur wegen fehlendem Vorliebenbezug.",
         "- Fuelle nicht mit Kategorien ausserhalb des Rollenraums auf.",
         "- Erfinde nichts.",
@@ -1628,13 +1646,13 @@ function buildActivePreferenceSearchAssignment(values: string[]): ActivePreferen
 
   return {
     kind: "multiple",
-    instruction: `Liefere bis zu 10 Kandidaten aus dem angeforderten Rollenraum und priorisiere dabei den aktiven Suchraum: ${searchSpace}.`,
+    instruction: `Liefere bis zu ${candidateLimit} Kandidaten aus dem angeforderten Rollenraum und priorisiere dabei den aktiven Suchraum: ${searchSpace}.`,
     searchSpaceLabel: searchSpace,
     rules: [
       "- Kandidaten aus diesem Suchraum stehen weiter vorne, wenn passende Gerichte vorhanden sind.",
       "- Verdraenge neutrale rollenpassende Gerichte nicht nur wegen fehlendem Vorliebenbezug.",
-      "- Wenn nur weniger Treffer im Suchraum erkennbar sind, ergaenze mit anderen sichtbaren Gerichten aus dem angeforderten Rollenraum, bis maximal 10 Kandidaten erreicht sind.",
-      "- Wenn weniger als 10 rollenpassende Gerichte sichtbar sind, liefere alle geeigneten.",
+      `- Wenn nur weniger Treffer im Suchraum erkennbar sind, ergaenze mit anderen sichtbaren Gerichten aus dem angeforderten Rollenraum, bis maximal ${candidateLimit} Kandidaten erreicht sind.`,
+      `- Wenn weniger als ${candidateLimit} rollenpassende Gerichte sichtbar sind, liefere alle geeigneten.`,
       "- Erfinde nichts.",
       "- Nutze nur echte Gerichte aus der Speisekarte."
     ]

@@ -129,7 +129,7 @@ export const MainDishAICompactDishSchema = z.object({
 
 export const MainDishAICompactResponseSchema = z.object({
   dishes: z.array(MainDishAICompactDishSchema)
-    .max(10, "Main AI compact response must not contain more than 10 dishes")
+    .max(15, "Main AI compact response must not contain more than 15 dishes")
     .refine((values) => {
       const seen = new Set<string>();
 

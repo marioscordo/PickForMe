@@ -52,9 +52,9 @@ for (const field of requiredMainFields) {
 
 assert(
   mainAi.includes("const rawCompactJson = JSON.parse(stripJsonFence(response.output_text ?? \"{}\"));") &&
-    mainAi.includes("const compactJson = limitUploadedBase64ImageCompactDishes(rawCompactJson, source);") &&
+    mainAi.includes("const compactJson = limitCompactDishesToCandidateLimit(rawCompactJson, candidateLimit);") &&
     mainAi.includes("const compactParsed = MainDishAICompactResponseSchema.parse(compactJson);"),
-  "Main-AI funnel must observe the existing raw parse, upload limit, and schema parse order"
+  "Main-AI funnel must observe the existing raw parse, active candidate limit, and schema parse order"
 );
 assert(
   mainAi.includes("mainFunnelDiagnostics.mainParsedCandidateCount = compactParsed.dishes.length") &&
@@ -65,8 +65,8 @@ assert(
   mainAi.includes("mainCandidateCountBeforeLimit: rawOutputItemCount") &&
     mainAi.includes("mainCandidateLimitDropCount: Math.max(0, rawOutputItemCount - candidateCountAfterLimit)") &&
     mainAi.includes("mainCandidateCountAfterLimit: candidateCountAfterLimit") &&
-    mainAi.includes("mainCandidateLimit: 10"),
-  "Main-AI funnel must count before/after limit and limit drops without changing the limit"
+    mainAi.includes("mainCandidateLimit: candidateLimit"),
+  "Main-AI funnel must count before/after limit and limit drops against the active limit"
 );
 assert(
   mainAi.includes("mainCandidatesSentToSafetyCount: count") &&
