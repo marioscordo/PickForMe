@@ -148,8 +148,8 @@ export const MainDishAICompactResponseSchema = z.object({
 });
 
 export const StarterSaladMainDishAICompactDishSchema = MainDishAICompactDishSchema.extend({
-  dishRole: z.unknown().optional(),
-  isStandaloneDish: z.unknown().optional()
+  dishRole: z.enum(["starter", "salad", "side", "soup", "other"]),
+  isStandaloneDish: z.boolean()
 });
 
 export const StarterSaladMainDishAICompactResponseSchema = z.object({
