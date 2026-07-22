@@ -40,6 +40,8 @@ type RequestRestaurantIntroMobileArgs = {
 
 type RequestWineRecommendationMobileArgs = {
   mainDish: WineRecommendationMainDish;
+  menuText?: string;
+  menuUrls?: string[];
   profile: UserProfile;
   signal?: AbortSignal;
 };
@@ -196,6 +198,8 @@ export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {
 export function requestWineRecommendation(args: RequestWineRecommendationMobileArgs) {
   const body = {
     mainDish: args.mainDish,
+    menuText: args.menuText ?? "",
+    ...(args.menuUrls?.length ? { menuUrls: args.menuUrls } : {}),
     profile: sanitizeProfileForApi(args.profile),
     userLocale: resolveGuiLanguageFromDevice()
   };

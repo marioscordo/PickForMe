@@ -503,6 +503,7 @@ export function RecommendationCard({
           sourceEvidence: recommendation.facts ?? dish.sourceLine ?? null,
           reason: recommendation.reason
         },
+        menuText,
         profile,
         signal: wineAbortController.signal
       });

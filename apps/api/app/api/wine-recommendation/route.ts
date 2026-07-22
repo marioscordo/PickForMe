@@ -4,10 +4,14 @@ import { requireUser } from "../../../src/auth/requireUser";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { sanitizeProfileForRecommendation } from "../../../src/profile/profileInputPolicy";
+import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import type { UserProfile } from "../../../src/types/profile";
+import { extractWineCandidates } from "../../../src/wine/extractWineCandidates";
 
 type WineRecommendationRequest = {
   mainDish?: WineMainDishAnchor;
+  menuText?: string;
+  menuUrls?: string[];
   profile?: UserProfile;
   userLocale?: string;
 };
@@ -28,6 +32,8 @@ export async function POST(request: Request) {
     }
 
     const profile = sanitizeProfileForRecommendation(body.profile);
+    const menuSourceText = await loadWineMenuSourceText(body);
+    const wineCandidates = extractWineCandidates(menuSourceText);
     const source = {
       kind: "text" as const,
       text: [
@@ -36,7 +42,10 @@ export async function POST(request: Request) {
         mainDish.descriptionOriginal,
         mainDish.translatedDescription,
         mainDish.sourceEvidence,
-        mainDish.reason
+        mainDish.reason,
+        wineCandidates.length > 0
+          ? ["Sichtbare Wein-Kandidaten:", JSON.stringify(wineCandidates)].join("\n")
+          : ""
       ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).join("\n")
     };
 
@@ -60,6 +69,33 @@ export async function POST(request: Request) {
   } catch (error) {
     return errorResponse(error);
   }
+}
+
+async function loadWineMenuSourceText(body: WineRecommendationRequest) {
+  const directText = body.menuText?.trim() ?? "";
+
+  if (directText && !looksLikeUrl(directText)) {
+    return directText;
+  }
+
+  const sourceUrls = [
+    directText && looksLikeUrl(directText) ? directText : "",
+    ...(body.menuUrls ?? [])
+  ].filter((value) => value.trim().length > 0);
+
+  for (const sourceUrl of sourceUrls) {
+    try {
+      const loadedText = await loadMenuTextFromUrl(sourceUrl);
+
+      if (loadedText.trim().length >= 20) {
+        return loadedText;
+      }
+    } catch {
+      // Wine source loading is opportunistic. The endpoint can still return a style recommendation.
+    }
+  }
+
+  return directText;
 }
 
 function normalizeMainDish(value: unknown): WineMainDishAnchor | null {
