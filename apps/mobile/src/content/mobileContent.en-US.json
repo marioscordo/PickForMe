@@ -727,7 +727,7 @@
         "For structure, choose the preferred direction.",
         "Clear exclusions will later be treated as hard limits."
       ],
-      "tip": "In this prototype, you only test the flow. No wine recommendation is calculated yet."
+      "tip": "Gustaro Plus uses these settings only for wine recommendations. Your food profile stays separate."
     }
   }
 }

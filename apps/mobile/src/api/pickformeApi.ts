@@ -8,6 +8,7 @@ import { filterControlledProfileValues } from "../profile/profileInputPolicy";
 import type { UserProfile } from "../types/profile";
 import type { PreferredDishRole, RequestedDishRole } from "../types/recommendationMode";
 import type { AnalyzeData, RestaurantIntroData, WineRecommendationData } from "../types/recommendations";
+import type { WinePreference } from "../types/winePreference";
 
 type AnalyzeMenuMobileArgs = {
   menuText: string;
@@ -42,7 +43,8 @@ type RequestWineRecommendationMobileArgs = {
   mainDish: WineRecommendationMainDish;
   menuText?: string;
   menuUrls?: string[];
-  profile: UserProfile;
+  outputLocale: string;
+  winePreference: WinePreference;
   signal?: AbortSignal;
 };
 
@@ -209,7 +211,7 @@ export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {
 export function requestWineRecommendation(args: RequestWineRecommendationMobileArgs) {
   const body = {
     mainDish: args.mainDish,
-    profile: sanitizeWineProfileForApi(args.profile),
+    profile: sanitizeWineProfileForApi(args.outputLocale, args.winePreference),
     userLocale: resolveGuiLanguageFromDevice()
   };
 
@@ -227,7 +229,7 @@ export function requestWineMenuRecommendation(args: RequestWineRecommendationMob
     mainDish: args.mainDish,
     menuText: args.menuText ?? "",
     ...(args.menuUrls?.length ? { menuUrls: args.menuUrls } : {}),
-    profile: sanitizeWineProfileForApi(args.profile),
+    profile: sanitizeWineProfileForApi(args.outputLocale, args.winePreference),
     userLocale: resolveGuiLanguageFromDevice()
   };
 
@@ -319,15 +321,15 @@ function sanitizeBaseProfileForApi(profile: UserProfile): UserProfile {
   };
 }
 
-function sanitizeWineProfileForApi(profile: UserProfile): WineProfileForApi {
+function sanitizeWineProfileForApi(outputLocale: string, winePreference: WinePreference): WineProfileForApi {
   return {
-    outputLocale: profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE,
+    outputLocale: outputLocale || DEFAULT_OUTPUT_LOCALE,
     winePreference: {
-      preferredTypes: uniqueValues(stringArray(profile.winePreference?.preferredTypes)),
-      taste: uniqueValues(stringArray(profile.winePreference?.taste)),
-      structure: uniqueValues(stringArray(profile.winePreference?.structure)),
-      favoriteGrapes: uniqueValues(stringArray(profile.winePreference?.favoriteGrapes)),
-      excludedStyles: uniqueValues(stringArray(profile.winePreference?.excludedStyles))
+      preferredTypes: uniqueValues(stringArray(winePreference.preferredTypes)),
+      taste: uniqueValues(stringArray(winePreference.taste)),
+      structure: uniqueValues(stringArray(winePreference.structure)),
+      favoriteGrapes: uniqueValues(stringArray(winePreference.favoriteGrapes)),
+      excludedStyles: uniqueValues(stringArray(winePreference.excludedStyles))
     }
   };
 }

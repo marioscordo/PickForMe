@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { classifyProfileInput, classifyProfilePreference, submitTestFeedback, type TestFeedbackCategory, type TestFeedbackSeverity } from "../../api/pickformeApi";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useProfile } from "../../app/providers/ProfileProvider";
+import { useWinePreference } from "../../app/providers/WinePreferenceProvider";
 import { ProfileEditor, type ProfileEditorSection } from "../../components/profile/ProfileEditor";
 import { GustaroHelp } from "../../components/ui/GustaroHelp";
 import { Screen } from "../../components/ui/Screen";
@@ -15,6 +16,7 @@ import { formatContent, type GuiLanguage } from "../../content/mobileContent";
 import { useMobileContent } from "../../content/useMobileContent";
 import { premiumColors, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { UserProfile } from "../../types/profile";
+import type { WinePreference } from "../../types/winePreference";
 
 const BASE_WIDTH = 393;
 
@@ -122,6 +124,7 @@ export function ProfileScreen({
   const guiLanguage = useMemo(() => resolveGuiLanguageFromDevice(), []);
   const auth = useAuth();
   const { profile, setProfile } = useProfile();
+  const { winePreference, setWinePreference } = useWinePreference();
   const latestProfileRef = useRef(profile);
   latestProfileRef.current = profile;
   const [deleteAccountPending, setDeleteAccountPending] = useState(false);
@@ -181,7 +184,7 @@ export function ProfileScreen({
   ]);
   const visibleAllergyOptions = allergenModuleEnabled ? allergyOptions : [];
   const activeIntoleranceCount = allergenModuleEnabled ? allergens.length : 0;
-  const activeWinePreferenceCount = countActiveWinePreferences(profile);
+  const activeWinePreferenceCount = countActiveWinePreferences(winePreference);
   const overviewCanScrollFurther = overviewContentHeight > overviewViewportHeight + 18 && overviewScrollY + overviewViewportHeight < overviewContentHeight - 36;
   const selectedOutputLocale = resolveOutputLocale(profile.outputLocale);
   const outputLocaleOptions = useMemo(
@@ -744,38 +747,26 @@ export function ProfileScreen({
     }
 
     function toggleWinePreferenceValue(
-      key: keyof NonNullable<UserProfile["winePreference"]>,
+      key: keyof WinePreference,
       value: string
     ) {
-      setProfile((currentProfile) => {
-        const winePreference = currentProfile.winePreference ?? {};
-        const currentValues = winePreference[key] ?? [];
-
-        return {
-          ...currentProfile,
-          winePreference: {
-            ...winePreference,
-            [key]: toggleValue(currentValues, value)
-          }
-        };
-      });
+      setWinePreference((currentWinePreference) => ({
+        ...currentWinePreference,
+        [key]: toggleValue(currentWinePreference[key] ?? [], value)
+      }));
     }
 
     function selectWinePreferenceValue(
-      key: keyof NonNullable<UserProfile["winePreference"]>,
+      key: keyof WinePreference,
       value: string
     ) {
-      setProfile((currentProfile) => {
-        const winePreference = currentProfile.winePreference ?? {};
-        const currentValues = winePreference[key] ?? [];
+      setWinePreference((currentWinePreference) => {
+        const currentValues = currentWinePreference[key] ?? [];
         const nextValues = currentValues.includes(value) ? [] : [value];
 
         return {
-          ...currentProfile,
-          winePreference: {
-            ...winePreference,
-            [key]: nextValues
-          }
+          ...currentWinePreference,
+          [key]: nextValues
         };
       });
     }
@@ -1069,8 +1060,6 @@ export function ProfileScreen({
     }
 
     if (activeSection === "wine") {
-      const winePreference = profile.winePreference ?? {};
-
       return (
         <Screen contentContainerStyle={local.detailContent}>
           <PremiumProfileBackLink
@@ -1607,8 +1596,7 @@ function activeStatus(count: number, content: ReturnType<typeof useMobileContent
     : content.profileScreen.emptyStatus;
 }
 
-function countActiveWinePreferences(profile: UserProfile) {
-  const winePreference = profile.winePreference ?? {};
+function countActiveWinePreferences(winePreference: WinePreference) {
 
   return [
     winePreference.preferredTypes,

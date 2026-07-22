@@ -21,14 +21,7 @@ const defaultProfile: UserProfile = {
   hiddenExclusions: [],
   hiddenAllergens: [],
   deletedPreferences: [],
-  deletedExclusions: [],
-  winePreference: {
-    preferredTypes: [],
-    taste: [],
-    structure: [],
-    favoriteGrapes: [],
-    excludedStyles: []
-  }
+  deletedExclusions: []
 };
 
 type ProfileContextValue = {
@@ -200,8 +193,7 @@ function normalizeProfile(profile: Partial<UserProfile>): UserProfile {
     hiddenExclusions: stringArray(profile.hiddenExclusions),
     hiddenAllergens: stringArray(profile.hiddenAllergens),
     deletedPreferences: stringArray(profile.deletedPreferences),
-    deletedExclusions: stringArray(profile.deletedExclusions),
-    winePreference: normalizeWinePreference(profile.winePreference)
+    deletedExclusions: stringArray(profile.deletedExclusions)
   };
 }
 
@@ -213,20 +205,6 @@ function stringArray(values: unknown) {
   return Array.isArray(values)
     ? values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
-}
-
-function normalizeWinePreference(value: unknown): NonNullable<UserProfile["winePreference"]> {
-  const profile = typeof value === "object" && value !== null
-    ? value as UserProfile["winePreference"]
-    : {};
-
-  return {
-    preferredTypes: uniqueValues(stringArray(profile?.preferredTypes)),
-    taste: uniqueValues(stringArray(profile?.taste)),
-    structure: uniqueValues(stringArray(profile?.structure)),
-    favoriteGrapes: uniqueValues(stringArray(profile?.favoriteGrapes)),
-    excludedStyles: uniqueValues(stringArray(profile?.excludedStyles))
-  };
 }
 
 function isAppetiteMood(value: unknown): value is UserProfile["appetiteMood"] {

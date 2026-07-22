@@ -1,13 +1,16 @@
-﻿import React from "react";
+import React from "react";
 import { AuthProvider, useAuth } from "./providers/AuthProvider";
 import { ProfileProvider } from "./providers/ProfileProvider";
+import { WinePreferenceProvider } from "./providers/WinePreferenceProvider";
 import { RootNavigator } from "./navigation/RootNavigator";
 
 export function AppRoot() {
   return (
     <AuthProvider>
       <ProfileProvider>
-        <Root />
+        <WinePreferenceProvider>
+          <Root />
+        </WinePreferenceProvider>
       </ProfileProvider>
     </AuthProvider>
   );

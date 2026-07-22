@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
+import { useWinePreference } from "../../app/providers/WinePreferenceProvider";
 import {
   analyzeMenu,
   requestRestaurantIntro,
@@ -212,6 +213,7 @@ function PremiumFooterAction({
 export function RecommendationCard({
   result,
   menuText,
+  menuUrls,
   menuImageSource,
   showStartersAndSaladsAction = false,
   onReset,
@@ -221,6 +223,7 @@ export function RecommendationCard({
 }: {
   result: AnalyzeData;
   menuText: string;
+  menuUrls?: string[];
   menuImageSource?: MenuImageSource | null;
   showStartersAndSaladsAction?: boolean;
   onReset: () => void;
@@ -230,6 +233,7 @@ export function RecommendationCard({
 }) {
   const content = useMobileContent();
   const { profile } = useProfile();
+  const { winePreference } = useWinePreference();
   const nestedLoadingDishIdsRef = useRef(new Set<string>());
   const activeNestedDishIdRef = useRef<string | null>(null);
   const nestedRequestIdRef = useRef(0);
@@ -265,9 +269,9 @@ export function RecommendationCard({
         primaryLikes: profile.primaryLikes,
         customExclusions: profile.customExclusions,
         allergens: profile.allergens,
-        winePreference: profile.winePreference
+        winePreference
       }),
-    [profile]
+    [profile, winePreference]
   );
 
   const safeRecommendations = visibleRecommendations
@@ -526,7 +530,8 @@ export function RecommendationCard({
           sourceEvidence: recommendation.facts ?? dish.sourceLine ?? null,
           reason: recommendation.reason
         },
-        profile,
+        outputLocale: profile.outputLocale,
+        winePreference,
         signal: wineAbortController.signal
       });
 
@@ -604,7 +609,9 @@ export function RecommendationCard({
           reason: recommendation.reason
         },
         menuText,
-        profile,
+        menuUrls,
+        outputLocale: profile.outputLocale,
+        winePreference,
         signal: wineMenuAbortController.signal
       });
 

@@ -18,12 +18,6 @@ export function sanitizeProfileForRecommendation(profile: UserProfile): UserProf
   };
 }
 
-function stringArray(values: unknown) {
-  return Array.isArray(values)
-    ? values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-    : [];
-}
-
 function filterControlledProfileValues(values: string[]) {
   return values.filter((value) => !classifyProfileInputDeterministically(value));
 }

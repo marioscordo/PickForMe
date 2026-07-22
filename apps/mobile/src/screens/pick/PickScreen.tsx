@@ -325,6 +325,7 @@ export function PickScreen({
   }
 
   const canOpenMenu = typeof openableMenuUrl === "string" && openableMenuUrl.trim().length > 0;
+  const resultMenuUrls = openableMenuUrl?.trim() ? [openableMenuUrl.trim()] : [];
 
   function revealWineRecommendation(y: number) {
     setResultScrollToWineY(Math.max(y - s(18), 0));

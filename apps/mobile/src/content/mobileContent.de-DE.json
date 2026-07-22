@@ -727,7 +727,7 @@
         "Bei Struktur wählst Du die bevorzugte Richtung.",
         "Klare Ausschlüsse werden später als harte Grenze behandelt."
       ],
-      "tip": "Im Prototyp prüfst Du nur den Flow. Es wird noch keine Weinempfehlung berechnet."
+      "tip": "Gustaro Plus nutzt diese Angaben nur fuer Weinempfehlungen. Dein Essensprofil bleibt getrennt."
     }
   }
 }
