@@ -101,6 +101,98 @@ Verbindliche Grenze:
 
 - Keine konkreten Weine, Jahrgaenge, Preise oder Verfuegbarkeit erfinden.
 
+## 7a. Konkrete Weinauswahl aus vorhandener Speisekartenquelle
+
+Analyse-Stand nach dem ersten Wine-AI-Prototyp:
+
+- Der bestehende Speisekartenparser erkennt Getraenke und Weine grundsaetzlich als `drink`.
+- Fuer Hauptspeisenempfehlungen werden `drink`-Eintraege bewusst aus dem normalen Gerichtsergebnis entfernt.
+- Die mobile Ergebnisansicht hat den urspruenglichen Speisekarteninput weiterhin verfuegbar:
+  - manueller Text: haeufig kompletter Speisekartentext
+  - Link oder QR-Code: haeufig nur die URL
+  - Foto: kein Text, aber Bildquelle
+- Konkrete Weine duerfen deshalb nicht aus `result.dishes` erwartet werden.
+
+Produktentscheidung:
+
+- Der Button bleibt einheitlich `Weinempfehlung`.
+- GustaroAI versucht zuerst, aus der vorhandenen Speisekartenquelle konkrete Weine zu erkennen.
+- Wenn keine sichere Weinauswahl moeglich ist, faellt GustaroAI auf die bestehende Weinstil-Empfehlung zurueck.
+- Der Nutzer muss dafuer im MVP keinen zweiten Flow starten.
+
+Quellen-Prioritaet fuer konkrete Weinauswahl:
+
+1. Explizite Weinkarte, falls spaeter separat bereitgestellt.
+2. Vorhandener Speisekartentext, wenn darin Wein-/Getraenkesektionen enthalten sind.
+3. Vorhandene URL oder PDF-Quelle, wenn serverseitig erneut auswertbar.
+4. Fotoquelle nur spaeter, da Bildauswertung teurer, langsamer und fehleranfaelliger ist.
+
+Server-Verhalten:
+
+1. Der Wein-Endpunkt erhaelt weiterhin das gewaehlte Hauptgericht und das Weinprofil.
+2. Zusaetzlich darf er eine Menuequelle erhalten:
+   - `menuText`
+   - `menuUrls`
+   - optional spaeter `wineMenuText`
+   - optional spaeter `wineMenuImageSource`
+3. Der Server extrahiert daraus zuerst nur Wein-/Getraenkekandidaten.
+4. Der AI-Call darf konkrete Weine nur aus diesen Kandidaten auswaehlen.
+5. Wenn keine belastbaren Kandidaten vorhanden sind, wird keine konkrete Weinkarte behauptet.
+
+MVP-Heuristik fuer Wein-Kandidaten:
+
+- Kandidat muss aus sichtbarem Quellentext stammen.
+- Kandidat muss wie ein Wein oder Schaumwein wirken, nicht nur wie eine Getraenkekategorie.
+- Kandidat darf optionale Felder haben:
+  - Name
+  - Rebsorte
+  - Herkunft/Region
+  - Jahrgang
+  - Preis
+  - Glas/Flasche
+  - Originalzeile als Beleg
+- Ohne Originalbeleg darf kein konkreter Wein empfohlen werden.
+
+Empfohlener API-Output fuer die naechste Ausbaustufe:
+
+```ts
+{
+  recommendationType: "concrete_wine" | "wine_style" | "none";
+  title: string;
+  wineStyle?: string;
+  primaryWine?: {
+    nameOriginal: string;
+    displayName: string;
+    grapeOrStyle?: string;
+    region?: string;
+    vintage?: string;
+    priceRaw?: string;
+    servingUnit?: "glass" | "bottle" | "unknown";
+    sourceEvidence: string;
+  };
+  reason: string;
+  alternativeWine?: {
+    nameOriginal: string;
+    displayName: string;
+    sourceEvidence: string;
+    reason: string;
+  };
+  fallbackReason?: string;
+  confidence: "high" | "medium" | "low";
+}
+```
+
+UI-Regel:
+
+- Bei `concrete_wine`: konkrete Weinbox mit Name, Preis falls vorhanden, Beleg und kurzer Begruendung.
+- Bei `wine_style`: bestehende Weinstilbox.
+- Bei `none`: kurze, ehrliche Meldung, dass keine sichere Weinempfehlung moeglich ist.
+
+Offene technische Entscheidung:
+
+- Ob Wein-Kandidaten zuerst deterministisch aus Text geparst werden oder ob ein kleiner separater AI-Extraktionsschritt genutzt wird.
+- Empfehlung fuer MVP: deterministische Vorfilterung plus AI-Auswahl, damit konkrete Weine immer auf sichtbarem Quellentext beruhen.
+
 ## 8. Verhalten ohne Weinkarte
 
 Wenn keine belastbare Weinkarte vorhanden ist:
