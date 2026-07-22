@@ -30,7 +30,7 @@ import {
 import { rankMenuSourceCandidatesByQuality, type MenuSourceQualityMetrics } from "../../../src/restaurant/menuSourceQuality";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import { gatekeepMainDishRecommendations } from "../../../src/recommendation/gatekeeper";
-import { enrichPriceCompatibility } from "../../../src/recommendation/priceCompatibility";
+import { enrichPriceCompatibility, type PriceResolverDiagnostics } from "../../../src/recommendation/priceCompatibility";
 import { mapGatekeptMainRecommendationsToAnalyzeData } from "../../../src/recommendation/twoStepRecommendationMappers";
 import { blockReasonForRecommendation } from "../../../src/profile/profileRules";
 import { sanitizeProfileForRecommendation } from "../../../src/profile/profileInputPolicy";
@@ -1073,6 +1073,7 @@ export async function POST(request: Request) {
         invalidCount: 0,
         ...buildProductionMainFunnelTraceFields(),
         ...buildProductionSafetyTraceFields(),
+        ...buildProductionPriceResolverTraceFields(),
         finalSafeCount: 0,
         reviewCandidateCount: 0,
         reviewReturnedCount: 0,
@@ -1459,6 +1460,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     invalidCount: mainDishResult.productionTrace?.invalidCount ?? 0,
     ...buildProductionMainFunnelTraceFields(mainDishResult.productionTrace),
     ...buildProductionSafetyTraceFields(mainDishResult.productionTrace),
+    ...buildProductionPriceResolverTraceFields(mapped.priceResolverDiagnostics),
     finalSafeCount: allergySafeRecommendations.length,
     reviewCandidateCount: mainDishResult.uncertainReviewCandidates.length,
     reviewReturnedCount: 0,
@@ -1603,6 +1605,7 @@ function buildUncertainReviewResponse({
     invalidCount: productionTrace?.invalidCount ?? 0,
     ...buildProductionMainFunnelTraceFields(productionTrace),
     ...buildProductionSafetyTraceFields(productionTrace),
+    ...buildProductionPriceResolverTraceFields(),
     finalSafeCount: 0,
     reviewCandidateCount: candidates.length,
     reviewReturnedCount: allergySafeRecommendations.length,
@@ -1703,6 +1706,18 @@ type ProductionRequestTraceFields = {
   safetyTimeoutCount: number;
   safetyEmptyResponseCount: number;
   safetyTruncatedOrIncompleteCount: number;
+  priceResolverEvaluatedCount: number;
+  priceResolverSkippedCount: number;
+  priceResolverMxnCount: number;
+  priceResolverUsdCount: number;
+  priceResolverUnknownCount: number;
+  priceResolverExplicitCount: number;
+  priceResolverContextCount: number;
+  priceResolverApproxGeneratedCount: number;
+  priceResolverApproxMissingCount: number;
+  priceResolverMexicoMarkerCount: number;
+  priceResolverMexicanPesoMarkerCount: number;
+  priceResolverMxDomainMarkerCount: number;
   finalSafeCount: number;
   reviewCandidateCount: number;
   reviewReturnedCount: number;
@@ -1796,6 +1811,7 @@ function logNoSafeProductionRequestTrace({
     invalidCount: mainDishResult.productionTrace?.invalidCount ?? 0,
     ...buildProductionMainFunnelTraceFields(mainDishResult.productionTrace),
     ...buildProductionSafetyTraceFields(mainDishResult.productionTrace),
+    ...buildProductionPriceResolverTraceFields(),
     finalSafeCount,
     reviewCandidateCount: mainDishResult.uncertainReviewCandidates.length,
     reviewReturnedCount: 0,
@@ -1882,6 +1898,23 @@ function buildProductionSafetyTraceFields(productionTrace?: MainDishRecommendati
     safetyTimeoutCount: productionTrace?.safetyTimeoutCount ?? 0,
     safetyEmptyResponseCount: productionTrace?.safetyEmptyResponseCount ?? 0,
     safetyTruncatedOrIncompleteCount: productionTrace?.safetyTruncatedOrIncompleteCount ?? 0
+  };
+}
+
+function buildProductionPriceResolverTraceFields(diagnostics?: PriceResolverDiagnostics) {
+  return {
+    priceResolverEvaluatedCount: diagnostics?.priceResolverEvaluatedCount ?? 0,
+    priceResolverSkippedCount: diagnostics?.priceResolverSkippedCount ?? 0,
+    priceResolverMxnCount: diagnostics?.priceResolverMxnCount ?? 0,
+    priceResolverUsdCount: diagnostics?.priceResolverUsdCount ?? 0,
+    priceResolverUnknownCount: diagnostics?.priceResolverUnknownCount ?? 0,
+    priceResolverExplicitCount: diagnostics?.priceResolverExplicitCount ?? 0,
+    priceResolverContextCount: diagnostics?.priceResolverContextCount ?? 0,
+    priceResolverApproxGeneratedCount: diagnostics?.priceResolverApproxGeneratedCount ?? 0,
+    priceResolverApproxMissingCount: diagnostics?.priceResolverApproxMissingCount ?? 0,
+    priceResolverMexicoMarkerCount: diagnostics?.priceResolverMexicoMarkerCount ?? 0,
+    priceResolverMexicanPesoMarkerCount: diagnostics?.priceResolverMexicanPesoMarkerCount ?? 0,
+    priceResolverMxDomainMarkerCount: diagnostics?.priceResolverMxDomainMarkerCount ?? 0
   };
 }
 

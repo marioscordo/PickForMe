@@ -13,6 +13,25 @@ type PriceCompatibilityInput = {
   targetLocale?: string;
 };
 
+export type PriceResolverDiagnostics = {
+  priceResolverEvaluatedCount: number;
+  priceResolverSkippedCount: number;
+  priceResolverMxnCount: number;
+  priceResolverUsdCount: number;
+  priceResolverUnknownCount: number;
+  priceResolverExplicitCount: number;
+  priceResolverContextCount: number;
+  priceResolverApproxGeneratedCount: number;
+  priceResolverApproxMissingCount: number;
+  priceResolverMexicoMarkerCount: number;
+  priceResolverMexicanPesoMarkerCount: number;
+  priceResolverMxDomainMarkerCount: number;
+};
+
+export type PriceCompatibilityResult = TwoStepAnalyzeDataParts & {
+  priceResolverDiagnostics: PriceResolverDiagnostics;
+};
+
 type PriceParts = {
   approximate?: boolean;
   amounts: number[];
@@ -37,14 +56,15 @@ export async function enrichPriceCompatibility({
   deviceLocale,
   sourceContext,
   targetLocale
-}: PriceCompatibilityInput): Promise<TwoStepAnalyzeDataParts> {
+}: PriceCompatibilityInput): Promise<PriceCompatibilityResult> {
   const targetCurrency = resolveTargetCurrencyFromDeviceLocale(deviceLocale) ?? resolveTargetCurrencyFromDeviceLocale(targetLocale);
+  const diagnostics = createPriceResolverDiagnostics();
   const pricePartsByDishId = new Map<string, PriceParts>();
   const sourceCurrencyFallback = inferSourceCurrencyFromContext(sourceContext);
 
   acceptedRecommendations.forEach((item, index) => {
     const dishId = data.dishes[index]?.id;
-    const priceParts = parsePriceParts(item.priceRaw, sourceCurrencyFallback, sourceContext);
+    const priceParts = parsePriceParts(item.priceRaw, sourceCurrencyFallback, sourceContext, diagnostics);
 
     if (dishId && priceParts) {
       pricePartsByDishId.set(dishId, priceParts);
@@ -68,6 +88,7 @@ export async function enrichPriceCompatibility({
 
     return enrichDishPrice({
       dish,
+      diagnostics,
       priceParts,
       rates,
       targetCurrency,
@@ -91,17 +112,24 @@ export async function enrichPriceCompatibility({
 
   return {
     dishes,
-    recommendations
+    recommendations,
+    priceResolverDiagnostics: diagnostics
   };
 }
 
 export function parsePriceParts(
   priceRaw: string | null | undefined,
   fallbackCurrency?: PriceCompatibilityCurrency,
-  sourceContext?: string
+  sourceContext?: string,
+  diagnostics?: PriceResolverDiagnostics
 ): PriceParts | null {
   const raw = priceRaw?.trim();
-  if (!raw) return null;
+  if (!raw) {
+    if (diagnostics) {
+      diagnostics.priceResolverSkippedCount++;
+    }
+    return null;
+  }
 
   const explicitCurrency = inferCurrencyFromPriceRaw(raw);
   const currency = explicitCurrency ??
@@ -109,6 +137,13 @@ export function parsePriceParts(
     fallbackCurrency ??
     "UNKNOWN";
   const amounts = extractPriceAmounts(raw);
+  recordPriceResolverDiagnostics({
+    currency,
+    diagnostics,
+    explicitCurrency,
+    raw,
+    sourceContext
+  });
 
   if (amounts.length === 0) {
     return {
@@ -205,12 +240,14 @@ export function inferSourceCurrencyFromContext(value: string | undefined): Price
 
 function enrichDishPrice({
   dish,
+  diagnostics,
   priceParts,
   rates,
   targetCurrency,
   locale
 }: {
   dish: Dish;
+  diagnostics?: PriceResolverDiagnostics;
   priceParts: PriceParts;
   rates: Map<string, ExchangeRateEntry>;
   targetCurrency?: PriceCompatibilityCurrency;
@@ -252,6 +289,11 @@ function enrichDishPrice({
         locale
       });
       next.priceExchangeRateDate = rate.date;
+      if (diagnostics) {
+        diagnostics.priceResolverApproxGeneratedCount++;
+      }
+    } else if (diagnostics) {
+      diagnostics.priceResolverApproxMissingCount++;
     }
   }
 
@@ -274,12 +316,9 @@ function resolveAmbiguousDollarCurrency(
 }
 
 function hasMexicanPesoContext(comparable: string, hosts: string[]) {
-  return /\bmxn\b/.test(comparable) ||
-    /\bmx\s*\$/.test(comparable) ||
-    /\bpesos?\s+mexicanos?\b/.test(comparable) ||
-    /\bprecios?\s+en\s+pesos?\s+mexicanos?\b/.test(comparable) ||
-    /\bmexico\b/.test(comparable) ||
-    hosts.some((host) => /\.mx(?::\d+)?$/.test(host) || /\.com\.mx(?::\d+)?$/.test(host));
+  return hasMexicanPesoTextMarker(comparable) ||
+    hasMexicoTextMarker(comparable) ||
+    hasMxDomainMarker(hosts);
 }
 
 function hasAmbiguousDollarPrice(value: string) {
@@ -291,6 +330,98 @@ function normalizeCurrencyContextText(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+export function createPriceResolverDiagnostics(): PriceResolverDiagnostics {
+  return {
+    priceResolverEvaluatedCount: 0,
+    priceResolverSkippedCount: 0,
+    priceResolverMxnCount: 0,
+    priceResolverUsdCount: 0,
+    priceResolverUnknownCount: 0,
+    priceResolverExplicitCount: 0,
+    priceResolverContextCount: 0,
+    priceResolverApproxGeneratedCount: 0,
+    priceResolverApproxMissingCount: 0,
+    priceResolverMexicoMarkerCount: 0,
+    priceResolverMexicanPesoMarkerCount: 0,
+    priceResolverMxDomainMarkerCount: 0
+  };
+}
+
+function recordPriceResolverDiagnostics({
+  currency,
+  diagnostics,
+  explicitCurrency,
+  raw,
+  sourceContext
+}: {
+  currency: PriceCompatibilityCurrency;
+  diagnostics?: PriceResolverDiagnostics;
+  explicitCurrency?: PriceCompatibilityCurrency;
+  raw: string;
+  sourceContext?: string;
+}) {
+  if (!diagnostics) return;
+
+  diagnostics.priceResolverEvaluatedCount++;
+
+  if (currency === "MXN") diagnostics.priceResolverMxnCount++;
+  if (currency === "USD") diagnostics.priceResolverUsdCount++;
+  if (currency === "UNKNOWN") diagnostics.priceResolverUnknownCount++;
+
+  if (explicitCurrency) {
+    diagnostics.priceResolverExplicitCount++;
+    return;
+  }
+
+  if (!hasAmbiguousDollarPrice(raw)) {
+    return;
+  }
+
+  const markers = getMexicanPesoContextMarkers(sourceContext);
+  if (currency !== "UNKNOWN") {
+    diagnostics.priceResolverContextCount++;
+  }
+  if (markers.hasMexicanPesoText) diagnostics.priceResolverMexicanPesoMarkerCount++;
+  if (markers.hasMexicoText) diagnostics.priceResolverMexicoMarkerCount++;
+  if (markers.hasMxDomain) diagnostics.priceResolverMxDomainMarkerCount++;
+}
+
+function getMexicanPesoContextMarkers(value: string | undefined) {
+  if (!value) {
+    return {
+      hasMexicanPesoText: false,
+      hasMexicoText: false,
+      hasMxDomain: false
+    };
+  }
+
+  const normalized = value.toLowerCase();
+  const comparable = normalizeCurrencyContextText(value);
+  const hostMatches = Array.from(normalized.matchAll(/https?:\/\/([^/\s"')]+)/g)).map((match) => match[1] ?? "");
+  const hosts = hostMatches.length > 0 ? hostMatches : [normalized];
+
+  return {
+    hasMexicanPesoText: hasMexicanPesoTextMarker(comparable),
+    hasMexicoText: hasMexicoTextMarker(comparable),
+    hasMxDomain: hasMxDomainMarker(hosts)
+  };
+}
+
+function hasMexicanPesoTextMarker(comparable: string) {
+  return /\bmxn\b/.test(comparable) ||
+    /\bmx\s*\$/.test(comparable) ||
+    /\bpesos?\s+mexicanos?\b/.test(comparable) ||
+    /\bprecios?\s+en\s+pesos?\s+mexicanos?\b/.test(comparable);
+}
+
+function hasMexicoTextMarker(comparable: string) {
+  return /\bmexico\b/.test(comparable);
+}
+
+function hasMxDomainMarker(hosts: string[]) {
+  return hosts.some((host) => /\.mx(?::\d+)?$/.test(host) || /\.com\.mx(?::\d+)?$/.test(host));
 }
 
 function isPlainNumericPrice(value: string) {
