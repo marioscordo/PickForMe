@@ -377,13 +377,13 @@ export function PickScreen({
     <Screen
       bottomScrollInset={ENTRY_BOTTOM_SCROLL_INSET}
       contentContainerStyle={local.entryScreenContent}
+      floatingAccessory={<GustaroHelp common={content.help.common} topic={content.help.pickInput} />}
       scrollToEndKey={entryScrollToActionKey || undefined}
       scrollToOffsetKey={entryScrollToMoodKey || undefined}
       scrollToOffsetY={Math.max(moodSectionY - s(12), 0)}
       scrollToTopKey={`pick-entry-${entryScrollToTopKey}`}
     >
       <View style={local.conciergeIntro}>
-        <GustaroHelp common={content.help.common} topic={content.help.pickInput} style={local.entryHelpButton} />
         <View style={local.introAccentRow}>
           <View style={local.introAccentLine} />
           <MaterialCommunityIcons color={premiumPalette.gold} name="room-service-outline" size={s(24)} />
@@ -674,13 +674,6 @@ const local = StyleSheet.create({
     marginBottom: s(22),
     paddingHorizontal: s(2),
     position: "relative"
-  },
-
-  entryHelpButton: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    zIndex: 5
   },
 
   introAccentRow: {
