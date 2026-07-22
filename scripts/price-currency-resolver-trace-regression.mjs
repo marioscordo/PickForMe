@@ -182,6 +182,18 @@ assert.equal(unknown.dishes[0].priceApproxDisplay, undefined);
 globalThis.fetch = originalFetch;
 
 const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8");
+const priceEnrichmentCallStart = route.indexOf("const mapped = await enrichPriceCompatibility({");
+const priceEnrichmentCallEnd = route.indexOf("  });", priceEnrichmentCallStart);
+const priceEnrichmentCall = route.slice(priceEnrichmentCallStart, priceEnrichmentCallEnd);
+
+assert(priceEnrichmentCall.includes("augmentedSourceForMainAi.sourceUrl"), "Price enrichment must receive the augmented PDF source URL context");
+assert(priceEnrichmentCall.includes("augmentedSourceForMainAi.text"), "Price enrichment must receive the augmented PDF text context");
+assert(!priceEnrichmentCall.includes("source.sourceUrl"), "Price enrichment must not fall back to the pre-augmentation source URL");
+assert(!priceEnrichmentCall.includes("source.text"), "Price enrichment must not fall back to the pre-augmentation source text");
+
+const augmentCallCount = (route.match(/augmentPdfSourceWithExtractedText\(/g) ?? []).length;
+assert.equal(augmentCallCount, 2, "Price enrichment fix must not add another PDF extraction call");
+
 const traceTypeStart = route.indexOf("type ProductionRequestTraceFields = {");
 const traceTypeEnd = route.indexOf("};", traceTypeStart);
 const traceType = route.slice(traceTypeStart, traceTypeEnd);

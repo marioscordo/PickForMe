@@ -1275,8 +1275,8 @@ async function analyzeMenuWithTwoStepMainFlow({
     data: mappedWithoutPriceCompatibility,
     deviceLocale,
     sourceContext: [
-      source.sourceUrl,
-      source.text,
+      augmentedSourceForMainAi.sourceUrl,
+      augmentedSourceForMainAi.text,
       restaurantUrl,
       fallbackHeroContextText
     ].filter(Boolean).join("\n"),
