@@ -761,6 +761,25 @@ export function ProfileScreen({
       });
     }
 
+    function selectWinePreferenceValue(
+      key: keyof NonNullable<UserProfile["winePreference"]>,
+      value: string
+    ) {
+      setProfile((currentProfile) => {
+        const winePreference = currentProfile.winePreference ?? {};
+        const currentValues = winePreference[key] ?? [];
+        const nextValues = currentValues.includes(value) ? [] : [value];
+
+        return {
+          ...currentProfile,
+          winePreference: {
+            ...winePreference,
+            [key]: nextValues
+          }
+        };
+      });
+    }
+
     if (activeSection === "general") {
       function selectOutputLocale(outputLocale: string) {
         setProfile((currentProfile) => ({
@@ -1095,29 +1114,26 @@ export function ProfileScreen({
 
             <PremiumProfileSubBlock title={content.profileEditor.wineStructureTitle}>
               <View style={local.premiumChipRowCompact}>
-                {content.profileEditor.wineStructureOptions.map((option) => {
-                  const group = option.group as keyof NonNullable<UserProfile["winePreference"]>;
-
-                  return (
-                    <PremiumFeatherChip
-                      key={option.value}
-                      active={(winePreference[group] ?? []).includes(option.value)}
-                      compact
-                      icon="bar-chart-2"
-                      label={option.label}
-                      onPress={() => toggleWinePreferenceValue(group, option.value)}
-                    />
-                  );
-                })}
+                {content.profileEditor.wineStructureOptions.map((option) => (
+                  <PremiumFeatherChip
+                    key={option.value}
+                    active={(winePreference.structure ?? []).includes(option.value)}
+                    compact
+                    icon="bar-chart-2"
+                    label={option.label}
+                    onPress={() => selectWinePreferenceValue("structure", option.value)}
+                  />
+                ))}
               </View>
             </PremiumProfileSubBlock>
 
             <PremiumProfileSubBlock title={content.profileEditor.wineExclusionsTitle}>
-              <View style={local.premiumChipRow}>
+              <View style={local.premiumChipRowCompact}>
                 {content.profileEditor.wineExclusionOptions.map((option) => (
                   <PremiumFeatherChip
                     key={option.value}
                     active={(winePreference.excludedStyles ?? []).includes(option.value)}
+                    compact
                     icon="x-circle"
                     label={option.label}
                     onPress={() => toggleWinePreferenceValue("excludedStyles", option.value)}
@@ -1267,7 +1283,14 @@ function PremiumFeatherChip({
       <View style={[local.premiumChipIcon, compact ? local.premiumChipIconCompact : null]}>
         <Feather color="#AA7C1E" name={icon} size={compact ? s(15) : s(17)} />
       </View>
-      <Text style={[local.premiumChipText, compact ? local.premiumChipTextCompact : null]}>{label}</Text>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.78}
+        numberOfLines={2}
+        style={[local.premiumChipText, compact ? local.premiumChipTextCompact : null]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -1372,7 +1395,14 @@ function PremiumProfileChip({
       <View style={[local.premiumChipIcon, compact ? local.premiumChipIconCompact : null]}>
         <Feather color="#AA7C1E" name={icon} size={compact ? s(15) : s(17)} />
       </View>
-      <Text style={[local.premiumChipText, compact ? local.premiumChipTextCompact : null]}>{label}</Text>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.78}
+        numberOfLines={2}
+        style={[local.premiumChipText, compact ? local.premiumChipTextCompact : null]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -1583,9 +1613,7 @@ function countActiveWinePreferences(profile: UserProfile) {
   return [
     winePreference.preferredTypes,
     winePreference.taste,
-    winePreference.body,
-    winePreference.acidity,
-    winePreference.tannin,
+    winePreference.structure,
     winePreference.favoriteGrapes,
     winePreference.excludedStyles
   ].reduce((count, values) => count + (values?.length ?? 0), 0);
@@ -2137,7 +2165,9 @@ const local = StyleSheet.create({
     borderColor: "#E4D4B6",
     borderRadius: s(999),
     borderWidth: 1,
+    flexShrink: 1,
     flexDirection: "row",
+    maxWidth: "100%",
     minHeight: s(50),
     paddingLeft: s(8),
     paddingRight: s(15),
@@ -2181,9 +2211,11 @@ const local = StyleSheet.create({
   },
   premiumChipText: {
     color: premiumColors.olive,
+    flexShrink: 1,
     fontSize: fs(16),
     fontWeight: "800",
-    lineHeight: fs(21)
+    lineHeight: fs(21),
+    minWidth: 0
   },
   premiumChipTextCompact: {
     fontSize: fs(14),

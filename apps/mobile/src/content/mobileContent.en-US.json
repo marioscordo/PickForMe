@@ -481,84 +481,114 @@
     "wineExclusionsTitle": "Do not recommend",
     "wineTypeOptions": [
       {
-        "label": "Red wine",
-        "value": "red"
-      },
-      {
         "label": "White wine",
         "value": "white"
       },
       {
-        "label": "Rose",
+        "label": "Red wine",
+        "value": "red"
+      },
+      {
+        "label": "Rosé",
         "value": "rose"
       },
       {
-        "label": "Sparkling",
+        "label": "Sparkling wine",
         "value": "sparkling"
+      },
+      {
+        "label": "Dessert wine",
+        "value": "dessert"
       }
     ],
     "wineTasteOptions": [
       {
-        "label": "dry",
+        "label": "Dry",
         "value": "dry"
       },
       {
-        "label": "fruity",
-        "value": "fruity"
+        "label": "Off-dry",
+        "value": "off_dry"
       },
       {
-        "label": "bold",
-        "value": "bold"
+        "label": "Fruit-forward",
+        "value": "fruit_forward"
       },
       {
-        "label": "light",
-        "value": "light"
+        "label": "Spicy",
+        "value": "spicy"
+      },
+      {
+        "label": "Mineral",
+        "value": "mineral"
+      },
+      {
+        "label": "Acid-driven",
+        "value": "acid_driven"
+      },
+      {
+        "label": "Soft / Round",
+        "value": "soft_round"
+      },
+      {
+        "label": "Bold / Intense",
+        "value": "bold_intense"
       }
     ],
     "wineStructureOptions": [
       {
-        "label": "light body",
-        "value": "light_body",
-        "group": "body"
+        "label": "Light (lower alcohol, slender)",
+        "value": "light"
       },
       {
-        "label": "full body",
-        "value": "full_body",
-        "group": "body"
+        "label": "Medium-bodied (balanced, clear)",
+        "value": "medium"
       },
       {
-        "label": "low acidity",
-        "value": "low_acidity",
-        "group": "acidity"
+        "label": "Full-bodied (lots of body, intense aromas)",
+        "value": "full"
       },
       {
-        "label": "fresh acidity",
-        "value": "fresh_acidity",
-        "group": "acidity"
+        "label": "Oak-driven (barrique, vanilla, toast)",
+        "value": "oak_driven"
       },
       {
-        "label": "low tannin",
-        "value": "low_tannin",
-        "group": "tannin"
+        "label": "Unoaked / Neutral",
+        "value": "unoaked_neutral"
       },
       {
-        "label": "firm tannin",
-        "value": "firm_tannin",
-        "group": "tannin"
+        "label": "Elegant / Fine",
+        "value": "elegant"
+      },
+      {
+        "label": "Complex / Deep",
+        "value": "complex_deep"
       }
     ],
     "wineExclusionOptions": [
       {
-        "label": "no alcohol",
-        "value": "no_alcohol"
+        "label": "No sweetness",
+        "value": "no_sweetness"
       },
       {
-        "label": "no red wine",
-        "value": "no_red"
+        "label": "No strong oak",
+        "value": "no_strong_oak"
       },
       {
-        "label": "no sweet wine",
-        "value": "no_sweet"
+        "label": "No overripe notes",
+        "value": "no_overripe_aromas"
+      },
+      {
+        "label": "No alcohol weight",
+        "value": "no_high_alcohol_weight"
+      },
+      {
+        "label": "No natural wines",
+        "value": "no_natural_wine"
+      },
+      {
+        "label": "No aromatized wines",
+        "value": "no_aromatized_wine"
       }
     ]
   },
@@ -681,8 +711,9 @@
       "title": "Wine preference",
       "points": [
         "These settings are separate from your food profile.",
-        "They prepare later Gustaro Plus wine recommendations.",
-        "Clear exclusions such as no alcohol will later be treated as hard limits."
+        "Wine type, taste, and exclusions can use multiple selections.",
+        "For structure, choose the preferred direction.",
+        "Clear exclusions will later be treated as hard limits."
       ],
       "tip": "In this prototype, you only test the flow. No wine recommendation is calculated yet."
     }

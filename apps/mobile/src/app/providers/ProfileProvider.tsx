@@ -25,9 +25,7 @@ const defaultProfile: UserProfile = {
   winePreference: {
     preferredTypes: [],
     taste: [],
-    body: [],
-    acidity: [],
-    tannin: [],
+    structure: [],
     favoriteGrapes: [],
     excludedStyles: []
   }
@@ -225,9 +223,7 @@ function normalizeWinePreference(value: unknown): NonNullable<UserProfile["wineP
   return {
     preferredTypes: uniqueValues(stringArray(profile?.preferredTypes)),
     taste: uniqueValues(stringArray(profile?.taste)),
-    body: uniqueValues(stringArray(profile?.body)),
-    acidity: uniqueValues(stringArray(profile?.acidity)),
-    tannin: uniqueValues(stringArray(profile?.tannin)),
+    structure: uniqueValues(stringArray(profile?.structure)),
     favoriteGrapes: uniqueValues(stringArray(profile?.favoriteGrapes)),
     excludedStyles: uniqueValues(stringArray(profile?.excludedStyles))
   };

@@ -5,9 +5,7 @@ export type AppetiteMood = "richtig_hunger" | "leicht" | "neues_probieren" | "si
 export type WinePreference = {
   preferredTypes?: string[];
   taste?: string[];
-  body?: string[];
-  acidity?: string[];
-  tannin?: string[];
+  structure?: string[];
   favoriteGrapes?: string[];
   excludedStyles?: string[];
 };

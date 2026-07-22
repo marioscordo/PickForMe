@@ -161,7 +161,7 @@
     "missingPriceText": "Bitte entnimm den Preis der Karte.",
     "wineRecommendationButton": "Weinempfehlung",
     "wineRecommendationTitle": "Weinempfehlung",
-    "wineRecommendationPlaceholder": "Gustaro Plus wird hier spaeter einen passenden Wein zu diesem Gericht empfehlen. Im Prototyp ist noch kein Kauf, keine Weinkarte und kein KI-Call angebunden."
+    "wineRecommendationPlaceholder": "Gustaro Plus wird hier später einen passenden Wein zu diesem Gericht empfehlen. Im Prototyp ist noch kein Kauf, keine Weinkarte und kein KI-Call angebunden."
   },
   "profileScreen": {
     "title": "Profil",
@@ -188,7 +188,7 @@
     "support": "Support",
     "legalLinkFailed": "Der Link konnte gerade nicht geöffnet werden.",
     "winePreferenceIcon": "Wein",
-    "winePreferenceButton": "Wein Praeferenz"
+    "winePreferenceButton": "Wein Präferenz"
   },
   "testFeedback": {
     "openButton": "Fehler melden",
@@ -473,92 +473,122 @@
         "value": "Lupinen"
       }
     ],
-    "winePreferenceHint": "Was Gustaro Plus spaeter fuer Weinempfehlungen beruecksichtigen soll.",
-    "winePreferencePlusHint": "Diese Angaben bleiben vom Essensprofil getrennt. Sie bereiten nur das spaetere Gustaro-Plus-Feature vor.",
+    "winePreferenceHint": "Was Gustaro Plus später für Weinempfehlungen berücksichtigen soll.",
+    "winePreferencePlusHint": "Diese Angaben bleiben vom Essensprofil getrennt. Sie bereiten nur das spätere Gustaro-Plus-Feature vor.",
     "wineTypesTitle": "Weinart",
     "wineTasteTitle": "Geschmack",
     "wineStructureTitle": "Struktur",
-    "wineExclusionsTitle": "Nicht empfehlen",
+    "wineExclusionsTitle": "Ausschlüsse",
     "wineTypeOptions": [
+      {
+        "label": "Weißwein",
+        "value": "white"
+      },
       {
         "label": "Rotwein",
         "value": "red"
       },
       {
-        "label": "Weisswein",
-        "value": "white"
-      },
-      {
-        "label": "Rose",
+        "label": "Rosé",
         "value": "rose"
       },
       {
         "label": "Schaumwein",
         "value": "sparkling"
+      },
+      {
+        "label": "Dessertwein",
+        "value": "dessert"
       }
     ],
     "wineTasteOptions": [
       {
-        "label": "trocken",
+        "label": "Trocken",
         "value": "dry"
       },
       {
-        "label": "fruchtig",
-        "value": "fruity"
+        "label": "Halbtrocken",
+        "value": "off_dry"
       },
       {
-        "label": "kraeftig",
-        "value": "bold"
+        "label": "Fruchtbetont",
+        "value": "fruit_forward"
       },
       {
-        "label": "leicht",
-        "value": "light"
+        "label": "Würzig",
+        "value": "spicy"
+      },
+      {
+        "label": "Mineralisch",
+        "value": "mineral"
+      },
+      {
+        "label": "Säurebetont",
+        "value": "acid_driven"
+      },
+      {
+        "label": "Weich / Rund",
+        "value": "soft_round"
+      },
+      {
+        "label": "Kräftig / Intensiv",
+        "value": "bold_intense"
       }
     ],
     "wineStructureOptions": [
       {
-        "label": "leichter Koerper",
-        "value": "light_body",
-        "group": "body"
+        "label": "Leicht (niedriger Alkohol, schlank)",
+        "value": "light"
       },
       {
-        "label": "voller Koerper",
-        "value": "full_body",
-        "group": "body"
+        "label": "Mittelkräftig (balanciert, klar)",
+        "value": "medium"
       },
       {
-        "label": "wenig Saeure",
-        "value": "low_acidity",
-        "group": "acidity"
+        "label": "Kräftig (viel Körper, intensiv)",
+        "value": "full"
       },
       {
-        "label": "frische Saeure",
-        "value": "fresh_acidity",
-        "group": "acidity"
+        "label": "Holzbetont (Barrique, Vanille)",
+        "value": "oak_driven"
       },
       {
-        "label": "wenig Tannin",
-        "value": "low_tannin",
-        "group": "tannin"
+        "label": "Unholzig / Neutral",
+        "value": "unoaked_neutral"
       },
       {
-        "label": "kraeftiges Tannin",
-        "value": "firm_tannin",
-        "group": "tannin"
+        "label": "Elegant / Fein",
+        "value": "elegant"
+      },
+      {
+        "label": "Komplex / Tief",
+        "value": "complex_deep"
       }
     ],
     "wineExclusionOptions": [
       {
-        "label": "kein Alkohol",
-        "value": "no_alcohol"
+        "label": "Keine Süße",
+        "value": "no_sweetness"
       },
       {
-        "label": "kein Rotwein",
-        "value": "no_red"
+        "label": "Kein starkes Holz",
+        "value": "no_strong_oak"
       },
       {
-        "label": "kein suesser Wein",
-        "value": "no_sweet"
+        "label": "Keine überreifen Noten",
+        "value": "no_overripe_aromas"
+      },
+      {
+        "label": "Keine Alkoholschwere",
+        "value": "no_high_alcohol_weight"
+      },
+      {
+        "label": "Keine Naturweine",
+        "value": "no_natural_wine"
+      },
+      {
+        "label": "Keine aromatisierten Weine",
+        "value": "no_aromatized_wine"
       }
     ]
   },
@@ -678,13 +708,14 @@
       "tip": "GustaroAI berücksichtigt Deine Unverträglichkeiten streng, soweit sie aus der Speisekarte erkennbar sind."
     },
     "profileWine": {
-      "title": "Wein Praeferenz",
+      "title": "Wein Präferenz",
       "points": [
         "Diese Angaben sind vom Essensprofil getrennt.",
-        "Sie bereiten spaetere Gustaro-Plus-Weinempfehlungen vor.",
-        "Klare Ausschluesse wie kein Alkohol werden spaeter als harte Grenze behandelt."
+        "Weinart, Geschmack und Ausschlüsse können mehrfach gewählt werden.",
+        "Bei Struktur wählst Du die bevorzugte Richtung.",
+        "Klare Ausschlüsse werden später als harte Grenze behandelt."
       ],
-      "tip": "Im Prototyp pruefst Du nur den Flow. Es wird noch keine Weinempfehlung berechnet."
+      "tip": "Im Prototyp prüfst Du nur den Flow. Es wird noch keine Weinempfehlung berechnet."
     }
   }
 }
