@@ -164,7 +164,16 @@
     "wineRecommendationRetry": "Try again",
     "wineRecommendationTitle": "Wine recommendation",
     "wineRecommendationEmpty": "I cannot find a safe wine recommendation for this right now.",
-    "wineRecommendationError": "I could not load the wine recommendation just now."
+    "wineRecommendationError": "I could not load the wine recommendation just now.",
+    "wineMenuSearchPrompt": "Should I check whether a matching wine is on the menu?",
+    "wineMenuSearchButton": "Search the menu",
+    "wineMenuSearchLoading": "I am checking the menu ...",
+    "wineMenuSearchNoMatch": "Sorry, no match.",
+    "wineMenuSearchOk": "OK",
+    "wineRecommendationPriceLabel": "Price",
+    "wineRecommendationEvidenceLabel": "Evidence",
+    "wineRecommendationServingUnit_glass": "Glass",
+    "wineRecommendationServingUnit_bottle": "Bottle"
   },
   "profileScreen": {
     "title": "Profile",

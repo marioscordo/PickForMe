@@ -14,14 +14,7 @@ export function sanitizeProfileForRecommendation(profile: UserProfile): UserProf
     outputLocale: profile.outputLocale,
     primaryLikes,
     customExclusions,
-    allergens: profileFeatures.allergenModuleEnabled ? allergens : [],
-    winePreference: {
-      preferredTypes: uniqueValues(stringArray(profile.winePreference?.preferredTypes)),
-      taste: uniqueValues(stringArray(profile.winePreference?.taste)),
-      structure: uniqueValues(stringArray(profile.winePreference?.structure)),
-      favoriteGrapes: uniqueValues(stringArray(profile.winePreference?.favoriteGrapes)),
-      excludedStyles: uniqueValues(stringArray(profile.winePreference?.excludedStyles))
-    }
+    allergens: profileFeatures.allergenModuleEnabled ? allergens : []
   };
 }
 

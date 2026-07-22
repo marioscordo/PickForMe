@@ -4,13 +4,20 @@ export type WineCandidate = {
   grapeOrStyle?: string;
   region?: string;
   vintage?: string;
+  glassPriceRaw?: string;
   priceRaw?: string;
+  prices?: WineCandidatePrice[];
   servingUnit: "glass" | "bottle" | "unknown";
   sourceEvidence: string;
 };
 
+export type WineCandidatePrice = {
+  servingUnit: "glass" | "bottle" | "unknown";
+  priceRaw: string;
+};
+
 const MAX_WINE_CANDIDATES = 60;
-const PRICE_PATTERN = /(?:(?:\u20ac|eur|euro)\s*)?\d{1,4}(?:[.,]\d{2})(?:\s*(?:\u20ac|eur|euro))?/gi;
+const PRICE_PATTERN = /(?:(?:\u20ac|eur|euro)\s*\d{1,4}(?:[.,]\d+)?|\d{1,4}(?:[.,]\d+)?\s*(?:\u20ac|eur|euro))/gi;
 const VINTAGE_PATTERN = /\b(?:19|20)\d{2}\b/;
 const GLASS_PATTERN = /\b(?:glas|glass|0[,.](?:1|15|2)\s*l|0[,.]\d+\s*cl|1\/8|1\/4)\b/i;
 const BOTTLE_PATTERN = /\b(?:flasche|bottle|0[,.]7[05]\s*l|75\s*cl|750\s*ml)\b/i;
@@ -117,7 +124,9 @@ function parseWineCandidateLine(line: string, currentSection: string, index: num
     return null;
   }
 
-  const priceRaw = extractLastPrice(line);
+  const prices = extractWinePrices(line);
+  const glassPriceRaw = prices.find((price) => price.servingUnit === "glass")?.priceRaw;
+  const priceRaw = formatWinePrices(prices);
   const servingUnit = getServingUnit(line);
   const hasConcreteSignal = Boolean(priceRaw) || servingUnit !== "unknown" || VINTAGE_PATTERN.test(line);
 
@@ -125,7 +134,7 @@ function parseWineCandidateLine(line: string, currentSection: string, index: num
     return null;
   }
 
-  const nameOriginal = cleanWineName(priceRaw ? line.replace(priceRaw, "") : line);
+  const nameOriginal = cleanWineName(removeWinePrices(line, prices));
 
   if (!nameOriginal || isGenericWineSectionName(nameOriginal)) {
     return null;
@@ -136,7 +145,9 @@ function parseWineCandidateLine(line: string, currentSection: string, index: num
     nameOriginal,
     grapeOrStyle: inferGrapeOrStyle(nameOriginal),
     vintage: line.match(VINTAGE_PATTERN)?.[0],
+    ...(glassPriceRaw ? { glassPriceRaw } : {}),
     priceRaw,
+    ...(prices.length ? { prices } : {}),
     servingUnit,
     sourceEvidence: line
   };
@@ -157,6 +168,52 @@ function extractLastPrice(line: string) {
   const last = matches[matches.length - 1];
 
   return last?.[0]?.trim();
+}
+
+function removeWinePrices(line: string, prices: WineCandidatePrice[]) {
+  return prices.reduce((current, price) => current.replace(price.priceRaw, ""), line);
+}
+
+function extractWinePrices(line: string): WineCandidatePrice[] {
+  const matches = [...line.matchAll(PRICE_PATTERN)];
+
+  if (matches.length === 0) {
+    return [];
+  }
+
+  const glassPrice = matches
+    .map((match) => ({
+      amount: parseWinePriceAmount(match[0]),
+      priceRaw: match[0].trim()
+    }))
+    .filter((price): price is { amount: number; priceRaw: string } => Number.isFinite(price.amount))
+    .sort((left, right) => left.amount - right.amount)[0];
+
+  return glassPrice ? [{ priceRaw: glassPrice.priceRaw, servingUnit: "glass" }] : [];
+}
+
+function parseWinePriceAmount(value: string) {
+  const match = value.match(/\d{1,4}(?:[.,]\d+)?/);
+
+  if (!match) {
+    return Number.NaN;
+  }
+
+  return Number(match[0].replace(",", "."));
+}
+
+function formatWinePrices(prices: WineCandidatePrice[]) {
+  if (prices.length === 0) {
+    return undefined;
+  }
+
+  return prices
+    .map((price) => {
+      if (price.servingUnit === "glass") return `Glas ${price.priceRaw}`;
+      if (price.servingUnit === "bottle") return `Flasche ${price.priceRaw}`;
+      return price.priceRaw;
+    })
+    .join(" · ");
 }
 
 function getServingUnit(line: string): WineCandidate["servingUnit"] {

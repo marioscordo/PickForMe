@@ -68,6 +68,8 @@ export function PickScreen({
   const [entryScrollToActionKey, setEntryScrollToActionKey] = useState(0);
   const [entryScrollToMoodKey, setEntryScrollToMoodKey] = useState(0);
   const [entryScrollToTopKey, setEntryScrollToTopKey] = useState(0);
+  const [resultScrollToWineKey, setResultScrollToWineKey] = useState(0);
+  const [resultScrollToWineY, setResultScrollToWineY] = useState(0);
   const [moodSectionY, setMoodSectionY] = useState(0);
   const analyze = useAnalyzeMenu();
   const [openableMenuUrl, setOpenableMenuUrl] = useState<string | null>(null);
@@ -324,6 +326,11 @@ export function PickScreen({
 
   const canOpenMenu = typeof openableMenuUrl === "string" && openableMenuUrl.trim().length > 0;
 
+  function revealWineRecommendation(y: number) {
+    setResultScrollToWineY(Math.max(y - s(18), 0));
+    setResultScrollToWineKey((current) => current + 1);
+  }
+
   if (analyze.result) {
     return (
       <Screen
@@ -332,6 +339,8 @@ export function PickScreen({
         floatingAccessory={<GustaroHelp common={content.help.common} topic={content.help.result} />}
         scrollHintBottomOffset={s(18)}
         scrollHintHideThreshold={s(96)}
+        scrollToOffsetKey={resultScrollToWineKey || undefined}
+        scrollToOffsetY={resultScrollToWineY}
         scrollToTopKey="analysis-result"
       >
         <RecommendationCard
@@ -342,6 +351,7 @@ export function PickScreen({
           onReset={resetAnalysisState}
           openMenuLabel={canOpenMenu ? content.pick.openMenu : undefined}
           onOpenMenu={canOpenMenu ? openAnalyzedMenu : undefined}
+          onRevealWineRecommendation={revealWineRecommendation}
         />
       </Screen>
     );

@@ -1,15 +1,23 @@
 import { NextResponse } from "next/server";
-import { recommendWineForMainDishAI, type WineMainDishAnchor } from "../../../src/ai/recommendWineForMainDishAI";
+import {
+  recommendConcreteWineForMainDishAI,
+  type ConcreteWineRecommendation
+} from "../../../src/ai/recommendConcreteWineForMainDishAI";
+import { type WineMainDishAnchor } from "../../../src/ai/recommendWineForMainDishAI";
 import { requireUser } from "../../../src/auth/requireUser";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
+import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
+import { extractWineCandidates } from "../../../src/wine/extractWineCandidates";
 import {
   sanitizeWineProfileForRecommendation,
   type WineRecommendationProfile
 } from "../../../src/wine/wineProfile";
 
-type WineRecommendationRequest = {
+type WineMenuRecommendationRequest = {
   mainDish?: WineMainDishAnchor;
+  menuText?: string;
+  menuUrls?: string[];
   profile?: WineRecommendationProfile;
   userLocale?: string;
 };
@@ -18,7 +26,7 @@ export async function POST(request: Request) {
   try {
     await requireUser(request);
 
-    const body = (await request.json()) as WineRecommendationRequest;
+    const body = (await request.json()) as WineMenuRecommendationRequest;
     const mainDish = normalizeMainDish(body.mainDish);
 
     if (!mainDish) {
@@ -30,38 +38,75 @@ export async function POST(request: Request) {
     }
 
     const profile = sanitizeWineProfileForRecommendation(body.profile);
+    const menuSourceText = await loadWineMenuSourceText(body);
+    const wineCandidates = extractWineCandidates(menuSourceText);
+
+    if (wineCandidates.length === 0) {
+      return wineMenuResponse(null);
+    }
+
     const source = {
       kind: "text" as const,
       text: [
-        mainDish.nameOriginal,
-        mainDish.translatedName,
-        mainDish.descriptionOriginal,
-        mainDish.translatedDescription,
-        mainDish.sourceEvidence,
-        mainDish.reason
-      ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).join("\n")
+        "Originale Weinkartenquelle:",
+        menuSourceText,
+        "",
+        "Vorstrukturierte WineCandidates:",
+        JSON.stringify(wineCandidates)
+      ].join("\n")
     };
-
     const recommendation = await withTimeout(
-      recommendWineForMainDishAI({
+      recommendConcreteWineForMainDishAI({
         source,
         profile,
         mainDish,
+        wineCandidates,
         userLocale: body.userLocale
       }),
       25000,
-      "WINE_RECOMMENDATION_TIMEOUT"
+      "WINE_MENU_RECOMMENDATION_TIMEOUT"
     );
 
-    return NextResponse.json({
-      ok: true,
-      data: {
-        recommendation
-      }
-    });
+    return wineMenuResponse(recommendation);
   } catch (error) {
     return errorResponse(error);
   }
+}
+
+function wineMenuResponse(recommendation: ConcreteWineRecommendation | null) {
+  return NextResponse.json({
+    ok: true,
+    data: {
+      recommendation
+    }
+  });
+}
+
+async function loadWineMenuSourceText(body: WineMenuRecommendationRequest) {
+  const directText = body.menuText?.trim() ?? "";
+
+  if (directText && !looksLikeUrl(directText)) {
+    return directText;
+  }
+
+  const sourceUrls = [
+    directText && looksLikeUrl(directText) ? directText : "",
+    ...(body.menuUrls ?? [])
+  ].filter((value) => value.trim().length > 0);
+
+  for (const sourceUrl of sourceUrls) {
+    try {
+      const loadedText = await loadMenuTextFromUrl(sourceUrl);
+
+      if (loadedText.trim().length >= 20) {
+        return loadedText;
+      }
+    } catch {
+      // Concrete wine search is optional. If source loading fails, return no match.
+    }
+  }
+
+  return directText;
 }
 
 function normalizeMainDish(value: unknown): WineMainDishAnchor | null {

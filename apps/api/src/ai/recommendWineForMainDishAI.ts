@@ -1,5 +1,5 @@
 import type { ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
-import type { UserProfile } from "../types/profile";
+import type { WineRecommendationProfile } from "../wine/wineProfile";
 import {
   buildTwoStepSourceContent,
   createTwoStepOpenAIClient,
@@ -36,7 +36,7 @@ export async function recommendWineForMainDishAI({
   signal
 }: {
   source: TwoStepMenuSourceInput;
-  profile: UserProfile;
+  profile: WineRecommendationProfile;
   mainDish: WineMainDishAnchor;
   userLocale?: string;
   signal?: AbortSignal;
@@ -98,7 +98,7 @@ function buildWinePrompt({
   targetLocale,
   targetLanguage
 }: {
-  profile: UserProfile;
+  profile: WineRecommendationProfile;
   mainDish: WineMainDishAnchor;
   targetLocale: string;
   targetLanguage: string;

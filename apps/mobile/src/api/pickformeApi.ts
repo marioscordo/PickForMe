@@ -46,6 +46,17 @@ type RequestWineRecommendationMobileArgs = {
   signal?: AbortSignal;
 };
 
+type WineProfileForApi = {
+  outputLocale: string;
+  winePreference: {
+    preferredTypes?: string[];
+    taste?: string[];
+    structure?: string[];
+    favoriteGrapes?: string[];
+    excludedStyles?: string[];
+  };
+};
+
 type WineRecommendationMainDish = {
   rank?: number;
   nameOriginal: string;
@@ -198,14 +209,30 @@ export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {
 export function requestWineRecommendation(args: RequestWineRecommendationMobileArgs) {
   const body = {
     mainDish: args.mainDish,
-    menuText: args.menuText ?? "",
-    ...(args.menuUrls?.length ? { menuUrls: args.menuUrls } : {}),
-    profile: sanitizeProfileForApi(args.profile),
+    profile: sanitizeWineProfileForApi(args.profile),
     userLocale: resolveGuiLanguageFromDevice()
   };
 
   return apiPost<WineRecommendationData, typeof body>(
     "/api/wine-recommendation",
+    body,
+    {
+      signal: args.signal
+    }
+  );
+}
+
+export function requestWineMenuRecommendation(args: RequestWineRecommendationMobileArgs) {
+  const body = {
+    mainDish: args.mainDish,
+    menuText: args.menuText ?? "",
+    ...(args.menuUrls?.length ? { menuUrls: args.menuUrls } : {}),
+    profile: sanitizeWineProfileForApi(args.profile),
+    userLocale: resolveGuiLanguageFromDevice()
+  };
+
+  return apiPost<WineRecommendationData, typeof body>(
+    "/api/wine-menu-recommendation",
     body,
     {
       signal: args.signal
@@ -275,6 +302,10 @@ function getNativeBuildNumber() {
 }
 
 function sanitizeProfileForApi(profile: UserProfile): UserProfile {
+  return sanitizeBaseProfileForApi(profile);
+}
+
+function sanitizeBaseProfileForApi(profile: UserProfile): UserProfile {
   const controlledAllergens = profileFeatures.allergenModuleEnabled
     ? uniqueValues(filterControlledProfileValues(profile.allergens ?? []))
     : [];
@@ -284,7 +315,13 @@ function sanitizeProfileForApi(profile: UserProfile): UserProfile {
     outputLocale: profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE,
     primaryLikes: uniqueValues(filterControlledProfileValues(profile.primaryLikes)),
     customExclusions: uniqueValues(filterControlledProfileValues(profile.customExclusions ?? [])),
-    allergens: controlledAllergens,
+    allergens: controlledAllergens
+  };
+}
+
+function sanitizeWineProfileForApi(profile: UserProfile): WineProfileForApi {
+  return {
+    outputLocale: profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE,
     winePreference: {
       preferredTypes: uniqueValues(stringArray(profile.winePreference?.preferredTypes)),
       taste: uniqueValues(stringArray(profile.winePreference?.taste)),

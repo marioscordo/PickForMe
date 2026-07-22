@@ -40,6 +40,7 @@ export type AnalyzeData = {
 };
 
 export type WineRecommendation = {
+  recommendationType?: "wine_style";
   title: string;
   wineStyle: string;
   reason: string;
@@ -47,8 +48,31 @@ export type WineRecommendation = {
   confidence: "high" | "medium" | "low";
 };
 
+export type ConcreteWineRecommendation = {
+  recommendationType: "concrete_wine";
+  title: string;
+  primaryWine: {
+    nameOriginal: string;
+    displayName: string;
+    grapeOrStyle?: string | null;
+    region?: string | null;
+    vintage?: string | null;
+    glassPriceRaw: string;
+    priceRaw?: string | null;
+    prices?: Array<{
+      servingUnit: "glass" | "bottle" | "unknown";
+      priceRaw: string;
+    }>;
+    servingUnit?: "glass" | "bottle" | "unknown";
+    sourceEvidence: string;
+  };
+  reason: string;
+  servingHint?: string | null;
+  confidence: "high" | "medium";
+};
+
 export type WineRecommendationData = {
-  recommendation: WineRecommendation | null;
+  recommendation: WineRecommendation | ConcreteWineRecommendation | null;
 };
 
 export type StarterPairingsData = {
