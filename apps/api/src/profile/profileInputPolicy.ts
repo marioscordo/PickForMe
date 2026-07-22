@@ -14,8 +14,21 @@ export function sanitizeProfileForRecommendation(profile: UserProfile): UserProf
     outputLocale: profile.outputLocale,
     primaryLikes,
     customExclusions,
-    allergens: profileFeatures.allergenModuleEnabled ? allergens : []
+    allergens: profileFeatures.allergenModuleEnabled ? allergens : [],
+    winePreference: {
+      preferredTypes: uniqueValues(stringArray(profile.winePreference?.preferredTypes)),
+      taste: uniqueValues(stringArray(profile.winePreference?.taste)),
+      structure: uniqueValues(stringArray(profile.winePreference?.structure)),
+      favoriteGrapes: uniqueValues(stringArray(profile.winePreference?.favoriteGrapes)),
+      excludedStyles: uniqueValues(stringArray(profile.winePreference?.excludedStyles))
+    }
   };
+}
+
+function stringArray(values: unknown) {
+  return Array.isArray(values)
+    ? values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
 }
 
 function filterControlledProfileValues(values: string[]) {

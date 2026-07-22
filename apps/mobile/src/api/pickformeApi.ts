@@ -7,7 +7,7 @@ import { profileFeatures } from "../config/profileFeatures";
 import { filterControlledProfileValues } from "../profile/profileInputPolicy";
 import type { UserProfile } from "../types/profile";
 import type { PreferredDishRole, RequestedDishRole } from "../types/recommendationMode";
-import type { AnalyzeData, RestaurantIntroData } from "../types/recommendations";
+import type { AnalyzeData, RestaurantIntroData, WineRecommendationData } from "../types/recommendations";
 
 type AnalyzeMenuMobileArgs = {
   menuText: string;
@@ -36,6 +36,22 @@ type RequestRestaurantIntroMobileArgs = {
   menuText: string;
   profile: UserProfile;
   signal?: AbortSignal;
+};
+
+type RequestWineRecommendationMobileArgs = {
+  mainDish: WineRecommendationMainDish;
+  profile: UserProfile;
+  signal?: AbortSignal;
+};
+
+type WineRecommendationMainDish = {
+  rank?: number;
+  nameOriginal: string;
+  translatedName?: string;
+  descriptionOriginal?: string | null;
+  translatedDescription?: string | null;
+  sourceEvidence?: string | null;
+  reason?: string;
 };
 
 type AnalyzeMenuApiBody = {
@@ -177,6 +193,22 @@ export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {
   );
 }
 
+export function requestWineRecommendation(args: RequestWineRecommendationMobileArgs) {
+  const body = {
+    mainDish: args.mainDish,
+    profile: sanitizeProfileForApi(args.profile),
+    userLocale: resolveGuiLanguageFromDevice()
+  };
+
+  return apiPost<WineRecommendationData, typeof body>(
+    "/api/wine-recommendation",
+    body,
+    {
+      signal: args.signal
+    }
+  );
+}
+
 export function classifyProfilePreference(value: string, signal?: AbortSignal) {
   return classifyProfileInput(value, "preference", signal);
 }
@@ -248,8 +280,21 @@ function sanitizeProfileForApi(profile: UserProfile): UserProfile {
     outputLocale: profile.outputLocale ?? DEFAULT_OUTPUT_LOCALE,
     primaryLikes: uniqueValues(filterControlledProfileValues(profile.primaryLikes)),
     customExclusions: uniqueValues(filterControlledProfileValues(profile.customExclusions ?? [])),
-    allergens: controlledAllergens
+    allergens: controlledAllergens,
+    winePreference: {
+      preferredTypes: uniqueValues(stringArray(profile.winePreference?.preferredTypes)),
+      taste: uniqueValues(stringArray(profile.winePreference?.taste)),
+      structure: uniqueValues(stringArray(profile.winePreference?.structure)),
+      favoriteGrapes: uniqueValues(stringArray(profile.winePreference?.favoriteGrapes)),
+      excludedStyles: uniqueValues(stringArray(profile.winePreference?.excludedStyles))
+    }
   };
+}
+
+function stringArray(values: unknown) {
+  return Array.isArray(values)
+    ? values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
 }
 
 function uniqueValues(values: string[]) {

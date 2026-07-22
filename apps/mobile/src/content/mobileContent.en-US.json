@@ -160,8 +160,11 @@
     "fallbackDishName": "Dish",
     "missingPriceText": "Please check the menu for the price.",
     "wineRecommendationButton": "Wine recommendation",
+    "wineRecommendationLoading": "I am finding a fitting wine style ...",
+    "wineRecommendationRetry": "Try again",
     "wineRecommendationTitle": "Wine recommendation",
-    "wineRecommendationPlaceholder": "Gustaro Plus will later recommend a fitting wine for this dish here. This prototype has no purchase, wine list, or AI call connected yet."
+    "wineRecommendationEmpty": "I cannot find a safe wine recommendation for this right now.",
+    "wineRecommendationError": "I could not load the wine recommendation just now."
   },
   "profileScreen": {
     "title": "Profile",

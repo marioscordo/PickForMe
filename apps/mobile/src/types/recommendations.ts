@@ -39,6 +39,18 @@ export type AnalyzeData = {
   menuType?: string;
 };
 
+export type WineRecommendation = {
+  title: string;
+  wineStyle: string;
+  reason: string;
+  servingHint?: string | null;
+  confidence: "high" | "medium" | "low";
+};
+
+export type WineRecommendationData = {
+  recommendation: WineRecommendation | null;
+};
+
 export type StarterPairingsData = {
   recommendations: AnalyzeData["recommendations"];
   starterRetryableError?: boolean;

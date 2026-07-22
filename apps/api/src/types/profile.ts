@@ -10,7 +10,15 @@ export type UserProfile = {
 
   customExclusions?: string[];
   allergens?: string[];
+  winePreference?: WinePreference;
 };
 
+export type WinePreference = {
+  preferredTypes?: string[];
+  taste?: string[];
+  structure?: string[];
+  favoriteGrapes?: string[];
+  excludedStyles?: string[];
+};
 
 

@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
-import { analyzeMenu, requestRestaurantIntro, type MenuImageSource } from "../../api/pickformeApi";
+import { analyzeMenu, requestRestaurantIntro, requestWineRecommendation, type MenuImageSource } from "../../api/pickformeApi";
 import { DEFAULT_OUTPUT_LOCALE, resolveOutputLocale } from "../../config/outputLocales";
 import { useMobileContent } from "../../content/useMobileContent";
 import { getAnalyzeMenuErrorMessage } from "../../hooks/useAnalyzeMenu";
 import { premiumColors, radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Dish } from "../../types/menu";
-import type { AnalyzeData, Recommendation } from "../../types/recommendations";
+import type { AnalyzeData, Recommendation, WineRecommendation } from "../../types/recommendations";
 import { AnalysisLoadingBox } from "./AnalysisLoadingBox";
 import { Surface } from "../ui/Surface";
 
@@ -18,6 +18,11 @@ type PremiumActionTone = "secondary";
 type NestedRecommendationState = {
   error?: string;
   result?: AnalyzeData;
+  status: NestedRecommendationStatus;
+};
+type WineRecommendationState = {
+  error?: string;
+  result?: WineRecommendation | null;
   status: NestedRecommendationStatus;
 };
 
@@ -217,15 +222,20 @@ export function RecommendationCard({
   const activeNestedDishIdRef = useRef<string | null>(null);
   const nestedRequestIdRef = useRef(0);
   const nestedAbortControllerRef = useRef<AbortController | null>(null);
+  const wineLoadingDishIdsRef = useRef(new Set<string>());
+  const activeWineDishIdRef = useRef<string | null>(null);
+  const wineRequestIdRef = useRef(0);
+  const wineAbortControllerRef = useRef<AbortController | null>(null);
   const restaurantIntroRequestIdRef = useRef(0);
   const restaurantIntroAbortControllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
   const [activeNestedDishId, setActiveNestedDishId] = useState<string | null>(null);
   const [nestedRecommendationsByDishId, setNestedRecommendationsByDishId] = useState<Record<string, NestedRecommendationState>>({});
+  const [activeWineDishId, setActiveWineDishId] = useState<string | null>(null);
+  const [wineRecommendationsByDishId, setWineRecommendationsByDishId] = useState<Record<string, WineRecommendationState>>({});
   const [restaurantIntroStatus, setRestaurantIntroStatus] = useState<RestaurantIntroStatus>("idle");
   const [restaurantIntroText, setRestaurantIntroText] = useState("");
   const [restaurantIntroVisible, setRestaurantIntroVisible] = useState(false);
-  const [activeWinePreviewDishId, setActiveWinePreviewDishId] = useState<string | null>(null);
 
   const dishesById = useMemo(() => new Map(result.dishes.map((dish) => [dish.id, dish])), [result.dishes]);
   const visibleRecommendations = result.recommendations;
@@ -237,7 +247,8 @@ export function RecommendationCard({
         outputLocale: profile.outputLocale,
         primaryLikes: profile.primaryLikes,
         customExclusions: profile.customExclusions,
-        allergens: profile.allergens
+        allergens: profile.allergens,
+        winePreference: profile.winePreference
       }),
     [profile]
   );
@@ -365,6 +376,12 @@ export function RecommendationCard({
     nestedLoadingDishIdsRef.current.clear();
     activeNestedDishIdRef.current = null;
 
+    wineRequestIdRef.current += 1;
+    wineAbortControllerRef.current?.abort();
+    wineAbortControllerRef.current = null;
+    wineLoadingDishIdsRef.current.clear();
+    activeWineDishIdRef.current = null;
+
     restaurantIntroRequestIdRef.current += 1;
     restaurantIntroAbortControllerRef.current?.abort();
     restaurantIntroAbortControllerRef.current = null;
@@ -375,10 +392,11 @@ export function RecommendationCard({
 
     setActiveNestedDishId(null);
     setNestedRecommendationsByDishId({});
+    setActiveWineDishId(null);
+    setWineRecommendationsByDishId({});
     setRestaurantIntroStatus("idle");
     setRestaurantIntroText("");
     setRestaurantIntroVisible(false);
-    setActiveWinePreviewDishId(null);
   }
 
   async function handleRestaurantIntro() {
@@ -437,8 +455,87 @@ export function RecommendationCard({
     setRestaurantIntroStatus("idle");
   }
 
-  function handleWineRecommendationPreview(dishId: string) {
-    setActiveWinePreviewDishId((currentDishId) => currentDishId === dishId ? null : dishId);
+  async function handleWineRecommendationSearch(dishId: string) {
+    const activeDishId = activeWineDishIdRef.current;
+    const currentStatus = wineRecommendationsByDishId[dishId]?.status;
+    const dish = dishesById.get(dishId);
+    const recommendation = visibleRecommendations.find((item) => item.dishId === dishId);
+
+    if (activeDishId && activeDishId !== dishId) {
+      return;
+    }
+
+    if (!dish || !recommendation) {
+      return;
+    }
+
+    if (currentStatus === "loading" || currentStatus === "loaded" || wineLoadingDishIdsRef.current.has(dishId)) {
+      return;
+    }
+
+    if (!activeDishId) {
+      activeWineDishIdRef.current = dishId;
+      setActiveWineDishId(dishId);
+    }
+
+    wineLoadingDishIdsRef.current.add(dishId);
+    setWineRecommendationsByDishId((current) => ({
+      ...current,
+      [dishId]: {
+        status: "loading"
+      }
+    }));
+
+    const wineRequestId = wineRequestIdRef.current + 1;
+    wineRequestIdRef.current = wineRequestId;
+    wineAbortControllerRef.current?.abort();
+    const wineAbortController = new AbortController();
+    wineAbortControllerRef.current = wineAbortController;
+
+    try {
+      const data = await requestWineRecommendation({
+        mainDish: {
+          rank: recommendation.rank,
+          nameOriginal: dish.nameOriginal,
+          translatedName: recommendation.translatedName,
+          descriptionOriginal: dish.descriptionOriginal ?? recommendation.descriptionOriginal ?? null,
+          translatedDescription: recommendation.translatedDescription ?? null,
+          sourceEvidence: recommendation.facts ?? dish.sourceLine ?? null,
+          reason: recommendation.reason
+        },
+        profile,
+        signal: wineAbortController.signal
+      });
+
+      if (!mountedRef.current || wineRequestIdRef.current !== wineRequestId || activeWineDishIdRef.current !== dishId) {
+        return;
+      }
+
+      setWineRecommendationsByDishId((current) => ({
+        ...current,
+        [dishId]: {
+          result: data.recommendation,
+          status: "loaded"
+        }
+      }));
+    } catch (error) {
+      if (!mountedRef.current || wineRequestIdRef.current !== wineRequestId || activeWineDishIdRef.current !== dishId) {
+        return;
+      }
+
+      setWineRecommendationsByDishId((current) => ({
+        ...current,
+        [dishId]: {
+          error: error instanceof Error ? error.message : content.recommendation.wineRecommendationError,
+          status: "error"
+        }
+      }));
+    } finally {
+      if (wineRequestIdRef.current === wineRequestId) {
+        wineAbortControllerRef.current = null;
+        wineLoadingDishIdsRef.current.delete(dishId);
+      }
+    }
   }
 
   async function handleStartersAndSaladsSearch(dishId: string) {
@@ -641,12 +738,18 @@ export function RecommendationCard({
           const showDescription = translatedDescription.length > 0 && translatedDescription !== translatedName;
           const isPrimaryRecommendation = index === 0;
           const nestedState = nestedRecommendationsByDishId[rec.dishId] ?? { status: "idle" };
+          const wineState = wineRecommendationsByDishId[rec.dishId] ?? { status: "idle" };
           const isNestedActiveDish = activeNestedDishId === rec.dishId;
+          const isWineActiveDish = activeWineDishId === rec.dishId;
           const isOtherNestedDishActive = Boolean(activeNestedDishId && !isNestedActiveDish);
+          const isOtherWineDishActive = Boolean(activeWineDishId && !isWineActiveDish);
           const showNestedLoadingBox = isNestedActiveDish && nestedState.status === "loading";
           const nestedActionDisabled = nestedState.status === "loading" ||
             nestedState.status === "loaded" ||
             isOtherNestedDishActive;
+          const wineActionDisabled = wineState.status === "loading" ||
+            wineState.status === "loaded" ||
+            isOtherWineDishActive;
 
           const priceText = formatDisplayPrice({
             missingPriceText: content.recommendation.missingPriceText,
@@ -694,9 +797,16 @@ export function RecommendationCard({
                 {showStartersAndSaladsAction && !isUncertainReview ? (
                   <View style={local.nestedActionBox}>
                     <PremiumCardAction
+                      disabled={wineActionDisabled}
                       hero={isPrimaryRecommendation}
-                      label={content.recommendation.wineRecommendationButton}
-                      onPress={() => handleWineRecommendationPreview(rec.dishId)}
+                      label={
+                        wineState.status === "loading"
+                          ? content.recommendation.wineRecommendationLoading
+                          : wineState.status === "error"
+                            ? content.recommendation.wineRecommendationRetry
+                            : content.recommendation.wineRecommendationButton
+                      }
+                      onPress={() => handleWineRecommendationSearch(rec.dishId)}
                       tone="secondary"
                     />
                   </View>
@@ -712,12 +822,7 @@ export function RecommendationCard({
 
                 {renderNestedRecommendations(nestedState, isPrimaryRecommendation)}
 
-                {activeWinePreviewDishId === rec.dishId ? (
-                  <View style={[local.nestedResultBox, isPrimaryRecommendation ? local.nestedResultBoxPrimary : null]}>
-                    <Text style={local.nestedResultTitle}>{content.recommendation.wineRecommendationTitle}</Text>
-                    <Text style={local.nestedResultText}>{content.recommendation.wineRecommendationPlaceholder}</Text>
-                  </View>
-                ) : null}
+                {isWineActiveDish ? renderWineRecommendation(wineState, isPrimaryRecommendation) : null}
 
               </View>
             </Surface>
@@ -728,6 +833,50 @@ export function RecommendationCard({
       {renderFooterActions()}
     </View>
   );
+
+  function renderWineRecommendation(state: WineRecommendationState, isPrimaryRecommendation: boolean) {
+    if (state.status === "loading") {
+      return (
+        <View style={[local.nestedResultBox, isPrimaryRecommendation ? local.nestedResultBoxPrimary : null]}>
+          <Text style={local.nestedResultTitle}>{content.recommendation.wineRecommendationTitle}</Text>
+          <Text style={local.nestedResultText}>{content.recommendation.wineRecommendationLoading}</Text>
+        </View>
+      );
+    }
+
+    if (state.status === "error") {
+      return (
+        <View style={[local.nestedResultBox, isPrimaryRecommendation ? local.nestedResultBoxPrimary : null]}>
+          <Text style={local.nestedResultTitle}>{content.recommendation.wineRecommendationTitle}</Text>
+          <Text style={local.nestedResultText}>{state.error || content.recommendation.wineRecommendationError}</Text>
+        </View>
+      );
+    }
+
+    if (state.status !== "loaded") {
+      return null;
+    }
+
+    if (!state.result) {
+      return (
+        <View style={[local.nestedResultBox, isPrimaryRecommendation ? local.nestedResultBoxPrimary : null]}>
+          <Text style={local.nestedResultTitle}>{content.recommendation.wineRecommendationTitle}</Text>
+          <Text style={local.nestedResultText}>{content.recommendation.wineRecommendationEmpty}</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={[local.nestedResultBox, isPrimaryRecommendation ? local.nestedResultBoxPrimary : null]}>
+        <Text style={local.nestedResultTitle}>{state.result.title || content.recommendation.wineRecommendationTitle}</Text>
+        <Text style={local.nestedResultName}>{state.result.wineStyle}</Text>
+        <Text style={local.nestedResultText}>{state.result.reason}</Text>
+        {state.result.servingHint ? (
+          <Text style={local.nestedResultText}>{state.result.servingHint}</Text>
+        ) : null}
+      </View>
+    );
+  }
 
   function renderNestedRecommendations(state: NestedRecommendationState, isPrimaryRecommendation: boolean) {
     if (state.status === "idle" || state.status === "loading") {
@@ -1144,6 +1293,14 @@ const local = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 19
+  },
+
+  nestedResultName: {
+    color: premiumColors.text,
+    fontSize: 14,
+    fontWeight: "900",
+    lineHeight: 20,
+    marginBottom: spacing.xs
   },
 
   nestedResultList: {

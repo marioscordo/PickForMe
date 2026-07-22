@@ -160,8 +160,11 @@
     "fallbackDishName": "Gericht",
     "missingPriceText": "Bitte entnimm den Preis der Karte.",
     "wineRecommendationButton": "Weinempfehlung",
+    "wineRecommendationLoading": "Ich suche einen passenden Weinstil ...",
+    "wineRecommendationRetry": "Erneut versuchen",
     "wineRecommendationTitle": "Weinempfehlung",
-    "wineRecommendationPlaceholder": "Gustaro Plus wird hier später einen passenden Wein zu diesem Gericht empfehlen. Im Prototyp ist noch kein Kauf, keine Weinkarte und kein KI-Call angebunden."
+    "wineRecommendationEmpty": "Ich finde dazu gerade keine sichere Weinempfehlung.",
+    "wineRecommendationError": "Ich konnte die Weinempfehlung gerade nicht laden."
   },
   "profileScreen": {
     "title": "Profil",
