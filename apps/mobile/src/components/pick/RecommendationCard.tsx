@@ -225,6 +225,7 @@ export function RecommendationCard({
   const [restaurantIntroStatus, setRestaurantIntroStatus] = useState<RestaurantIntroStatus>("idle");
   const [restaurantIntroText, setRestaurantIntroText] = useState("");
   const [restaurantIntroVisible, setRestaurantIntroVisible] = useState(false);
+  const [activeWinePreviewDishId, setActiveWinePreviewDishId] = useState<string | null>(null);
 
   const dishesById = useMemo(() => new Map(result.dishes.map((dish) => [dish.id, dish])), [result.dishes]);
   const visibleRecommendations = result.recommendations;
@@ -377,6 +378,7 @@ export function RecommendationCard({
     setRestaurantIntroStatus("idle");
     setRestaurantIntroText("");
     setRestaurantIntroVisible(false);
+    setActiveWinePreviewDishId(null);
   }
 
   async function handleRestaurantIntro() {
@@ -433,6 +435,10 @@ export function RecommendationCard({
   function closeRestaurantIntro() {
     setRestaurantIntroVisible(false);
     setRestaurantIntroStatus("idle");
+  }
+
+  function handleWineRecommendationPreview(dishId: string) {
+    setActiveWinePreviewDishId((currentDishId) => currentDishId === dishId ? null : dishId);
   }
 
   async function handleStartersAndSaladsSearch(dishId: string) {
@@ -685,6 +691,17 @@ export function RecommendationCard({
                   </View>
                 ) : null}
 
+                {showStartersAndSaladsAction && !isUncertainReview ? (
+                  <View style={local.nestedActionBox}>
+                    <PremiumCardAction
+                      hero={isPrimaryRecommendation}
+                      label={content.recommendation.wineRecommendationButton}
+                      onPress={() => handleWineRecommendationPreview(rec.dishId)}
+                      tone="secondary"
+                    />
+                  </View>
+                ) : null}
+
                 {showNestedLoadingBox ? (
                   <AnalysisLoadingBox
                     steps={content.pick.loadingSteps}
@@ -694,6 +711,13 @@ export function RecommendationCard({
                 ) : null}
 
                 {renderNestedRecommendations(nestedState, isPrimaryRecommendation)}
+
+                {activeWinePreviewDishId === rec.dishId ? (
+                  <View style={[local.nestedResultBox, isPrimaryRecommendation ? local.nestedResultBoxPrimary : null]}>
+                    <Text style={local.nestedResultTitle}>{content.recommendation.wineRecommendationTitle}</Text>
+                    <Text style={local.nestedResultText}>{content.recommendation.wineRecommendationPlaceholder}</Text>
+                  </View>
+                ) : null}
 
               </View>
             </Surface>

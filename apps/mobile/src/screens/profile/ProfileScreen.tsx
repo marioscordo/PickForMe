@@ -105,7 +105,7 @@ type ValueOption = string | {
   value: string;
 };
 
-export type ProfileSection = "general" | ProfileEditorSection;
+export type ProfileSection = "general" | "wine" | ProfileEditorSection;
 
 export function ProfileScreen({
   activeSection,
@@ -181,6 +181,7 @@ export function ProfileScreen({
   ]);
   const visibleAllergyOptions = allergenModuleEnabled ? allergyOptions : [];
   const activeIntoleranceCount = allergenModuleEnabled ? allergens.length : 0;
+  const activeWinePreferenceCount = countActiveWinePreferences(profile);
   const overviewCanScrollFurther = overviewContentHeight > overviewViewportHeight + 18 && overviewScrollY + overviewViewportHeight < overviewContentHeight - 36;
   const selectedOutputLocale = resolveOutputLocale(profile.outputLocale);
   const outputLocaleOptions = useMemo(
@@ -449,13 +450,21 @@ export function ProfileScreen({
     const activeTitle =
       activeSection === "general"
         ? content.profileScreen.generalButton
+        : activeSection === "wine"
+          ? content.profileScreen.winePreferenceButton
         : profileSections.find((section) => section.id === activeSection)?.label ?? content.profileScreen.title;
 
-    const activeSubtitle = activeSection === "general" ? content.profileScreen.subtitle : activeSectionHint(activeSection, content);
+    const activeSubtitle = activeSection === "general"
+      ? content.profileScreen.subtitle
+      : activeSection === "wine"
+        ? content.profileEditor.winePreferenceHint
+        : activeSectionHint(activeSection, content);
     const backLabel = returnToPickOnBack ? content.profileScreen.backToPickFlow : content.profileScreen.title;
     const activeHelpTopic =
       activeSection === "general"
         ? content.help.profileGeneral
+        : activeSection === "wine"
+          ? content.help.profileWine
         : activeSection === "preferences"
           ? content.help.profilePreferences
           : activeSection === "exclusions"
@@ -732,6 +741,24 @@ export function ProfileScreen({
 
     function displayIntoleranceValue(value: string) {
       return optionMapLabel(intoleranceLabels, value);
+    }
+
+    function toggleWinePreferenceValue(
+      key: keyof NonNullable<UserProfile["winePreference"]>,
+      value: string
+    ) {
+      setProfile((currentProfile) => {
+        const winePreference = currentProfile.winePreference ?? {};
+        const currentValues = winePreference[key] ?? [];
+
+        return {
+          ...currentProfile,
+          winePreference: {
+            ...winePreference,
+            [key]: toggleValue(currentValues, value)
+          }
+        };
+      });
     }
 
     if (activeSection === "general") {
@@ -1022,6 +1049,87 @@ export function ProfileScreen({
       );
     }
 
+    if (activeSection === "wine") {
+      const winePreference = profile.winePreference ?? {};
+
+      return (
+        <Screen contentContainerStyle={local.detailContent}>
+          <PremiumProfileBackLink
+            accessory={<GustaroHelp common={content.help.common} topic={activeHelpTopic} />}
+            label={backLabel}
+            onPress={closeActiveSection}
+            prominent={returnToPickOnBack}
+          />
+          <PremiumProfileDetailHeader title={activeTitle} subtitle={activeSubtitle} />
+
+          <View style={local.premiumEditorStack}>
+            <PremiumSafetyCard text={content.profileEditor.winePreferencePlusHint} />
+
+            <PremiumProfileSubBlock title={content.profileEditor.wineTypesTitle}>
+              <View style={local.premiumChipRow}>
+                {content.profileEditor.wineTypeOptions.map((option) => (
+                  <PremiumFeatherChip
+                    key={option.value}
+                    active={(winePreference.preferredTypes ?? []).includes(option.value)}
+                    icon="droplet"
+                    label={option.label}
+                    onPress={() => toggleWinePreferenceValue("preferredTypes", option.value)}
+                  />
+                ))}
+              </View>
+            </PremiumProfileSubBlock>
+
+            <PremiumProfileSubBlock title={content.profileEditor.wineTasteTitle}>
+              <View style={local.premiumChipRow}>
+                {content.profileEditor.wineTasteOptions.map((option) => (
+                  <PremiumFeatherChip
+                    key={option.value}
+                    active={(winePreference.taste ?? []).includes(option.value)}
+                    icon="sliders"
+                    label={option.label}
+                    onPress={() => toggleWinePreferenceValue("taste", option.value)}
+                  />
+                ))}
+              </View>
+            </PremiumProfileSubBlock>
+
+            <PremiumProfileSubBlock title={content.profileEditor.wineStructureTitle}>
+              <View style={local.premiumChipRowCompact}>
+                {content.profileEditor.wineStructureOptions.map((option) => {
+                  const group = option.group as keyof NonNullable<UserProfile["winePreference"]>;
+
+                  return (
+                    <PremiumFeatherChip
+                      key={option.value}
+                      active={(winePreference[group] ?? []).includes(option.value)}
+                      compact
+                      icon="bar-chart-2"
+                      label={option.label}
+                      onPress={() => toggleWinePreferenceValue(group, option.value)}
+                    />
+                  );
+                })}
+              </View>
+            </PremiumProfileSubBlock>
+
+            <PremiumProfileSubBlock title={content.profileEditor.wineExclusionsTitle}>
+              <View style={local.premiumChipRow}>
+                {content.profileEditor.wineExclusionOptions.map((option) => (
+                  <PremiumFeatherChip
+                    key={option.value}
+                    active={(winePreference.excludedStyles ?? []).includes(option.value)}
+                    icon="x-circle"
+                    label={option.label}
+                    onPress={() => toggleWinePreferenceValue("excludedStyles", option.value)}
+                  />
+                ))}
+              </View>
+            </PremiumProfileSubBlock>
+          </View>
+        </Screen>
+      );
+    }
+
     return (
       <Screen contentContainerStyle={local.detailContent}>
         <PremiumProfileBackLink
@@ -1102,6 +1210,13 @@ export function ProfileScreen({
             title={allergenModuleEnabled ? content.profileScreen.intolerancesButton : content.profileScreen.intolerancesOnlyButton}
             detail={activeStatus(activeIntoleranceCount, content)}
             onPress={() => setActiveSection("intolerances")}
+          />
+          <ProfileMenuRow
+            icon={content.profileScreen.winePreferenceIcon}
+            iconVariant="general"
+            title={content.profileScreen.winePreferenceButton}
+            detail={activeStatus(activeWinePreferenceCount, content)}
+            onPress={() => setActiveSection("wine")}
             isLast
           />
         </View>
@@ -1460,6 +1575,20 @@ function activeStatus(count: number, content: ReturnType<typeof useMobileContent
   return count > 0
     ? formatContent(content.profileScreen.activeStatus, { count })
     : content.profileScreen.emptyStatus;
+}
+
+function countActiveWinePreferences(profile: UserProfile) {
+  const winePreference = profile.winePreference ?? {};
+
+  return [
+    winePreference.preferredTypes,
+    winePreference.taste,
+    winePreference.body,
+    winePreference.acidity,
+    winePreference.tannin,
+    winePreference.favoriteGrapes,
+    winePreference.excludedStyles
+  ].reduce((count, values) => count + (values?.length ?? 0), 0);
 }
 
 function activeSectionHint(activeSection: ProfileEditorSection, content: ReturnType<typeof useMobileContent>) {

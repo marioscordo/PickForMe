@@ -2,6 +2,16 @@
 
 export type AppetiteMood = "richtig_hunger" | "leicht" | "neues_probieren" | "sicher";
 
+export type WinePreference = {
+  preferredTypes?: string[];
+  taste?: string[];
+  body?: string[];
+  acidity?: string[];
+  tannin?: string[];
+  favoriteGrapes?: string[];
+  excludedStyles?: string[];
+};
+
 export type UserProfile = {
   displayName: string;
   primaryLikes: string[];
@@ -16,6 +26,7 @@ export type UserProfile = {
   hiddenAllergens?: string[];
   deletedPreferences?: string[];
   deletedExclusions?: string[];
+  winePreference?: WinePreference;
 };
 
 

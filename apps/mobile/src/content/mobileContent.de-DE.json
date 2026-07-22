@@ -158,7 +158,10 @@
     "startersAndSaladsTitle": "Vorspeisen und Salate",
     "startersAndSaladsEmpty": "Ich finde dazu gerade keine sichere Vorspeisen- oder Salatempfehlung.",
     "fallbackDishName": "Gericht",
-    "missingPriceText": "Bitte entnimm den Preis der Karte."
+    "missingPriceText": "Bitte entnimm den Preis der Karte.",
+    "wineRecommendationButton": "Weinempfehlung",
+    "wineRecommendationTitle": "Weinempfehlung",
+    "wineRecommendationPlaceholder": "Gustaro Plus wird hier spaeter einen passenden Wein zu diesem Gericht empfehlen. Im Prototyp ist noch kein Kauf, keine Weinkarte und kein KI-Call angebunden."
   },
   "profileScreen": {
     "title": "Profil",
@@ -183,7 +186,9 @@
     "deleteAccountFailed": "Account und Daten konnten gerade nicht gelöscht werden. Bitte versuche es später noch einmal.",
     "privacyPolicy": "Datenschutz",
     "support": "Support",
-    "legalLinkFailed": "Der Link konnte gerade nicht geöffnet werden."
+    "legalLinkFailed": "Der Link konnte gerade nicht geöffnet werden.",
+    "winePreferenceIcon": "Wein",
+    "winePreferenceButton": "Wein Praeferenz"
   },
   "testFeedback": {
     "openButton": "Fehler melden",
@@ -467,6 +472,94 @@
         "label": "Lupinen",
         "value": "Lupinen"
       }
+    ],
+    "winePreferenceHint": "Was Gustaro Plus spaeter fuer Weinempfehlungen beruecksichtigen soll.",
+    "winePreferencePlusHint": "Diese Angaben bleiben vom Essensprofil getrennt. Sie bereiten nur das spaetere Gustaro-Plus-Feature vor.",
+    "wineTypesTitle": "Weinart",
+    "wineTasteTitle": "Geschmack",
+    "wineStructureTitle": "Struktur",
+    "wineExclusionsTitle": "Nicht empfehlen",
+    "wineTypeOptions": [
+      {
+        "label": "Rotwein",
+        "value": "red"
+      },
+      {
+        "label": "Weisswein",
+        "value": "white"
+      },
+      {
+        "label": "Rose",
+        "value": "rose"
+      },
+      {
+        "label": "Schaumwein",
+        "value": "sparkling"
+      }
+    ],
+    "wineTasteOptions": [
+      {
+        "label": "trocken",
+        "value": "dry"
+      },
+      {
+        "label": "fruchtig",
+        "value": "fruity"
+      },
+      {
+        "label": "kraeftig",
+        "value": "bold"
+      },
+      {
+        "label": "leicht",
+        "value": "light"
+      }
+    ],
+    "wineStructureOptions": [
+      {
+        "label": "leichter Koerper",
+        "value": "light_body",
+        "group": "body"
+      },
+      {
+        "label": "voller Koerper",
+        "value": "full_body",
+        "group": "body"
+      },
+      {
+        "label": "wenig Saeure",
+        "value": "low_acidity",
+        "group": "acidity"
+      },
+      {
+        "label": "frische Saeure",
+        "value": "fresh_acidity",
+        "group": "acidity"
+      },
+      {
+        "label": "wenig Tannin",
+        "value": "low_tannin",
+        "group": "tannin"
+      },
+      {
+        "label": "kraeftiges Tannin",
+        "value": "firm_tannin",
+        "group": "tannin"
+      }
+    ],
+    "wineExclusionOptions": [
+      {
+        "label": "kein Alkohol",
+        "value": "no_alcohol"
+      },
+      {
+        "label": "kein Rotwein",
+        "value": "no_red"
+      },
+      {
+        "label": "kein suesser Wein",
+        "value": "no_sweet"
+      }
     ]
   },
   "analysisErrors": {
@@ -583,6 +676,15 @@
         "Aktive Einträge löschst Du unten im Bereich der aktiven Unverträglichkeiten."
       ],
       "tip": "GustaroAI berücksichtigt Deine Unverträglichkeiten streng, soweit sie aus der Speisekarte erkennbar sind."
+    },
+    "profileWine": {
+      "title": "Wein Praeferenz",
+      "points": [
+        "Diese Angaben sind vom Essensprofil getrennt.",
+        "Sie bereiten spaetere Gustaro-Plus-Weinempfehlungen vor.",
+        "Klare Ausschluesse wie kein Alkohol werden spaeter als harte Grenze behandelt."
+      ],
+      "tip": "Im Prototyp pruefst Du nur den Flow. Es wird noch keine Weinempfehlung berechnet."
     }
   }
 }
