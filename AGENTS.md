@@ -255,6 +255,14 @@ Keine Aenderung an Main-AI-Prompt, Safety-Verifier, Gatekeeper, Normalizer, Rank
 
 Wenn diese Bereiche betroffen sind, gilt mindestens Risikostufe HIGH und Codex muss zuerst Ursache, Datenfluss, moegliche Regressionen und Teststrategie darlegen.
 
+Mandatory bei AI-/PDF-/Quellen-Aenderungen:
+
+- Codex muss vor Umsetzung den vollstaendigen Datenfluss bis zu allen nachgelagerten Konsumenten pruefen und dokumentieren.
+- Bei PDF-Analysen muss explizit geprueft werden, ob die AI Text, Datei, Bild oder eine Kombination daraus erhaelt.
+- Performance-Optimierungen duerfen nicht unbeabsichtigt Quelleninformationen entfernen, die fuer Namen, Beschreibungen, Preise, Layout, Safety oder Belege funktional relevant sind.
+- Wenn ein Flag, Modus oder Parameter beeinflusst, ob eine Quelle als Datei/Bild/Text an die AI geht, muss dieser Parameter im Plan und Abschlussbericht ausdruecklich genannt werden.
+- "Funktional unveraendert" darf nur behauptet werden, wenn der gesamte relevante Datenfluss einschliesslich nachgelagerter Konsumenten belegt ist.
+
 ## 13. Risikostufen
 
 LOW:

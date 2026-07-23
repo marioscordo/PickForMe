@@ -63,7 +63,7 @@ export async function recommendWineForMainDishAI({
   };
 
   const response = await client.responses.create(request, signal ? { signal } : undefined);
-  const parsed = JSON.parse(stripJsonFence(response.output_text ?? "{}"));
+  const parsed = parseWineRecommendationResponse(response.output_text ?? "");
 
   if (!isRecord(parsed) || !isRecord(parsed.recommendation)) {
     return null;
@@ -90,6 +90,14 @@ export async function recommendWineForMainDishAI({
     servingHint: stringField(recommendation.servingHint) || null,
     confidence
   };
+}
+
+function parseWineRecommendationResponse(outputText: string) {
+  try {
+    return JSON.parse(stripJsonFence(outputText || "{}"));
+  } catch {
+    return null;
+  }
 }
 
 function buildWinePrompt({

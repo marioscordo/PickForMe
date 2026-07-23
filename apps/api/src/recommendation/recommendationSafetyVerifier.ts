@@ -24,7 +24,9 @@ export type RecommendationSafetyCheck = {
 
 export type RecommendationSafetyCandidateResult = {
   candidateId?: string;
-  checks?: RecommendationSafetyCheck[];
+  overallVerdict?: string;
+  checkedRestrictionIds?: string[];
+  matchedRestrictions?: RecommendationSafetyCheck[];
 };
 
 export type RecommendationSafetyVerifierResponse = {
@@ -164,41 +166,47 @@ export function validateRecommendationSafetyResponseWithDiagnostics({
     seenCandidateIds.add(candidateId);
     const candidate = candidatesById.get(candidateId);
 
-    if (!candidate || !Array.isArray(candidateResult.checks)) {
+    if (!candidate) {
       diagnostics.safetyInvalidSchemaCount += 1;
       continue;
     }
 
-    const checksByRestrictionId = new Map<string, RecommendationSafetyCheck>();
-    let invalid = false;
-
-    for (const check of candidateResult.checks) {
-      const restrictionId = check.restrictionId?.trim();
-
-      if (!restrictionId || !restrictionIds.has(restrictionId) || checksByRestrictionId.has(restrictionId)) {
-        diagnostics.safetyInvalidSchemaCount += 1;
-        invalid = true;
-        break;
-      }
-
-      checksByRestrictionId.set(restrictionId, check);
-    }
-
-    if (checksByRestrictionId.size !== restrictions.length) {
-      invalid = true;
-    }
+    const checkedRestrictionIds = Array.isArray(candidateResult.checkedRestrictionIds)
+      ? candidateResult.checkedRestrictionIds.map((restrictionId) => restrictionId.trim()).filter(Boolean)
+      : [];
+    const uniqueCheckedRestrictionIds = new Set(checkedRestrictionIds);
+    const overallVerdict = normalizeVerdict(candidateResult.overallVerdict);
+    const matchedRestrictions = Array.isArray(candidateResult.matchedRestrictions)
+      ? candidateResult.matchedRestrictions
+      : [];
+    const matchedRestrictionIds = new Set<string>();
+    let invalid = !overallVerdict ||
+      checkedRestrictionIds.length !== restrictions.length ||
+      uniqueCheckedRestrictionIds.size !== restrictions.length ||
+      checkedRestrictionIds.some((restrictionId) => !restrictionIds.has(restrictionId));
 
     if (invalid) {
+      diagnostics.safetyInvalidSchemaCount += 1;
       continue;
     }
 
     let unsafeReason: RecommendationSafetyValidationResult["reason"];
+    let matchedConflictCount = 0;
+    let matchedUncertainCount = 0;
 
-    for (const restriction of restrictions) {
-      const check = checksByRestrictionId.get(restriction.id);
-      const verdict = normalizeVerdict(check?.verdict);
+    for (const check of matchedRestrictions) {
+      const restrictionId = check.restrictionId?.trim();
 
-      if (!check || !verdict) {
+      if (!restrictionId || !restrictionIds.has(restrictionId) || !uniqueCheckedRestrictionIds.has(restrictionId) || matchedRestrictionIds.has(restrictionId)) {
+        diagnostics.safetyInvalidSchemaCount += 1;
+        unsafeReason = "invalid_response";
+        break;
+      }
+
+      matchedRestrictionIds.add(restrictionId);
+      const verdict = normalizeVerdict(check.verdict);
+
+      if (!verdict) {
         if (!check?.verdict?.trim()) {
           diagnostics.safetyMissingVerdictCount += 1;
         } else {
@@ -208,24 +216,49 @@ export function validateRecommendationSafetyResponseWithDiagnostics({
         break;
       }
 
-      if (verdict === "conflict") {
-        const evidence = check.evidence?.trim();
-        const source = normalizeSource(check.source);
+      if (verdict === "safe") {
+        unsafeReason = "invalid_response";
+        break;
+      }
 
+      const evidence = check.evidence?.trim();
+      const source = normalizeSource(check.source);
+
+      if (verdict === "conflict") {
         if (!evidence || !source || !candidateContainsEvidence(candidate, evidence, source)) {
           unsafeReason = "invalid_response";
           break;
         }
       }
 
+      if (verdict === "uncertain" && evidence && (!source || !candidateContainsEvidence(candidate, evidence, source))) {
+        unsafeReason = "invalid_response";
+        break;
+      }
+
       if (verdict === "conflict") {
+        matchedConflictCount += 1;
         unsafeReason = "conflict";
         break;
       }
 
       if (verdict === "uncertain") {
+        matchedUncertainCount += 1;
         unsafeReason = "uncertain";
-        break;
+      }
+    }
+
+    if (!unsafeReason) {
+      if (overallVerdict === "safe" && matchedRestrictions.length > 0) {
+        unsafeReason = "invalid_response";
+      } else if (overallVerdict === "conflict" && matchedConflictCount === 0) {
+        unsafeReason = "invalid_response";
+      } else if (overallVerdict === "uncertain" && matchedUncertainCount === 0) {
+        unsafeReason = "invalid_response";
+      } else if (overallVerdict === "conflict") {
+        unsafeReason = "conflict";
+      } else if (overallVerdict === "uncertain") {
+        unsafeReason = "uncertain";
       }
     }
 
@@ -247,11 +280,9 @@ export function validateRecommendationSafetyResponseWithDiagnostics({
       .filter((candidateId): candidateId is string => Boolean(candidateId && candidateIds.has(candidateId)))
   );
   diagnostics.safetyMissingCandidateCount = candidates.filter((candidate) => !seenKnownCandidateIds.has(candidate.id)).length;
-  const expectedCheckCount = candidates.length * restrictions.length;
   if (
     diagnostics.safetyEmptyResponseCount > 0 ||
-    diagnostics.safetyMissingCandidateCount > 0 ||
-    diagnostics.safetyReturnedCheckCount < expectedCheckCount
+    diagnostics.safetyMissingCandidateCount > 0
   ) {
     diagnostics.safetyTruncatedOrIncompleteCount = 1;
   }
@@ -338,7 +369,7 @@ function buildEmptySafetyDiagnostics({
     .map((candidateResult) => candidateResult?.candidateId?.trim())
     .filter((candidateId): candidateId is string => Boolean(candidateId));
   const returnedCheckCount = responseCandidates.reduce((count, candidateResult) => (
-    count + (Array.isArray(candidateResult?.checks) ? candidateResult.checks.length : 0)
+    count + (Array.isArray(candidateResult?.matchedRestrictions) ? candidateResult.matchedRestrictions.length : 0)
   ), 0);
 
   return {

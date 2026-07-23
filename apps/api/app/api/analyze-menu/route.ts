@@ -6,6 +6,7 @@ import { classifyDishRolesAI } from "../../../src/ai/classifyDishRolesAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
 import { recommendMainDishesAI, type MainDishRecommendationResult } from "../../../src/ai/recommendMainDishesAI";
+import { resolveRecommendationPricesAI } from "../../../src/ai/resolveRecommendationPricesAI";
 import {
   isAnalyzeDiagnosticsEnabled,
   logAnalyzeOpsDiagnostic
@@ -27,7 +28,11 @@ import {
   applyDishRoleClassifications,
   getDishesNeedingRoleClassification
 } from "../../../src/menu/applyDishRoleClassifications";
-import { rankMenuSourceCandidatesByQuality, type MenuSourceQualityMetrics } from "../../../src/restaurant/menuSourceQuality";
+import {
+  rankMenuSourceCandidatesByQuality,
+  type MenuSourceExtractedText,
+  type MenuSourceQualityMetrics
+} from "../../../src/restaurant/menuSourceQuality";
 import { recommendDishes } from "../../../src/recommendation/recommendDishes";
 import { gatekeepMainDishRecommendations } from "../../../src/recommendation/gatekeeper";
 import { enrichPriceCompatibility, type PriceResolverDiagnostics } from "../../../src/recommendation/priceCompatibility";
@@ -59,6 +64,7 @@ type LinkedPdfMenu = {
   urls?: string[];
   restaurantContextText?: string;
   pdfTextQuality?: PdfTextQualityForAnalysis;
+  pdfExtractedTexts?: MenuSourceExtractedText[];
 };
 
 type PdfTextQualityForAnalysis = MenuSourceQualityMetrics & {
@@ -333,14 +339,17 @@ export async function POST(request: Request) {
       }
 
       try {
+        const pdfSource: TwoStepMenuSourceInput & { pdfExtractedTexts?: MenuSourceExtractedText[] } = {
+          kind: "pdf",
+          urls: pdfMenuUrls,
+          sourceUrl: pdfMenuUrl,
+          text: selectedPdfMenu?.restaurantContextText ?? rawMenuText,
+          pdfTextQuality: selectedPdfMenu?.pdfTextQuality,
+          pdfExtractedTexts: selectedPdfMenu?.pdfExtractedTexts
+        };
+
         return await analyzeMenuWithTwoStepMainFlow({
-          source: {
-            kind: "pdf",
-            urls: pdfMenuUrls,
-            sourceUrl: pdfMenuUrl,
-            text: selectedPdfMenu?.restaurantContextText ?? rawMenuText,
-            pdfTextQuality: selectedPdfMenu?.pdfTextQuality
-          },
+          source: pdfSource,
           responseMode: "ai_pdf",
           profile,
           situation: body.situation,
@@ -1265,21 +1274,48 @@ async function analyzeMenuWithTwoStepMainFlow({
   });
 
   const mapperStartedAt = Date.now();
+  const priceResolutionSourceContext = [
+    augmentedSourceForMainAi.sourceUrl,
+    augmentedSourceForMainAi.text,
+    restaurantUrl,
+    fallbackHeroContextText
+  ].filter(Boolean).join("\n");
+  const resolvedRecommendationPrices = await resolveRecommendationPricesAI({
+    runId,
+    items: gatekeeperResult.accepted.map((recommendation, index) => ({
+      id: `main_${index}`,
+      nameOriginal: recommendation.nameOriginal,
+      descriptionOriginal: recommendation.descriptionOriginal,
+      sourceEvidence: recommendation.sourceEvidence,
+      currentPriceRaw: recommendation.priceRaw
+    })),
+    sourceText: priceResolutionSourceContext
+  });
+  const resolvedRecommendationPricesById = new Map(
+    resolvedRecommendationPrices
+      .filter((result) => result.priceRaw?.trim())
+      .map((result) => [result.id, result.priceRaw?.trim() ?? null] as const)
+  );
+  const acceptedRecommendationsWithResolvedPrices = gatekeeperResult.accepted.map((recommendation, index) => {
+    if (recommendation.priceRaw?.trim()) {
+      return recommendation;
+    }
+
+    const resolvedPriceRaw = resolvedRecommendationPricesById.get(`main_${index}`);
+    return resolvedPriceRaw
+      ? { ...recommendation, priceRaw: resolvedPriceRaw }
+      : recommendation;
+  });
   const mappedWithoutPriceCompatibility = enrichMappedHtmlDescriptions(
-    mapGatekeptMainRecommendationsToAnalyzeData(gatekeeperResult.accepted, requestedDishRoles),
+    mapGatekeptMainRecommendationsToAnalyzeData(acceptedRecommendationsWithResolvedPrices, requestedDishRoles),
     htmlMenuExtraction,
     outputLocale
   );
   const mapped = await enrichPriceCompatibility({
-    acceptedRecommendations: gatekeeperResult.accepted,
+    acceptedRecommendations: acceptedRecommendationsWithResolvedPrices,
     data: mappedWithoutPriceCompatibility,
     deviceLocale,
-    sourceContext: [
-      augmentedSourceForMainAi.sourceUrl,
-      augmentedSourceForMainAi.text,
-      restaurantUrl,
-      fallbackHeroContextText
-    ].filter(Boolean).join("\n"),
+    sourceContext: priceResolutionSourceContext,
     targetLocale: outputLocale
   });
   const mapperDurationMs = Date.now() - mapperStartedAt;
@@ -2124,9 +2160,23 @@ async function augmentPdfSourceWithExtractedText({
     return source;
   }
 
+  const sourceWithPdfExtracts = source as TwoStepMenuSourceInput & {
+    pdfExtractedTexts?: MenuSourceExtractedText[];
+  };
+  const reusablePdfTexts = new Map(
+    (sourceWithPdfExtracts.pdfExtractedTexts ?? [])
+      .map((entry) => [entry.url.trim().toLowerCase(), entry.text.trim()] as const)
+      .filter((entry) => entry[1].length > 0)
+  );
   const extractedTexts: string[] = [];
 
   for (const pdfUrl of pdfUrls) {
+    const reusablePdfText = reusablePdfTexts.get(pdfUrl.trim().toLowerCase());
+    if (reusablePdfText) {
+      extractedTexts.push(reusablePdfText);
+      continue;
+    }
+
     const pdfExtractStartedAt = Date.now();
     try {
       const extractedText = await loadMenuTextFromUrl(pdfUrl);
@@ -4046,6 +4096,7 @@ async function selectPdfMenuForAnalysis({
         url: selected.url,
         urls: selected.urls?.length ? selected.urls : [selected.url],
         restaurantContextText: selectedSource?.restaurantContextText,
+        pdfExtractedTexts: selected.extractedTexts,
         pdfTextQuality: {
           ...selected.metrics,
           baseScore: selectedBaseScore,

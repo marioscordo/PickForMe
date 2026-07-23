@@ -775,6 +775,10 @@ async function applyMainDishVerifierSafety(
     durationMs: Date.now() - validationStartedAt,
     candidateCount: candidates.length,
     restrictionCount: restrictions.length,
+    safeCount: verifierResult.validation.filter((result) => result.safe).length,
+    uncertainCount: verifierResult.validation.filter((result) => result.reason === "uncertain").length,
+    conflictCount: verifierResult.validation.filter((result) => result.reason === "conflict").length,
+    invalidCount: verifierResult.validation.filter((result) => result.reason === "invalid_response").length,
     success: true
   });
   logAnalyzeOpsDiagnostic({
@@ -1226,7 +1230,12 @@ function logVerifierDecisionDiagnostics({
 }: {
   restrictions: ReturnType<typeof buildRecommendationSafetyRestrictions>;
   candidates: Array<MainDishAISafeCandidate & { id: string }>;
-  response: { candidates?: Array<{ candidateId?: string; checks?: Array<{ restrictionId?: string; verdict?: string; evidence?: string | null; source?: string | null }> }> };
+  response: { candidates?: Array<{
+    candidateId?: string;
+    overallVerdict?: string;
+    checkedRestrictionIds?: string[];
+    matchedRestrictions?: Array<{ restrictionId?: string; verdict?: string; evidence?: string | null; source?: string | null }>;
+  }> };
   validation: Array<{ candidateId: string; safe: boolean; reason?: string }>;
   runId?: string;
 }) {
@@ -1247,8 +1256,8 @@ function logVerifierDecisionDiagnostics({
 
   for (const candidate of candidates) {
     const responseCandidate = responseByCandidateId.get(candidate.id);
-    const checksByRestrictionId = new Map<string, NonNullable<NonNullable<typeof response.candidates>[number]["checks"]>[number]>();
-    for (const check of Array.isArray(responseCandidate?.checks) ? responseCandidate.checks : []) {
+    const checksByRestrictionId = new Map<string, NonNullable<NonNullable<typeof response.candidates>[number]["matchedRestrictions"]>[number]>();
+    for (const check of Array.isArray(responseCandidate?.matchedRestrictions) ? responseCandidate.matchedRestrictions : []) {
       const restrictionId = check.restrictionId?.trim();
 
       if (restrictionId) {
@@ -1273,7 +1282,8 @@ function logVerifierDecisionDiagnostics({
         `restrictionId=${restriction.id}`,
         `restrictionType=${restriction.type}`,
         `restrictionLabel=${restriction.label.replace(/\s+/g, "_")}`,
-        `verdict=${check?.verdict ?? "missing"}`,
+        `overallVerdict=${responseCandidate?.overallVerdict ?? "missing"}`,
+        `verdict=${check?.verdict ?? "safe_or_not_matched"}`,
         `reason=${validationResult?.reason ?? "safe"}`,
         evidenceValid === undefined ? null : `evidenceValid=${evidenceValid}`,
         evidence ? `evidence=${evidence.replace(/\s+/g, "_")}` : null,

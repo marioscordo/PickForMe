@@ -8,6 +8,11 @@ export type MenuSourceQualityMetrics = {
   score: number;
 };
 
+export type MenuSourceExtractedText = {
+  url: string;
+  text: string;
+};
+
 export type MenuSourceQualityCandidate = {
   url: string;
   label?: string;
@@ -17,6 +22,7 @@ export type MenuSourceQualityCandidate = {
 
 export type RankedMenuSourceQualityCandidate = MenuSourceQualityCandidate & {
   metrics: MenuSourceQualityMetrics;
+  extractedTexts: MenuSourceExtractedText[];
 };
 
 const MENU_TEXT_FETCH_TIMEOUT_MS = 6500;
@@ -25,11 +31,12 @@ export async function rankMenuSourceCandidatesByQuality(
   candidates: MenuSourceQualityCandidate[]
 ): Promise<RankedMenuSourceQualityCandidate[]> {
   const ranked = await Promise.all(candidates.map(async (candidate) => {
-    const metrics = await getCombinedMenuSourceQualityMetrics(candidate);
+    const result = await getCombinedMenuSourceQualityMetrics(candidate);
 
     return {
       ...candidate,
-      metrics
+      metrics: result.metrics,
+      extractedTexts: result.extractedTexts
     };
   }));
 
@@ -46,6 +53,14 @@ export async function getMenuSourceQualityMetrics(
   label = "",
   baseScore = 0
 ): Promise<MenuSourceQualityMetrics> {
+  return (await getMenuSourceQualityMetricsWithText(url, label, baseScore)).metrics;
+}
+
+async function getMenuSourceQualityMetricsWithText(
+  url: string,
+  label = "",
+  baseScore = 0
+): Promise<{ metrics: MenuSourceQualityMetrics; extractedText?: MenuSourceExtractedText }> {
   try {
     const menuText = await withTimeout(loadMenuTextFromUrl(url), MENU_TEXT_FETCH_TIMEOUT_MS, "");
     const trimmed = menuText.trim();
@@ -62,25 +77,30 @@ export async function getMenuSourceQualityMetrics(
     });
 
     return {
-      textLength: trimmed.length,
-      dishCount,
-      priceCount,
-      score
+      metrics: {
+        textLength: trimmed.length,
+        dishCount,
+        priceCount,
+        score
+      },
+      extractedText: trimmed ? { url, text: trimmed } : undefined
     };
   } catch {
     return {
-      textLength: 0,
-      dishCount: 0,
-      priceCount: 0,
-      score: scoreMenuSourceQuality({
-        url,
-        label,
-        menuText: "",
+      metrics: {
         textLength: 0,
         dishCount: 0,
         priceCount: 0,
-        baseScore
-      })
+        score: scoreMenuSourceQuality({
+          url,
+          label,
+          menuText: "",
+          textLength: 0,
+          dishCount: 0,
+          priceCount: 0,
+          baseScore
+        })
+      }
     };
   }
 }
@@ -117,16 +137,16 @@ function scoreMenuSourceQuality(input: {
 
 async function getCombinedMenuSourceQualityMetrics(
   candidate: MenuSourceQualityCandidate
-): Promise<MenuSourceQualityMetrics> {
+): Promise<{ metrics: MenuSourceQualityMetrics; extractedTexts: MenuSourceExtractedText[] }> {
   const urls = uniqueStrings(candidate.urls?.length ? candidate.urls : [candidate.url]);
-  const metrics = await Promise.all(urls.map((url) =>
-    getMenuSourceQualityMetrics(url, candidate.label ?? "", candidate.baseScore ?? 0)
+  const results = await Promise.all(urls.map((url) =>
+    getMenuSourceQualityMetricsWithText(url, candidate.label ?? "", candidate.baseScore ?? 0)
   ));
-  const combined = metrics.reduce<MenuSourceQualityMetrics>((total, metric) => ({
-    textLength: total.textLength + metric.textLength,
-    dishCount: total.dishCount + metric.dishCount,
-    priceCount: total.priceCount + metric.priceCount,
-    score: total.score + metric.score
+  const combined = results.reduce<MenuSourceQualityMetrics>((total, result) => ({
+    textLength: total.textLength + result.metrics.textLength,
+    dishCount: total.dishCount + result.metrics.dishCount,
+    priceCount: total.priceCount + result.metrics.priceCount,
+    score: total.score + result.metrics.score
   }), {
     textLength: 0,
     dishCount: 0,
@@ -138,7 +158,12 @@ async function getCombinedMenuSourceQualityMetrics(
     combined.score += Math.min(urls.length * 35, 120);
   }
 
-  return combined;
+  return {
+    metrics: combined,
+    extractedTexts: results
+      .map((result) => result.extractedText)
+      .filter((result): result is MenuSourceExtractedText => Boolean(result))
+  };
 }
 
 function countPriceSignals(value: string) {
