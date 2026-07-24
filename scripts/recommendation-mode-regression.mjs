@@ -4,7 +4,7 @@ import path from "node:path";
 const repoRoot = process.cwd();
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8").replace(/\r\n/g, "\n");
 }
 
 function assert(condition, message) {
@@ -223,9 +223,11 @@ assert(!mainAi.includes("logCompactMainAiSchemaDiagnostic"), "Temporary compact 
 assert(!mainAi.includes("jsonParseSucceeded"), "Temporary compact schema JSON/Zod diagnostic state must be removed");
 assert(mainAi.includes('phase: "api.main_ai_request"'), "Main AI request timing diagnostic missing");
 assert(mainAi.includes("contentDiagnostics"), "Main AI request diagnostic must include input mode metadata");
-assert(mainAi.includes("normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale)"), "Main AI must normalize missing translated descriptions before validation");
-assert(mainAi.includes("item.translatedDescription = null"), "Main AI must keep the source description and clear missing translated descriptions");
-assert(!mainAi.includes("AI_RESPONSE_INVALID_MISSING_TRANSLATED_DESCRIPTION"), "Missing translatedDescription must not reject the whole Main AI response");
+assert(mainAi.includes("await repairMissingCompactTranslatedDescriptions({"), "Main AI must repair missing translated descriptions before validation");
+assert(mainAi.indexOf("await repairMissingCompactTranslatedDescriptions({") < mainAi.indexOf("validateCompactDescriptionTranslationContract(compactParsed, targetLocale, runId);"), "Main AI must validate translated descriptions only after the repair step");
+assert(mainAi.includes('phase: "api.description_translation_repair_request"'), "Main AI translation repair request diagnostic missing");
+assert(mainAi.includes("dish.translatedDescription = translatedDescription"), "Main AI must write repaired translated descriptions back to compact dishes");
+assert(mainAi.includes("AI_RESPONSE_INVALID_FINAL_TRANSLATED_DESCRIPTION_MISSING"), "Missing translatedDescription after repair must reject the Main AI response");
 assert(mainAi.includes("AI_RESPONSE_INVALID_DESCRIPTION_WITHOUT_SOURCE"), "Invented translated descriptions without a source must still be rejected");
 assert(recommendationCard.includes("function visibleDescriptionForOutputLocale"), "RecommendationCard description locale guard missing");
 assert(recommendationCard.includes("return firstNonEmptyText(translatedDescription);"), "German output must not fall back to foreign original descriptions");
