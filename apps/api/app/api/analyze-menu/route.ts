@@ -6,7 +6,6 @@ import { classifyDishRolesAI } from "../../../src/ai/classifyDishRolesAI";
 import { askPickForMeImageUrlsAI } from "../../../src/ai/askPickForMeImageUrlsAI";
 import { localizeRecommendationDisplayTexts } from "../../../src/ai/localizeRecommendationDisplayTexts";
 import { recommendMainDishesAI, type MainDishRecommendationResult } from "../../../src/ai/recommendMainDishesAI";
-import { resolveRecommendationPricesAI } from "../../../src/ai/resolveRecommendationPricesAI";
 import {
   isAnalyzeDiagnosticsEnabled,
   logAnalyzeOpsDiagnostic
@@ -1274,48 +1273,21 @@ async function analyzeMenuWithTwoStepMainFlow({
   });
 
   const mapperStartedAt = Date.now();
-  const priceResolutionSourceContext = [
-    augmentedSourceForMainAi.sourceUrl,
-    augmentedSourceForMainAi.text,
-    restaurantUrl,
-    fallbackHeroContextText
-  ].filter(Boolean).join("\n");
-  const resolvedRecommendationPrices = await resolveRecommendationPricesAI({
-    runId,
-    items: gatekeeperResult.accepted.map((recommendation, index) => ({
-      id: `main_${index}`,
-      nameOriginal: recommendation.nameOriginal,
-      descriptionOriginal: recommendation.descriptionOriginal,
-      sourceEvidence: recommendation.sourceEvidence,
-      currentPriceRaw: recommendation.priceRaw
-    })),
-    sourceText: priceResolutionSourceContext
-  });
-  const resolvedRecommendationPricesById = new Map(
-    resolvedRecommendationPrices
-      .filter((result) => result.priceRaw?.trim())
-      .map((result) => [result.id, result.priceRaw?.trim() ?? null] as const)
-  );
-  const acceptedRecommendationsWithResolvedPrices = gatekeeperResult.accepted.map((recommendation, index) => {
-    if (recommendation.priceRaw?.trim()) {
-      return recommendation;
-    }
-
-    const resolvedPriceRaw = resolvedRecommendationPricesById.get(`main_${index}`);
-    return resolvedPriceRaw
-      ? { ...recommendation, priceRaw: resolvedPriceRaw }
-      : recommendation;
-  });
   const mappedWithoutPriceCompatibility = enrichMappedHtmlDescriptions(
-    mapGatekeptMainRecommendationsToAnalyzeData(acceptedRecommendationsWithResolvedPrices, requestedDishRoles),
+    mapGatekeptMainRecommendationsToAnalyzeData(gatekeeperResult.accepted, requestedDishRoles),
     htmlMenuExtraction,
     outputLocale
   );
   const mapped = await enrichPriceCompatibility({
-    acceptedRecommendations: acceptedRecommendationsWithResolvedPrices,
+    acceptedRecommendations: gatekeeperResult.accepted,
     data: mappedWithoutPriceCompatibility,
     deviceLocale,
-    sourceContext: priceResolutionSourceContext,
+    sourceContext: [
+      augmentedSourceForMainAi.sourceUrl,
+      augmentedSourceForMainAi.text,
+      restaurantUrl,
+      fallbackHeroContextText
+    ].filter(Boolean).join("\n"),
     targetLocale: outputLocale
   });
   const mapperDurationMs = Date.now() - mapperStartedAt;
