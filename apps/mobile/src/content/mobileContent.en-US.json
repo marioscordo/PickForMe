@@ -173,7 +173,10 @@
     "wineRecommendationPriceLabel": "Price",
     "wineRecommendationEvidenceLabel": "Evidence",
     "wineRecommendationServingUnit_glass": "Glass",
-    "wineRecommendationServingUnit_bottle": "Bottle"
+    "wineRecommendationServingUnit_bottle": "Bottle",
+    "orderButton": "Order",
+    "orderSelectWine": "Select wine",
+    "orderSelectedLabel": "Selected"
   },
   "profileScreen": {
     "title": "Profile",

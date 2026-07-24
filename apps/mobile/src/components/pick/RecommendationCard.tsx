@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useProfile } from "../../app/providers/ProfileProvider";
 import { useWinePreference } from "../../app/providers/WinePreferenceProvider";
@@ -35,6 +35,16 @@ type WineRecommendationState = {
 type WineMenuSearchState = {
   error?: string;
   status: "idle" | "loading" | "no_match" | "error";
+};
+type SelectedOrderItem = {
+  nameOriginal: string;
+  priceText?: string;
+};
+type OrderLabels = {
+  main: string;
+  starter: string;
+  title: string;
+  wine: string;
 };
 
 function buildDisplayTranslation(originalName: string, translatedName?: string) {
@@ -106,6 +116,35 @@ function formatDisplayPrice({
   }
 
   return missingPriceText;
+}
+
+function inferOrderLabelsFromMenuText(menuText: string): OrderLabels {
+  const normalized = menuText
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (/\b(?:entradas|platillos|tacos|sopa|pozole|aguachile)\b/.test(normalized)) {
+    return { title: "Orden", starter: "Entrada", main: "Plato fuerte", wine: "Vino" };
+  }
+
+  if (/\b(?:antipasti|primi|secondi|contorni|dolci)\b/.test(normalized)) {
+    return { title: "Ordine", starter: "Antipasto", main: "Piatto principale", wine: "Vino" };
+  }
+
+  if (/\b(?:entrees|plats|desserts|poissons|viandes)\b/.test(normalized)) {
+    return { title: "Commande", starter: "Entree", main: "Plat principal", wine: "Vin" };
+  }
+
+  if (/[а-яё]/i.test(menuText)) {
+    return { title: "Заказ", starter: "Закуска", main: "Основное блюдо", wine: "Вино" };
+  }
+
+  if (/\b(?:vorspeisen|hauptspeisen|salate|desserts)\b/.test(normalized)) {
+    return { title: "Bestellung", starter: "Vorspeise", main: "Hauptspeise", wine: "Wein" };
+  }
+
+  return { title: "Ordine", starter: "Antipasto", main: "Piatto principale", wine: "Vino" };
 }
 
 function normalizeRestaurantIntroText(value: string) {
@@ -256,10 +295,12 @@ export function RecommendationCard({
   const [activeWineDishId, setActiveWineDishId] = useState<string | null>(null);
   const [wineRecommendationsByDishId, setWineRecommendationsByDishId] = useState<Record<string, WineRecommendationState>>({});
   const [wineMenuSearchByDishId, setWineMenuSearchByDishId] = useState<Record<string, WineMenuSearchState>>({});
+  const [selectedStarterByDishId, setSelectedStarterByDishId] = useState<Record<string, SelectedOrderItem | undefined>>({});
+  const [selectedWineByDishId, setSelectedWineByDishId] = useState<Record<string, SelectedOrderItem | undefined>>({});
+  const [activeOrderDishId, setActiveOrderDishId] = useState<string | null>(null);
   const [restaurantIntroStatus, setRestaurantIntroStatus] = useState<RestaurantIntroStatus>("idle");
   const [restaurantIntroText, setRestaurantIntroText] = useState("");
   const [restaurantIntroVisible, setRestaurantIntroVisible] = useState(false);
-
   const dishesById = useMemo(() => new Map(result.dishes.map((dish) => [dish.id, dish])), [result.dishes]);
   const visibleRecommendations = result.recommendations;
   const isUncertainReview = result.recommendationResultType === "uncertain_review";
@@ -279,6 +320,11 @@ export function RecommendationCard({
   const safeRecommendations = visibleRecommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
+  const orderLabelContext = useMemo(() => [
+    menuText,
+    ...result.dishes.map((dish) => `${dish.nameOriginal} ${dish.sourceCategoryOriginal ?? ""} ${dish.sourceLine ?? ""}`)
+  ].join("\n"), [menuText, result.dishes]);
+  const orderLabels = useMemo(() => inferOrderLabelsFromMenuText(orderLabelContext), [orderLabelContext]);
 
   useEffect(() => {
     if (!__DEV__) {
@@ -422,6 +468,9 @@ export function RecommendationCard({
     setActiveWineDishId(null);
     setWineRecommendationsByDishId({});
     setWineMenuSearchByDishId({});
+    setSelectedStarterByDishId({});
+    setSelectedWineByDishId({});
+    setActiveOrderDishId(null);
     setRestaurantIntroStatus("idle");
     setRestaurantIntroText("");
     setRestaurantIntroVisible(false);
@@ -955,15 +1004,28 @@ export function RecommendationCard({
                   />
                 ) : null}
 
-                {renderNestedRecommendations(nestedState, isPrimaryRecommendation)}
+                {renderNestedRecommendations(rec.dishId, nestedState, isPrimaryRecommendation)}
 
                 {isWineActiveDish ? renderWineRecommendation(rec.dishId, wineState, wineMenuState, isPrimaryRecommendation) : null}
+
+                {!isUncertainReview ? (
+                  <View style={local.nestedActionBox}>
+                    <PremiumCardAction
+                      hero={isPrimaryRecommendation}
+                      label={content.recommendation.orderButton}
+                      onPress={() => showOrderList(rec.dishId)}
+                      tone="secondary"
+                    />
+                  </View>
+                ) : null}
 
               </View>
             </Surface>
           );
         })}
       </View>
+
+      {renderOrderList()}
 
       {renderFooterActions()}
     </View>
@@ -1020,6 +1082,8 @@ export function RecommendationCard({
     if (result.recommendationType === "concrete_wine") {
       const wine = result.primaryWine;
       const priceText = formatWinePriceText(wine.glassPriceRaw, content);
+      const selectedWine = selectedWineByDishId[dishId];
+      const isSelectedWine = selectedWine?.nameOriginal === wine.nameOriginal;
       const wineMeta = [
         priceText ? `${content.recommendation.wineRecommendationPriceLabel}: ${priceText}` : ""
       ].filter(Boolean).join(" · ");
@@ -1039,6 +1103,15 @@ export function RecommendationCard({
           <Text style={local.nestedResultEvidence}>
             {content.recommendation.wineRecommendationEvidenceLabel}: {wine.sourceEvidence}
           </Text>
+          <PremiumCardAction
+            disabled={isSelectedWine}
+            label={isSelectedWine ? content.recommendation.orderSelectedLabel : content.recommendation.orderSelectWine}
+            onPress={() => selectWineForOrder(dishId, {
+              nameOriginal: wine.nameOriginal,
+              priceText
+            })}
+            tone="secondary"
+          />
         </View>
       );
     }
@@ -1095,7 +1168,95 @@ export function RecommendationCard({
       : "";
   }
 
-  function renderNestedRecommendations(state: NestedRecommendationState, isPrimaryRecommendation: boolean) {
+  function selectStarterForOrder(dishId: string, item: SelectedOrderItem) {
+    setSelectedStarterByDishId((current) => ({
+      ...current,
+      [dishId]: item
+    }));
+  }
+
+  function selectWineForOrder(dishId: string, item: SelectedOrderItem) {
+    setSelectedWineByDishId((current) => ({
+      ...current,
+      [dishId]: item
+    }));
+  }
+
+  function showOrderList(dishId: string) {
+    setActiveOrderDishId(dishId);
+  }
+
+  function closeOrderList() {
+    setActiveOrderDishId(null);
+  }
+
+  function renderOrderList() {
+    if (!activeOrderDishId) {
+      return null;
+    }
+
+    const selectedMain = safeRecommendations.find(({ rec }) => rec.dishId === activeOrderDishId);
+
+    if (!selectedMain) {
+      return null;
+    }
+
+    const { rec, dish } = selectedMain;
+    const dishData = dish as Dish & {
+      name?: string;
+      nameOriginal?: string;
+      price?: number;
+    };
+    const mainNameOriginal = dishData.nameOriginal ?? dishData.name ?? content.recommendation.fallbackDishName;
+    const mainPriceText = formatDisplayPrice({
+      missingPriceText: content.recommendation.missingPriceText,
+      price: dishData.price,
+      priceApproxDisplay: dishData.priceApproxDisplay ?? rec.priceApproxDisplay,
+      priceDisplay: dishData.priceDisplay ?? rec.priceDisplay
+    });
+    const mainDish: SelectedOrderItem = {
+      nameOriginal: mainNameOriginal,
+      priceText: mainPriceText
+    };
+    const dishId = activeOrderDishId;
+    const starter = selectedStarterByDishId[dishId];
+    const wine = selectedWineByDishId[dishId];
+    const rows = [
+      starter ? { label: orderLabels.starter, item: starter } : null,
+      { label: orderLabels.main, item: mainDish },
+      wine ? { label: orderLabels.wine, item: wine } : null
+    ].filter((row): row is { label: string; item: SelectedOrderItem } => Boolean(row));
+
+    return (
+      <Modal animationType="slide" onRequestClose={closeOrderList} presentationStyle="fullScreen" visible>
+        <View style={local.orderScreen}>
+          <View style={local.orderScreenHeader}>
+            <Text style={local.orderScreenTitle}>{orderLabels.title}</Text>
+            <Pressable
+              accessibilityLabel={content.common.cancel}
+              accessibilityRole="button"
+              onPress={closeOrderList}
+              style={({ pressed }) => [local.orderCloseButton, pressed ? local.orderCloseButtonPressed : null]}
+            >
+              <Feather color={premiumColors.gold} name="x" size={22} />
+            </Pressable>
+          </View>
+
+          <View style={local.orderScreenList}>
+            {rows.map(({ label, item }) => (
+              <View key={`${label}-${item.nameOriginal}`} style={local.orderScreenRow}>
+                <Text style={local.orderLabel}>{label}:</Text>
+                <Text style={local.orderName}>{item.nameOriginal}</Text>
+                {item.priceText ? <Text style={local.orderMeta}>{item.priceText}</Text> : null}
+              </View>
+            ))}
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  function renderNestedRecommendations(dishId: string, state: NestedRecommendationState, isPrimaryRecommendation: boolean) {
     if (state.status === "idle" || state.status === "loading") {
       return null;
     }
@@ -1144,9 +1305,30 @@ export function RecommendationCard({
               recommendation.descriptionOriginal,
               nestedDish.descriptionOriginal
             );
+            const priceText = formatDisplayPrice({
+              missingPriceText: content.recommendation.missingPriceText,
+              price: nestedDish.price,
+              priceApproxDisplay: nestedDish.priceApproxDisplay ?? recommendation.priceApproxDisplay,
+              priceDisplay: nestedDish.priceDisplay ?? recommendation.priceDisplay
+            });
+            const selectedStarter = selectedStarterByDishId[dishId];
+            const isSelectedStarter = selectedStarter?.nameOriginal === originalName;
 
             return (
-              <View key={dish.id} style={local.nestedResultItem}>
+              <Pressable
+                accessibilityRole="button"
+                key={dish.id}
+                onPress={() => selectStarterForOrder(dishId, {
+                  nameOriginal: originalName,
+                  priceText
+                })}
+                style={({ pressed }) => [
+                  local.nestedResultItem,
+                  local.selectableNestedResultItem,
+                  isSelectedStarter ? local.selectedNestedResultItem : null,
+                  pressed ? local.selectableNestedResultItemPressed : null
+                ]}
+              >
                 <Text style={local.nestedResultRank}>{nestedIndex + 1}</Text>
                 <View style={local.nestedResultCopy}>
                   <Text style={local.nestedDishName}>{originalName}</Text>
@@ -1154,16 +1336,12 @@ export function RecommendationCard({
                   {translatedDescription && translatedDescription !== translatedName ? (
                     <Text style={local.nestedDishDescription}>{translatedDescription}</Text>
                   ) : null}
-                  <Text style={local.nestedDishPrice}>
-                    {formatDisplayPrice({
-                      missingPriceText: content.recommendation.missingPriceText,
-                      price: nestedDish.price,
-                      priceApproxDisplay: nestedDish.priceApproxDisplay ?? recommendation.priceApproxDisplay,
-                      priceDisplay: nestedDish.priceDisplay ?? recommendation.priceDisplay
-                    })}
-                  </Text>
+                  <Text style={local.nestedDishPrice}>{priceText}</Text>
+                  {isSelectedStarter ? (
+                    <Text style={local.selectedNestedResultText}>{content.recommendation.orderSelectedLabel}</Text>
+                  ) : null}
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -1556,6 +1734,22 @@ const local = StyleSheet.create({
     gap: spacing.sm
   },
 
+  selectableNestedResultItem: {
+    borderColor: "rgba(200, 168, 90, 0.18)",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: spacing.sm
+  },
+
+  selectableNestedResultItemPressed: {
+    opacity: 0.84
+  },
+
+  selectedNestedResultItem: {
+    backgroundColor: "rgba(200, 168, 90, 0.1)",
+    borderColor: "rgba(200, 168, 90, 0.48)"
+  },
+
   nestedResultRank: {
     color: premiumColors.gold,
     fontSize: 13,
@@ -1596,6 +1790,90 @@ const local = StyleSheet.create({
     color: premiumColors.bordeaux,
     fontSize: 13,
     fontWeight: "900",
+    marginTop: spacing.xs
+  },
+
+  selectedNestedResultText: {
+    color: premiumColors.olive,
+    fontSize: 12,
+    fontWeight: "900",
+    marginTop: spacing.xs
+  },
+
+  orderScreen: {
+    backgroundColor: "#FFFDF8",
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 58
+  },
+
+  orderScreenHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "space-between",
+    marginBottom: spacing.xl
+  },
+
+  orderScreenTitle: {
+    color: premiumColors.olive,
+    flex: 1,
+    fontSize: 28,
+    fontWeight: "900",
+    lineHeight: 34
+  },
+
+  orderCloseButton: {
+    alignItems: "center",
+    backgroundColor: "#F7F1E7",
+    borderColor: "rgba(228, 212, 182, 0.78)",
+    borderRadius: 18,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    width: 40
+  },
+
+  orderCloseButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }]
+  },
+
+  orderScreenList: {
+    gap: spacing.md
+  },
+
+  orderScreenRow: {
+    backgroundColor: "rgba(250, 247, 241, 0.72)",
+    borderColor: "rgba(200, 168, 90, 0.24)",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: "column",
+    gap: spacing.xs,
+    padding: spacing.md
+  },
+
+  orderLabel: {
+    color: premiumColors.textMuted,
+    fontSize: 17,
+    fontWeight: "900",
+    lineHeight: 23
+  },
+
+  orderName: {
+    color: premiumColors.text,
+    fontSize: 20,
+    fontWeight: "900",
+    lineHeight: 27,
+    flexShrink: 1,
+    width: "100%"
+  },
+
+  orderMeta: {
+    color: premiumColors.bordeaux,
+    fontSize: 16,
+    fontWeight: "800",
+    lineHeight: 22,
     marginTop: spacing.xs
   },
 
