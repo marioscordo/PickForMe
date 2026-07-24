@@ -84,7 +84,7 @@ export function mapGatekeptMainRecommendationsToAnalyzeData(
     return {
       id: `gatekept_main_${String(index + 1).padStart(3, "0")}`,
       nameOriginal: item.nameOriginal,
-      ...(translatedDescription ? { description: translatedDescription } : {}),
+      ...(translatedDescription || descriptionOriginal ? { description: translatedDescription ?? descriptionOriginal } : {}),
       ...(descriptionOriginal ? { descriptionOriginal } : {}),
       price: parseOptionalPrice(item.priceRaw),
       category: roleMetadata.category,

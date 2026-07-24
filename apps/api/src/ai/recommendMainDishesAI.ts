@@ -218,8 +218,15 @@ export async function recommendMainDishesAI({
       });
       const compactParsed = parseMainDishCompactResponse(compactJson, usesStarterSaladRoleClassification);
       mainFunnelDiagnostics.mainParsedCandidateCount = compactParsed.dishes.length;
-      normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale);
-      validateCompactDescriptionTranslationContract(compactParsed);
+      await repairMissingCompactTranslatedDescriptions({
+        client,
+        dishes: compactParsed.dishes,
+        targetLocale,
+        targetLanguage,
+        runId,
+        signal
+      });
+      validateCompactDescriptionTranslationContract(compactParsed, targetLocale, runId);
       parsed = buildMainDishResponseFromCompactDishes({
         dishes: compactParsed.dishes,
         source,
@@ -265,6 +272,7 @@ export async function recommendMainDishesAI({
         safeCandidates: parsed.safeCandidates
       });
       parsed.recommendations = rankRecommendationsByPreferenceAttribution(parsed.recommendations);
+      validateFinalRecommendationDisplayContract(parsed.recommendations, targetLocale, runId);
       parsed.resultSummary = {
         ...parsed.resultSummary,
         recommendationCount: parsed.recommendations.length,
@@ -304,7 +312,7 @@ export async function recommendMainDishesAI({
         diagnosticReason: getAnalyzeOpsDiagnosticReason(error)
       });
 
-      if (attempt === 1 && isInvalidAiResponseError(error)) {
+      if (attempt === 1 && isInvalidAiResponseError(error) && !isFinalDisplayContractError(error)) {
         continue;
       }
 
@@ -325,26 +333,146 @@ export async function recommendMainDishesAI({
   };
 }
 
-function normalizeMissingCompactTranslatedDescriptions(
-  response: { dishes: MainDishAICompactDish[] },
-  targetLocale: string
-) {
-  for (const item of response.dishes) {
-    const descriptionOriginal = item.descriptionOriginal?.trim();
-    const translatedDescription = item.translatedDescription?.trim();
+async function repairMissingCompactTranslatedDescriptions({
+  client,
+  dishes,
+  targetLocale,
+  targetLanguage,
+  runId,
+  signal
+}: {
+  client: ReturnType<typeof createTwoStepOpenAIClient>;
+  dishes: MainDishAICompactDish[];
+  targetLocale: string;
+  targetLanguage: string;
+  runId?: string;
+  signal?: AbortSignal;
+}) {
+  const repairItems = dishes.filter((dish) => {
+    const descriptionOriginal = dish.descriptionOriginal?.trim();
+    const translatedDescription = dish.translatedDescription?.trim();
 
-    if (
-      descriptionOriginal &&
-      !translatedDescription &&
-      !isDescriptionLikelyInTargetLanguage(descriptionOriginal, targetLocale)
-    ) {
-      item.translatedDescription = null;
+    if (!descriptionOriginal) {
+      return false;
+    }
+
+    return !translatedDescription;
+  });
+
+  if (repairItems.length === 0) {
+    return;
+  }
+
+  const repairStartedAt = Date.now();
+  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+  const request: ResponseCreateParamsNonStreaming = {
+    model,
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              "Du reparierst ausschliesslich fehlende Ausgabetexte fuer GustaroAI.",
+              `Zielsprache: ${targetLanguage} (${targetLocale}).`,
+              "",
+              "Verbindliche Regeln:",
+              "- Uebersetze nur descriptionOriginal in die Zielsprache.",
+              "- Aendere keine Gerichte, keine Namen, keine Preise, keine Auswahl und keine Safety-Bewertung.",
+              "- Fuege keine Zutaten, Details, Empfehlungen oder Begruendungen hinzu.",
+              "- Wenn die Beschreibung bereits eine knappe fremdsprachige Umschreibung ist, uebertrage sie treu in die Zielsprache.",
+              "- Gib fuer jedes item genau eine nicht-leere translatedDescription zurueck.",
+              "- Return only valid JSON.",
+              "",
+              JSON.stringify({
+                items: repairItems.map((dish) => ({
+                  nameOriginal: dish.nameOriginal,
+                  descriptionOriginal: dish.descriptionOriginal
+                }))
+              })
+            ].join("\n")
+          }
+        ]
+      }
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "main_dish_description_translation_repair",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  nameOriginal: { type: "string" },
+                  translatedDescription: { type: "string" }
+                },
+                required: ["nameOriginal", "translatedDescription"]
+              }
+            }
+          },
+          required: ["items"]
+        }
+      }
+    }
+  };
+
+  const response = await client.responses.create(request, signal ? { signal } : undefined);
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.description_translation_repair_request",
+    durationMs: Date.now() - repairStartedAt,
+    model,
+    candidateCount: repairItems.length,
+    sdkRetries: "not_exposed",
+    inputTokens: getUsageValue(response.usage, "input_tokens"),
+    outputTokens: getUsageValue(response.usage, "output_tokens"),
+    success: true
+  });
+
+  const parsed = parseDescriptionTranslationRepairResponse(response.output_text ?? "{}");
+  const translationsByName = new Map(parsed.items.map((item) => [normalizeNameKey(item.nameOriginal), item.translatedDescription.trim()]));
+
+  for (const dish of repairItems) {
+    const translatedDescription = translationsByName.get(normalizeNameKey(dish.nameOriginal));
+
+    if (translatedDescription) {
+      dish.translatedDescription = translatedDescription;
     }
   }
 }
 
+function parseDescriptionTranslationRepairResponse(value: string) {
+  const parsed = JSON.parse(stripJsonFence(value)) as {
+    items?: Array<{
+      nameOriginal?: unknown;
+      translatedDescription?: unknown;
+    }>;
+  };
+
+  return {
+    items: Array.isArray(parsed.items)
+      ? parsed.items
+        .map((item) => ({
+          nameOriginal: typeof item.nameOriginal === "string" ? item.nameOriginal.trim() : "",
+          translatedDescription: typeof item.translatedDescription === "string" ? item.translatedDescription.trim() : ""
+        }))
+        .filter((item) => item.nameOriginal && item.translatedDescription)
+      : []
+  };
+}
+
 function validateCompactDescriptionTranslationContract(
   response: { dishes: MainDishAICompactDish[] },
+  targetLocale: string,
+  runId?: string
 ) {
   for (const item of response.dishes) {
     const descriptionOriginal = item.descriptionOriginal?.trim();
@@ -353,7 +481,149 @@ function validateCompactDescriptionTranslationContract(
     if (!descriptionOriginal && translatedDescription) {
       throw new SyntaxError("AI_RESPONSE_INVALID_DESCRIPTION_WITHOUT_SOURCE");
     }
+
+    if (!descriptionOriginal) {
+      continue;
+    }
+
+    if (!translatedDescription) {
+      logCompactDisplayContractFailure({
+        runId,
+        reason: "translated_description_missing",
+        targetLocale,
+        dish: item,
+        descriptionOriginal,
+        translatedDescription: null
+      });
+      throw new SyntaxError("AI_RESPONSE_INVALID_FINAL_TRANSLATED_DESCRIPTION_MISSING");
+    }
+
+    if (normalizeDisplayContractText(translatedDescription) === normalizeDisplayContractText(descriptionOriginal)) {
+      logCompactDisplayContractFailure({
+        runId,
+        reason: "translated_description_matches_original_diagnostic",
+        targetLocale,
+        dish: item,
+        descriptionOriginal,
+        translatedDescription
+      });
+    }
+
+    if (!isDescriptionLikelyInTargetLanguage(translatedDescription, targetLocale)) {
+      logCompactDisplayContractFailure({
+        runId,
+        reason: "translated_description_language_diagnostic",
+        targetLocale,
+        dish: item,
+        descriptionOriginal,
+        translatedDescription
+      });
+    }
   }
+}
+
+function logCompactDisplayContractFailure({
+  runId,
+  reason,
+  targetLocale,
+  dish,
+  descriptionOriginal,
+  translatedDescription
+}: {
+  runId?: string;
+  reason: string;
+  targetLocale: string;
+  dish: MainDishAICompactDish;
+  descriptionOriginal: string;
+  translatedDescription: string | null;
+}) {
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.compact_display_contract_validation",
+    success: false,
+    diagnosticReason: reason,
+    targetLocale,
+    dishName: truncateDiagnosticValue(dish.nameOriginal),
+    descriptionOriginal: truncateDiagnosticValue(descriptionOriginal),
+    translatedDescription: truncateDiagnosticValue(translatedDescription)
+  });
+}
+
+function validateFinalRecommendationDisplayContract(
+  recommendations: MainDishAIRecommendation[],
+  targetLocale: string,
+  runId?: string
+) {
+  for (const recommendation of recommendations) {
+    const descriptionOriginal = recommendation.descriptionOriginal?.trim();
+
+    if (!descriptionOriginal) {
+      continue;
+    }
+
+    const translatedDescription = recommendation.translatedDescription?.trim();
+
+    if (!translatedDescription) {
+      logFinalDisplayContractFailure({
+        runId,
+        reason: "translated_description_missing",
+        targetLocale,
+        recommendation,
+        descriptionOriginal,
+        translatedDescription: null
+      });
+      throw new SyntaxError("AI_RESPONSE_INVALID_FINAL_TRANSLATED_DESCRIPTION_MISSING");
+    }
+
+    if (normalizeDisplayContractText(translatedDescription) === normalizeDisplayContractText(descriptionOriginal)) {
+      logFinalDisplayContractFailure({
+        runId,
+        reason: "translated_description_matches_original_diagnostic",
+        targetLocale,
+        recommendation,
+        descriptionOriginal,
+        translatedDescription
+      });
+    }
+
+    if (!isDescriptionLikelyInTargetLanguage(translatedDescription, targetLocale)) {
+      logFinalDisplayContractFailure({
+        runId,
+        reason: "translated_description_language_diagnostic",
+        targetLocale,
+        recommendation,
+        descriptionOriginal,
+        translatedDescription
+      });
+    }
+  }
+}
+
+function logFinalDisplayContractFailure({
+  runId,
+  reason,
+  targetLocale,
+  recommendation,
+  descriptionOriginal,
+  translatedDescription
+}: {
+  runId?: string;
+  reason: string;
+  targetLocale: string;
+  recommendation: MainDishAIRecommendation;
+  descriptionOriginal: string;
+  translatedDescription: string | null;
+}) {
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.final_display_contract_validation",
+    success: false,
+    diagnosticReason: reason,
+    targetLocale,
+    dishName: truncateDiagnosticValue(recommendation.nameOriginal),
+    descriptionOriginal: truncateDiagnosticValue(descriptionOriginal),
+    translatedDescription: truncateDiagnosticValue(translatedDescription)
+  });
 }
 
 function buildMainDishResponseFromCompactDishes({
@@ -541,9 +811,31 @@ function looksLikeEnglishText(value: string) {
   return /\b(?:and|with|from|served|fresh|homemade|grilled|roasted|sauce|salad|cheese)\b/.test(normalized);
 }
 
+function normalizeDisplayContractText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeNameKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function isInvalidAiResponseError(error: unknown) {
   return error instanceof SyntaxError ||
     (error instanceof Error && error.name === "ZodError");
+}
+
+function isFinalDisplayContractError(error: unknown) {
+  return error instanceof Error &&
+    error.message.startsWith("AI_RESPONSE_INVALID_FINAL_TRANSLATED_DESCRIPTION_");
 }
 
 function toSyntaxError(error: unknown) {
@@ -1297,8 +1589,8 @@ function hasDiagnosticValue(value: string | null | undefined) {
   return Boolean(value?.trim());
 }
 
-function truncateDiagnosticValue(value: string) {
-  const normalized = value.replace(/\s+/g, " ").trim();
+function truncateDiagnosticValue(value: string | null | undefined) {
+  const normalized = (value ?? "").replace(/\s+/g, " ").trim();
   return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
 }
 
@@ -1458,8 +1750,12 @@ function buildMainDishPrompt({
     "- sourceEvidence soll geliefert werden, wenn ein kurzer Beleg sicher moeglich ist.",
     "- sourceEvidence darf null oder fehlen, wenn kein knapper Beleg sicher angegeben werden kann.",
     "- Wenn der sichtbare Menueeintrag eine echte Beschreibung enthaelt, gib descriptionOriginal als vollstaendige originale Beschreibung aus.",
-    "- translatedDescription ist optional und darf nur gesetzt werden, wenn descriptionOriginal vorhanden ist.",
-    `- translatedDescription muss descriptionOriginal treu in ${targetLanguage} (${targetLocale}) wiedergeben.`,
+    `- Wenn descriptionOriginal vorhanden und nicht bereits in ${targetLanguage} (${targetLocale}) formuliert ist, ist translatedDescription Pflicht.`,
+    `- translatedDescription muss descriptionOriginal treu in ${targetLanguage} (${targetLocale}) wiedergeben und darf keine neuen Fakten hinzufuegen.`,
+    `- Wenn descriptionOriginal bereits in ${targetLanguage} (${targetLocale}) formuliert ist, darf translatedDescription denselben Text enthalten oder null sein; keine unnoetige Uebersetzung in dieselbe Sprache.`,
+    `- Bei ${targetLocale} darf eine fremdsprachige descriptionOriginal niemals ohne translatedDescription in ${targetLanguage} (${targetLocale}) ausgegeben werden.`,
+    `- Gib keinen Kandidaten aus, wenn du fuer eine fremdsprachige descriptionOriginal keine treue translatedDescription in ${targetLanguage} (${targetLocale}) liefern kannst.`,
+    "- Fuehre diese Pruefung vor der JSON-Ausgabe fuer jedes dishes[]-Element durch.",
     "- Wenn keine echte Beschreibung sichtbar ist, lasse descriptionOriginal und translatedDescription null oder weg.",
     "- Erfinde keine Beschreibung, Zutaten oder Details.",
     "- Gib keine freie Begruendung aus; persoenliche und neutrale Reasons erzeugt ausschliesslich das Backend.",
@@ -1487,7 +1783,7 @@ function buildMainDishPrompt({
     '      "nameOriginal": "exakter Originalname aus der Speisekarte",',
     '      "descriptionOriginal": "vollstaendige sichtbare Originalbeschreibung falls vorhanden, sonst null",',
     '      "translatedName": "display-sichere nutzerseitige Anzeigeuebersetzung in der Zielsprache",',
-    '      "translatedDescription": "treue Uebersetzung der Originalbeschreibung falls vorhanden, sonst null",',
+    '      "translatedDescription": "treue Uebersetzung der Originalbeschreibung, wenn descriptionOriginal nicht bereits Zielsprache ist, sonst null oder gleicher Text",',
     '      "priceRaw": "exakter Preis mit sichtbarer Waehrung, wenn eindeutig diesem Gericht zuordenbar, sonst null",',
     '      "sourceEvidence": "kurzer belegender Originalausschnitt aus der Speisekarte",',
     '      "sourceKind": "pdf | html | image | text | unknown",',
@@ -1517,6 +1813,8 @@ function buildPdfFileFallbackRules(source: TwoStepMenuSourceInput, activePrefere
     "- Ergaenze Kandidaten ohne Vorliebenuebereinstimmung nur, wenn nicht genuegend passende Kandidaten vorhanden sind.",
     "- Erfinde keinen Vorliebenbezug; matchedPreferenceValue darf nur ein exakt aktiver primaryLikes-Wert sein.",
     "- Uebernehme sichtbare Originalbeschreibungen aus der PDF in descriptionOriginal.",
+    "- Fuer translatedDescription gelten unveraendert die allgemeinen Regeln zur Zielsprache aus dem Hauptauftrag.",
+    "- Ein PDF-Fallback-Kandidat mit fremdsprachiger descriptionOriginal ohne erforderliche translatedDescription ist unzulaessig.",
     "- Wenn keine Beschreibung sichtbar ist, lasse descriptionOriginal und translatedDescription null.",
     "- Erfinde keine Zutaten, Zubereitungsarten oder Beschreibungen aus allgemeinem Kuechenwissen.",
     "- Kandidaten muessen tatsaechlich in der PDF sichtbar sein; Name und Beschreibung muessen aus der Quelle stammen.",
@@ -1609,6 +1907,9 @@ function buildStructuredMainDishAssignment({
         keine_beschreibung_erfinden: true,
         translated_name_pflicht_und_display_sicher: true,
         translated_name_darf_bei_fremdsprachigem_original_nicht_blosse_kopie_sein: true,
+        translated_description_pflicht_wenn_description_original_nicht_zielsprache: true,
+        fremdsprachige_description_original_ohne_translated_description_unzulaessig: true,
+        translated_description_muss_ausgabesprache_folgen: targetLocale,
         keine_removed_dishes_ausgeben: true,
         keine_safe_candidates_ausgeben: true,
         keine_recommendations_ausgeben: true,

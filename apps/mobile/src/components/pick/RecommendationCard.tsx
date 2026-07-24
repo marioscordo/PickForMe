@@ -216,6 +216,7 @@ export function RecommendationCard({
   menuUrls,
   menuImageSource,
   showStartersAndSaladsAction = false,
+  showWineRecommendationAction = false,
   onReset,
   openMenuLabel,
   onOpenMenu,
@@ -226,6 +227,7 @@ export function RecommendationCard({
   menuUrls?: string[];
   menuImageSource?: MenuImageSource | null;
   showStartersAndSaladsAction?: boolean;
+  showWineRecommendationAction?: boolean;
   onReset: () => void;
   openMenuLabel?: string;
   onOpenMenu?: () => void;
@@ -927,7 +929,7 @@ export function RecommendationCard({
                   </View>
                 ) : null}
 
-                {showStartersAndSaladsAction && !isUncertainReview ? (
+                {showWineRecommendationAction && !isUncertainReview ? (
                   <View style={local.nestedActionBox}>
                     <PremiumCardAction
                       disabled={wineActionDisabled}
