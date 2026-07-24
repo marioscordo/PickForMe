@@ -13,7 +13,8 @@ function clamp(value: number, min: number, max: number) {
 const screenWidth = Dimensions.get("window").width;
 const screenHeight = Dimensions.get("window").height;
 const scale = clamp(screenWidth / BASE_WIDTH, 0.92, 1.08);
-const cameraPreviewHeight = Math.round(clamp(screenHeight * 0.27, 190, 250));
+const cameraPreviewHeight = Math.round(clamp(screenWidth * 1.18, 320, screenHeight * 0.48));
+const photoCaptureQuality = 0.78;
 
 function s(value: number) {
   return Math.round(value * scale);
@@ -52,9 +53,22 @@ export function PhotoMenuCamera({
       const picture = await cameraRef.current.takePictureAsync({
         base64: true,
         exif: false,
-        quality: 0.48
+        quality: photoCaptureQuality
       });
       const imageBase64 = getPictureBase64(picture);
+
+      if (__DEV__) {
+        console.info("[GUSTARO_MOBILE_PHOTO_CAPTURE_DIAG]", JSON.stringify({
+          base64Length: imageBase64.length,
+          height: picture?.height ?? null,
+          isLandscape: typeof picture?.width === "number" && typeof picture?.height === "number"
+            ? picture.width > picture.height
+            : null,
+          quality: photoCaptureQuality,
+          uriPresent: Boolean(picture?.uri),
+          width: picture?.width ?? null
+        }));
+      }
 
       if (imageBase64) {
         onPhotoCaptured({

@@ -24,6 +24,7 @@ import {
   type MainDishAIRemovedDish,
   type MainDishAIResultSummary,
   type MainDishAISafeCandidate,
+  type MenuLanguage,
   type TwoStepMenuSourceInput
 } from "./twoStepRecommendationSchemas";
 import { verifyRecommendationSafetyAI } from "./verifyRecommendationSafetyAI";
@@ -40,6 +41,7 @@ const MAIN_DISH_HARD_RESTRICTION_CANDIDATE_LIMIT = 15;
 const STARTER_SALAD_DIAGNOSTIC_ROLE_VALUES = ["starter", "salad", "side", "soup", "other"] as const;
 
 export type MainDishRecommendationResult = {
+  menuLanguage: MenuLanguage;
   recommendations: MainDishAIRecommendation[];
   uncertainReviewCandidates: MainDishAISafeCandidate[];
   productionTrace?: {
@@ -218,6 +220,17 @@ export async function recommendMainDishesAI({
       });
       const compactParsed = parseMainDishCompactResponse(compactJson, usesStarterSaladRoleClassification);
       mainFunnelDiagnostics.mainParsedCandidateCount = compactParsed.dishes.length;
+      if (attempt === 1 && source.kind === "image" && compactParsed.dishes.length === 0) {
+        logDevAnalyzeTiming({
+          runId,
+          phase: "api.image_empty_main_ai_retry",
+          durationMs: Date.now() - parseStartedAt,
+          retryAttempt: attempt,
+          candidateCount: 0,
+          success: false
+        });
+        continue;
+      }
       await repairMissingCompactTranslatedDescriptions({
         client,
         dishes: compactParsed.dishes,
@@ -229,6 +242,7 @@ export async function recommendMainDishesAI({
       validateCompactDescriptionTranslationContract(compactParsed, targetLocale, runId);
       parsed = buildMainDishResponseFromCompactDishes({
         dishes: compactParsed.dishes,
+        menuLanguage: compactParsed.menuLanguage,
         source,
         outputLocale: profile.outputLocale
       });
@@ -262,8 +276,10 @@ export async function recommendMainDishesAI({
       const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, runId, signal, mainFunnelDiagnostics);
       const uncertainReviewCandidates = verifierSafe.uncertainReviewCandidates ?? [];
       const attributionValidated = await validateMainDishAttributions(verifierSafe, profile, runId, signal);
+      const menuLanguage = parsed.menuLanguage;
       parsed = {
         ...attributionValidated,
+        menuLanguage,
         uncertainReviewCandidates,
         productionTrace: verifierSafe.productionTrace
       };
@@ -327,6 +343,7 @@ export async function recommendMainDishesAI({
   logMainDishAiResponseDiagnostic(parsed, runId);
 
   return {
+    menuLanguage: parsed.menuLanguage,
     recommendations: parsed.recommendations,
     uncertainReviewCandidates: parsed.uncertainReviewCandidates ?? [],
     productionTrace: parsed.productionTrace
@@ -628,10 +645,12 @@ function logFinalDisplayContractFailure({
 
 function buildMainDishResponseFromCompactDishes({
   dishes,
+  menuLanguage,
   source,
   outputLocale
 }: {
   dishes: MainDishAICompactDish[];
+  menuLanguage: MenuLanguage;
   source: TwoStepMenuSourceInput;
   outputLocale?: string;
 }): ReturnType<typeof MainDishAIResponseSchema.parse> {
@@ -677,6 +696,7 @@ function buildMainDishResponseFromCompactDishes({
   });
 
   return MainDishAIResponseSchema.parse({
+    menuLanguage,
     allDishes: dishes.map((dish) => ({
       nameOriginal: dish.nameOriginal,
       descriptionOriginal: dish.descriptionOriginal,
@@ -1773,11 +1793,15 @@ function buildMainDishPrompt({
     "- Keine nachgelagerte Qualitaetskontrolle voraussetzen: die Auswahl muss in diesem Call korrekt sein.",
     "- Kein PDF-Fuzzy-Matching voraussetzen: entscheide nur aus dem sichtbaren Speisekartenkontext.",
     `- Interne Vollstaendigkeitspruefung vor der Ausgabe: bestimme das Limit ${candidateLimit}, durchsuche die gesamte Speisekarte, zaehle geeignete Kandidaten, liefere bei mindestens ${candidateLimit} geeigneten Gerichten genau ${candidateLimit}, sonst alle tatsaechlich geeigneten, ohne Duplikate und ohne erfundene Gerichte.`,
+    "- Bestimme menuLanguage als Sprache der Original-Speisekarte, nicht als GUI-Sprache und nicht als KI-Ausgabesprache.",
+    "- Erlaubte menuLanguage-Werte: de, en, it, es, fr, ru, unknown.",
+    "- Wenn die Original-Speisekartensprache nicht sicher bestimmbar ist, verwende unknown.",
     "",
     buildMainDishProfileContext(profile, situation, roleAssignment, activePreferences, searchAssignment),
     "",
     "Antwort ausschliesslich als valides JSON ohne Markdown:",
     "{",
+    '  "menuLanguage": "de | en | it | es | fr | ru | unknown",',
     '  "dishes": [',
     "    {",
     '      "nameOriginal": "exakter Originalname aus der Speisekarte",',

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const TwoStepSourceKindSchema = z.enum(["pdf", "html", "image", "text", "unknown"]);
 export const TwoStepConfidenceSchema = z.enum(["high", "medium", "low"]);
 export const TwoStepCommittedConfidenceSchema = z.enum(["high", "medium"]);
+export const MenuLanguageSchema = z.enum(["de", "en", "it", "es", "fr", "ru", "unknown"]);
 
 const OptionalNullableStringSchema = z.string().trim().min(1).nullable().optional();
 const RequiredNullableStringSchema = z.string().trim().min(1).nullable();
@@ -128,6 +129,7 @@ export const MainDishAICompactDishSchema = z.object({
 });
 
 export const MainDishAICompactResponseSchema = z.object({
+  menuLanguage: MenuLanguageSchema.default("unknown"),
   dishes: z.array(MainDishAICompactDishSchema)
     .max(15, "Main AI compact response must not contain more than 15 dishes")
     .refine((values) => {
@@ -153,6 +155,7 @@ export const StarterSaladMainDishAICompactDishSchema = MainDishAICompactDishSche
 });
 
 export const StarterSaladMainDishAICompactResponseSchema = z.object({
+  menuLanguage: MenuLanguageSchema.default("unknown"),
   dishes: z.array(StarterSaladMainDishAICompactDishSchema)
     .max(15, "Main AI compact response must not contain more than 15 dishes")
     .refine((values) => {
@@ -234,6 +237,7 @@ export const StarterCommitResultSchema = z.discriminatedUnion("committed", [
 ]);
 
 export const MainDishAIResponseSchema = z.object({
+  menuLanguage: MenuLanguageSchema.default("unknown"),
   allDishes: z.array(MainDishAIAnalyzedDishSchema),
   removedDishes: z.array(MainDishAIRemovedDishSchema),
   safeCandidates: z.array(MainDishAISafeCandidateSchema),
@@ -259,6 +263,7 @@ export type TwoStepConfidence = z.infer<typeof TwoStepConfidenceSchema>;
 export type TwoStepCommittedConfidence = z.infer<typeof TwoStepCommittedConfidenceSchema>;
 export type TwoStepProfileSafety = z.infer<typeof TwoStepProfileSafetySchema>;
 export type TwoStepMenuSourceInput = z.infer<typeof TwoStepMenuSourceInputSchema>;
+export type MenuLanguage = z.infer<typeof MenuLanguageSchema>;
 export type MainDishAIRecommendation = z.infer<typeof MainDishAIRecommendationSchema>;
 export type MainDishAISafeCandidateRecommendationPayload = z.infer<typeof MainDishAISafeCandidateRecommendationPayloadSchema>;
 export type MainDishAIAnalyzedDish = z.infer<typeof MainDishAIAnalyzedDishSchema>;

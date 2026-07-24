@@ -1443,6 +1443,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     ok: true,
     data: {
       mode: responseMode,
+      menuLanguage: mainDishResult.menuLanguage,
       dishes: mapped.dishes,
       recommendations: allergySafeRecommendations,
       conciergeHero,

@@ -118,33 +118,23 @@ function formatDisplayPrice({
   return missingPriceText;
 }
 
-function inferOrderLabelsFromMenuText(menuText: string): OrderLabels {
-  const normalized = menuText
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-  if (/\b(?:entradas|platillos|tacos|sopa|pozole|aguachile)\b/.test(normalized)) {
-    return { title: "Orden", starter: "Entrada", main: "Plato fuerte", wine: "Vino" };
+function getOrderLabelsForMenuLanguage(menuLanguage: AnalyzeData["menuLanguage"]): OrderLabels {
+  switch (menuLanguage) {
+    case "es":
+      return { title: "Orden", starter: "Entrada", main: "Plato fuerte", wine: "Vino" };
+    case "it":
+      return { title: "Ordine", starter: "Antipasto", main: "Piatto principale", wine: "Vino" };
+    case "fr":
+      return { title: "Commande", starter: "Entree", main: "Plat principal", wine: "Vin" };
+    case "ru":
+      return { title: "Заказ", starter: "Закуска", main: "Основное блюдо", wine: "Вино" };
+    case "en":
+      return { title: "Order", starter: "Starter", main: "Main dish", wine: "Wine" };
+    case "de":
+    case "unknown":
+    default:
+      return { title: "Bestellung", starter: "Vorspeise", main: "Hauptspeise", wine: "Wein" };
   }
-
-  if (/\b(?:antipasti|primi|secondi|contorni|dolci)\b/.test(normalized)) {
-    return { title: "Ordine", starter: "Antipasto", main: "Piatto principale", wine: "Vino" };
-  }
-
-  if (/\b(?:entrees|plats|desserts|poissons|viandes)\b/.test(normalized)) {
-    return { title: "Commande", starter: "Entree", main: "Plat principal", wine: "Vin" };
-  }
-
-  if (/[а-яё]/i.test(menuText)) {
-    return { title: "Заказ", starter: "Закуска", main: "Основное блюдо", wine: "Вино" };
-  }
-
-  if (/\b(?:vorspeisen|hauptspeisen|salate|desserts)\b/.test(normalized)) {
-    return { title: "Bestellung", starter: "Vorspeise", main: "Hauptspeise", wine: "Wein" };
-  }
-
-  return { title: "Ordine", starter: "Antipasto", main: "Piatto principale", wine: "Vino" };
 }
 
 function normalizeRestaurantIntroText(value: string) {
@@ -320,11 +310,7 @@ export function RecommendationCard({
   const safeRecommendations = visibleRecommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
-  const orderLabelContext = useMemo(() => [
-    menuText,
-    ...result.dishes.map((dish) => `${dish.nameOriginal} ${dish.sourceCategoryOriginal ?? ""} ${dish.sourceLine ?? ""}`)
-  ].join("\n"), [menuText, result.dishes]);
-  const orderLabels = useMemo(() => inferOrderLabelsFromMenuText(orderLabelContext), [orderLabelContext]);
+  const orderLabels = useMemo(() => getOrderLabelsForMenuLanguage(result.menuLanguage), [result.menuLanguage]);
 
   useEffect(() => {
     if (!__DEV__) {

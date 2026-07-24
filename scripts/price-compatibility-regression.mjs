@@ -71,6 +71,8 @@ assert.equal(inferCurrencyFromPriceRaw("market price"), undefined);
 
 assert.equal(inferSourceCurrencyFromContext("https://hacha.ru/theater"), "RUB");
 assert.equal(inferSourceCurrencyFromContext("https://example.ch/menu"), "CHF");
+assert.equal(inferSourceCurrencyFromContext("Holiday Inn New Delhi menu"), "INR");
+assert.equal(inferSourceCurrencyFromContext("Hotelkarte Neu Delhi"), "INR");
 assert.equal(inferSourceCurrencyFromContext("Carta Mexico precios en pesos mexicanos"), "MXN");
 assert.equal(inferSourceCurrencyFromContext("https://example.mx/carta"), "MXN");
 assert.equal(inferSourceCurrencyFromContext("Santo Habanero"), undefined);
@@ -81,6 +83,7 @@ assert.equal(inferSourceCurrencyFromContext("https://example.test/menu"), undefi
 assert.deepEqual(parsePriceParts("890–1190 ₽")?.amounts, [890, 1190]);
 assert.equal(parsePriceParts("$1300", undefined, "Carta Mexico precios en pesos mexicanos")?.currency, "MXN");
 assert.equal(parsePriceParts("$340", undefined, "https://santohabanero.example.mx/carta")?.currency, "MXN");
+assert.equal(parsePriceParts("1245", undefined, "Holiday Inn New Delhi menu")?.currency, "INR");
 assert.equal(parsePriceParts("$100", undefined, "https://example.us/menu")?.currency, "USD");
 assert.equal(parsePriceParts("$100", undefined, "https://example.test/menu")?.currency, "UNKNOWN");
 assert.equal(parsePriceParts("$100", undefined, "Entradas, sopas, ensaladas y tacos")?.currency, "UNKNOWN");
@@ -147,6 +150,11 @@ const inr = await enrich("₹450");
 assert.equal(inr.dishes[0].priceCurrency, "INR");
 assert.equal(inr.dishes[0].priceDisplay, "₹450");
 assert.match(inr.dishes[0].priceApproxDisplay, /^ca\. /);
+
+const inferredInr = await enrich("1245", { sourceContext: "Holiday Inn New Delhi menu" });
+assert.equal(inferredInr.dishes[0].priceCurrency, "INR");
+assert.equal(inferredInr.dishes[0].priceDisplay, "vermutlich INR 1245");
+assert.match(inferredInr.dishes[0].priceApproxDisplay, /^ca\. /);
 
 const egp = await enrich("EGP 320");
 assert.equal(egp.dishes[0].priceCurrency, "EGP");

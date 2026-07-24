@@ -245,11 +245,17 @@ function parseOptionalPrice(value: string | null | undefined) {
   const normalized = normalizeOptionalString(value);
   if (!normalized) return undefined;
 
+  if (!hasEuroPriceSignal(normalized)) return undefined;
+
   const match = normalized.replace(",", ".").match(/(\d+(?:\.\d{1,2})?)/);
   if (!match) return undefined;
 
   const price = Number(match[1]);
   return Number.isFinite(price) ? price : undefined;
+}
+
+function hasEuroPriceSignal(value: string) {
+  return /€|(?:^|[\s\d.,])eur(?:$|[\s\d.,])|\beuro\b/i.test(value);
 }
 
 function confidenceToRoleConfidence(value: "high" | "medium" | "low") {

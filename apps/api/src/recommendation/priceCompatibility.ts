@@ -36,6 +36,7 @@ type PriceParts = {
   approximate?: boolean;
   amounts: number[];
   currency: PriceCompatibilityCurrency;
+  currencySource: "explicit" | "context" | "unknown";
   raw: string;
 };
 
@@ -132,10 +133,11 @@ export function parsePriceParts(
   }
 
   const explicitCurrency = inferCurrencyFromPriceRaw(raw);
-  const currency = explicitCurrency ??
-    resolveAmbiguousDollarCurrency(raw, sourceContext) ??
-    fallbackCurrency ??
-    "UNKNOWN";
+  const contextualCurrency = resolveAmbiguousDollarCurrency(raw, sourceContext) ??
+    inferSourceCurrencyFromContext(sourceContext) ??
+    fallbackCurrency;
+  const currency = explicitCurrency ?? contextualCurrency ?? "UNKNOWN";
+  const currencySource = explicitCurrency ? "explicit" : contextualCurrency ? "context" : "unknown";
   const amounts = extractPriceAmounts(raw);
   recordPriceResolverDiagnostics({
     currency,
@@ -149,6 +151,7 @@ export function parsePriceParts(
     return {
       raw,
       currency,
+      currencySource,
       amounts: []
     };
   }
@@ -156,6 +159,7 @@ export function parsePriceParts(
   return {
     raw,
     currency,
+    currencySource,
     amounts,
     approximate: /\b(?:ca\.?|approx\.?|about|around)\b|≈|~/.test(raw.toLowerCase())
   };
@@ -228,6 +232,7 @@ export function inferSourceCurrencyFromContext(value: string | undefined): Price
   const hosts = hostMatches.length > 0 ? hostMatches : [normalized];
 
   if (hasMexicanPesoContext(comparable, hosts)) return "MXN";
+  if (hasIndiaContext(comparable, hosts)) return "INR";
   if (hosts.some((host) => /\.ru(?::\d+)?$/.test(host))) return "RUB";
   if (hosts.some((host) => /\.in(?::\d+)?$/.test(host))) return "INR";
   if (hosts.some((host) => /\.eg(?::\d+)?$/.test(host))) return "EGP";
@@ -319,6 +324,11 @@ function hasMexicanPesoContext(comparable: string, hosts: string[]) {
   return hasMexicanPesoTextMarker(comparable) ||
     hasMexicoTextMarker(comparable) ||
     hasMxDomainMarker(hosts);
+}
+
+function hasIndiaContext(comparable: string, hosts: string[]) {
+  return /\b(?:new\s+delhi|neu\s+delhi|delhi|india|indien)\b/.test(comparable) ||
+    hosts.some((host) => /\.in(?::\d+)?$/.test(host));
 }
 
 function hasAmbiguousDollarPrice(value: string) {
@@ -446,6 +456,10 @@ function formatOriginalPrice(priceParts: PriceParts) {
 
   if (priceParts.currency === "MXN" && hasAmbiguousDollarPrice(cleaned)) {
     return formatResolvedMexicanPesoPrice(cleaned);
+  }
+
+  if (priceParts.currency === "INR" && priceParts.currencySource === "context") {
+    return `vermutlich INR ${cleaned}`;
   }
 
   const symbol = currencySymbol(priceParts.currency);

@@ -25,6 +25,7 @@ export type Recommendation = {
 
 export type AnalyzeData = {
   mode: "ai" | "ai_pdf" | "fallback";
+  menuLanguage?: "de" | "en" | "it" | "es" | "fr" | "ru" | "unknown";
   dishes: Dish[];
   starterCandidateDishes?: Dish[];
   recommendations: Recommendation[];
