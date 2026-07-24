@@ -86,6 +86,12 @@ GustaroAI ist kein generischer KI-Chat und kein reiner Speisekarten-Parser. Gust
 
 Oberstes Entwicklungsziel: Zuverlaessigkeit, Nutzervertrauen und Produktklarheit haben Vorrang vor maximaler Funktionsvielfalt oder technischer Eleganz.
 
+Oberstes Gebot: Bestehende nutzerseitige AI-Ausgaben duerfen durch Optimierungen, Refactorings, Add-ons oder technische Vereinfachungen nicht verschlechtert, entfernt, verkuerzt, sprachlich verfremdet oder indirekt unzuverlaessig gemacht werden. Das gilt fuer alle sichtbaren Namen, Beschreibungstexte, Empfehlungsgruende, Belege, Restauranttexte, Safety- und Hinweistexte, Vorspeisen- und Salatempfehlungen, eingebettete Empfehlungen, Weinempfehlungen, Preise, Preisformate, Waehrungszeichen und bestehende Waehrungsumrechnungs- oder Preis-Kompatibilitaetslogik. Performance- oder Kostenoptimierungen sind nur zulaessig, wenn diese Ausgabequalitaet und alle nachgelagerten Konsumenten nachweislich erhalten bleiben.
+
+Oberstes Effizienzgebot: Informationen, die ein AI-Call innerhalb eines Analyse-Durchlaufs bereits korrekt geliefert hat, duerfen im selben Durchlauf nicht erneut per AI abgefragt werden. Sie muessen fuer diesen Analyse-Durchlauf temporaer gespeichert und von nachgelagerten Schritten wiederverwendet werden. Erneute AI-Abfragen sind nur zulaessig, wenn der vorhandene Wert fehlt, leer, ungueltig, sprachlich falsch, sicherheitsrelevant unklar oder fuer den konkreten nachgelagerten Zweck nachweislich unzureichend ist.
+
+Root-Cause-Gebot: Es gibt keinen Fix, solange die Ursache nicht nachweislich belegt ist. Codex darf keine Symptome ueberdecken, keine Fallbacks als endgueltige Loesung verkaufen und keine Aenderung als behoben melden, wenn nicht gezeigt wurde, welche konkrete Stelle den Fehler verursacht und warum die Aenderung diese Ursache beseitigt. Wenn nur eine Absicherung oder Zwischenloesung umgesetzt wird, muss sie ausdruecklich als solche benannt werden.
+
 ## 2. Arbeitsrolle von Codex
 
 Codex arbeitet in diesem Repository gleichzeitig als:
