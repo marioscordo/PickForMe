@@ -9,6 +9,7 @@ type PriceCompatibilityInput = {
   acceptedRecommendations: MainDishAIRecommendation[];
   data: TwoStepAnalyzeDataParts;
   deviceLocale?: string;
+  menuLanguage?: string;
   sourceContext?: string;
   targetLocale?: string;
 };
@@ -55,13 +56,14 @@ export async function enrichPriceCompatibility({
   acceptedRecommendations,
   data,
   deviceLocale,
+  menuLanguage,
   sourceContext,
   targetLocale
 }: PriceCompatibilityInput): Promise<PriceCompatibilityResult> {
   const targetCurrency = resolveTargetCurrencyFromDeviceLocale(deviceLocale) ?? resolveTargetCurrencyFromDeviceLocale(targetLocale);
   const diagnostics = createPriceResolverDiagnostics();
   const pricePartsByDishId = new Map<string, PriceParts>();
-  const sourceCurrencyFallback = inferSourceCurrencyFromContext(sourceContext);
+  const sourceCurrencyFallback = inferSourceCurrencyFromContext(sourceContext) ?? inferSourceCurrencyFromMenuLanguage(menuLanguage);
 
   acceptedRecommendations.forEach((item, index) => {
     const dishId = data.dishes[index]?.id;
@@ -239,6 +241,12 @@ export function inferSourceCurrencyFromContext(value: string | undefined): Price
   if (hosts.some((host) => /\.ch(?::\d+)?$/.test(host))) return "CHF";
   if (hosts.some((host) => /\.us(?::\d+)?$/.test(host))) return "USD";
   if (hosts.some((host) => hasEuroCountryDomain(host))) return "EUR";
+
+  return undefined;
+}
+
+export function inferSourceCurrencyFromMenuLanguage(menuLanguage: string | undefined): PriceCompatibilityCurrency | undefined {
+  if (menuLanguage === "ru") return "RUB";
 
   return undefined;
 }

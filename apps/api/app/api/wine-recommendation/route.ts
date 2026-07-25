@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { recommendWineForMainDishAI, type WineMainDishAnchor } from "../../../src/ai/recommendWineForMainDishAI";
 import { requireUser } from "../../../src/auth/requireUser";
+import { profileFeatures } from "../../../src/config/profileFeatures";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import {
@@ -17,6 +18,10 @@ type WineRecommendationRequest = {
 export async function POST(request: Request) {
   try {
     await requireUser(request);
+
+    if (!profileFeatures.wineFeatureEnabled) {
+      throw new AppError(403, "FEATURE_DISABLED", "Wine recommendations are not enabled.");
+    }
 
     const body = (await request.json()) as WineRecommendationRequest;
     const mainDish = normalizeMainDish(body.mainDish);

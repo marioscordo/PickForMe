@@ -18,10 +18,10 @@ function countMatches(value, pattern) {
   return (value.match(pattern) ?? []).length;
 }
 
-const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8");
-const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8");
-const schemas = fs.readFileSync("apps/api/src/ai/twoStepRecommendationSchemas.ts", "utf8");
-const mobileHook = fs.readFileSync("apps/mobile/src/hooks/useAnalyzeMenu.ts", "utf8");
+const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8").replace(/\r\n/g, "\n");
+const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8").replace(/\r\n/g, "\n");
+const schemas = fs.readFileSync("apps/api/src/ai/twoStepRecommendationSchemas.ts", "utf8").replace(/\r\n/g, "\n");
+const mobileHook = fs.readFileSync("apps/mobile/src/hooks/useAnalyzeMenu.ts", "utf8").replace(/\r\n/g, "\n");
 
 const mainAiCatch = between(
   route,
@@ -73,16 +73,16 @@ assert(
 );
 
 assert(
-  /if \(attempt === 1 && isInvalidAiResponseError\(error\)\) \{\s*continue;\s*\}/.test(mainAi),
-  "Main-AI retry behavior must remain one retry for invalid AI responses"
+  /if \(attempt === 1 && isInvalidAiResponseError\(error\) && !isFinalDisplayContractError\(error\)\) \{\s*continue;\s*\}/.test(mainAi),
+  "Main-AI retry behavior must remain one retry for invalid AI responses while final display-contract errors fail directly"
 );
 assert(
   mainAi.includes('throw toSyntaxError(error);'),
   "Main-AI must still throw the normalized schema SyntaxError after retry exhaustion"
 );
 assert(
-  countMatches(mainAi, /client\.responses\.create\(/g) === 1,
-  "Invalid schema handling must not add Main-AI calls"
+  countMatches(mainAi, /client\.responses\.create\(/g) === 2,
+  "Invalid schema handling must keep exactly the Main-AI request and description repair request"
 );
 assert(
   countMatches(mainAi, /verifyRecommendationSafetyAI\(/g) === 1,

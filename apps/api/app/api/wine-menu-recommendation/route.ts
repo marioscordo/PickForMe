@@ -5,6 +5,7 @@ import {
 } from "../../../src/ai/recommendConcreteWineForMainDishAI";
 import { type WineMainDishAnchor } from "../../../src/ai/recommendWineForMainDishAI";
 import { requireUser } from "../../../src/auth/requireUser";
+import { profileFeatures } from "../../../src/config/profileFeatures";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
@@ -25,6 +26,10 @@ type WineMenuRecommendationRequest = {
 export async function POST(request: Request) {
   try {
     await requireUser(request);
+
+    if (!profileFeatures.wineFeatureEnabled) {
+      throw new AppError(403, "FEATURE_DISABLED", "Wine recommendations are not enabled.");
+    }
 
     const body = (await request.json()) as WineMenuRecommendationRequest;
     const mainDish = normalizeMainDish(body.mainDish);

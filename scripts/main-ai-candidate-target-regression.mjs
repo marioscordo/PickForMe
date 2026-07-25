@@ -10,9 +10,9 @@ function count(value, needle) {
   return value.split(needle).length - 1;
 }
 
-const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8");
-const schemas = fs.readFileSync("apps/api/src/ai/twoStepRecommendationSchemas.ts", "utf8");
-const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8");
+const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8").replace(/\r\n/g, "\n");
+const schemas = fs.readFileSync("apps/api/src/ai/twoStepRecommendationSchemas.ts", "utf8").replace(/\r\n/g, "\n");
+const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8").replace(/\r\n/g, "\n");
 
 assert(mainAi.includes("const MAIN_DISH_DEFAULT_CANDIDATE_LIMIT = 10;"), "10-candidate case must keep the central default limit");
 assert(mainAi.includes("const MAIN_DISH_HARD_RESTRICTION_CANDIDATE_LIMIT = 15;"), "15-candidate case must keep the central hard-restriction limit");
@@ -72,7 +72,9 @@ assert(schemas.includes('.max(15, "Main AI compact response must not contain mor
 assert(schemas.includes("recommendations: z.array(MainDishAIRecommendationSchema).max(3)"), "final recommendation cap must remain 3");
 assert(mainAi.includes("Antwort ausschliesslich als valides JSON ohne Markdown:"), "output contract must remain JSON-only");
 assert(!mainAi.includes('"targetCandidateCount"') && !mainAi.includes('"candidateCountReason"'), "prompt must not add response fields");
-assert(count(mainAi, "client.responses.create(request") === 1, "target prompt must not add Main-AI calls");
+assert(count(mainAi, "client.responses.create(request") === 2, "target prompt must keep exactly the Main-AI request and description repair request");
+assert(mainAi.includes('phase: "api.main_ai_request"'), "target prompt must keep the Main-AI request diagnostic");
+assert(mainAi.includes('phase: "api.description_translation_repair_request"'), "target prompt must keep the description repair request diagnostic");
 assert(count(mainAi, "verifyRecommendationSafetyAI({") === 1, "target prompt must not add Safety-AI calls");
 assert(route.includes("function buildUncertainReviewResponse({"), "Review path must remain present in route");
 assert(!route.includes("main-ai-candidate-target"), "target prompt test must not require route changes");

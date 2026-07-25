@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 function read(path) {
-  return fs.readFileSync(path, "utf8");
+  return fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 }
 
 function assert(condition, message) {
@@ -189,7 +189,9 @@ assert(
 const verifySafetyCallCount = (mainAi.match(/verifyRecommendationSafetyAI\(/g) ?? []).length;
 assert(verifySafetyCallCount === 1, "Production request trace must not add a second Safety call");
 const mainAiCreateCallCount = (mainAi.match(/client\.responses\.create\(/g) ?? []).length;
-assert(mainAiCreateCallCount === 1, "Production request trace must not add a second Main-AI call");
+assert(mainAiCreateCallCount === 2, "Production request trace must keep exactly the Main-AI request and description repair request");
+assert(mainAi.includes('phase: "api.main_ai_request"'), "Production request trace must keep the Main-AI request diagnostic");
+assert(mainAi.includes('phase: "api.description_translation_repair_request"'), "Production request trace must keep the description repair request diagnostic");
 assert(
   route.includes("buildProductionMainFunnelTraceFields") &&
     route.includes("buildProductionSafetyTraceFields"),

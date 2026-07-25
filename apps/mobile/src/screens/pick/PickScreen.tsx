@@ -349,7 +349,7 @@ export function PickScreen({
           menuText={menuText}
           menuImageSource={menuImageSource}
           showStartersAndSaladsAction={recommendationMode === "main_course"}
-          showWineRecommendationAction
+          showWineRecommendationAction={profileFeatures.wineFeatureEnabled}
           onReset={resetAnalysisState}
           openMenuLabel={canOpenMenu ? content.pick.openMenu : undefined}
           onOpenMenu={canOpenMenu ? openAnalyzedMenu : undefined}

@@ -10,9 +10,9 @@ function count(value, needle) {
   return value.split(needle).length - 1;
 }
 
-const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8");
-const schemas = fs.readFileSync("apps/api/src/ai/twoStepRecommendationSchemas.ts", "utf8");
-const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8");
+const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8").replace(/\r\n/g, "\n");
+const schemas = fs.readFileSync("apps/api/src/ai/twoStepRecommendationSchemas.ts", "utf8").replace(/\r\n/g, "\n");
+const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8").replace(/\r\n/g, "\n");
 
 assert(mainAi.includes("const MAIN_DISH_DEFAULT_CANDIDATE_LIMIT = 10;"), "default Main-AI candidate limit must be 10");
 assert(mainAi.includes("const MAIN_DISH_HARD_RESTRICTION_CANDIDATE_LIMIT = 15;"), "hard-restriction Main-AI candidate limit must be 15");
@@ -72,7 +72,9 @@ assert(
     schemas.includes("recommendations: z.array(MainDishAIRecommendationSchema).max(3)"),
   "final recommendation contract must remain capped at 3"
 );
-assert(count(mainAi, "client.responses.create(request") === 1, "dynamic candidate limit must not add Main-AI calls");
+assert(count(mainAi, "client.responses.create(request") === 2, "dynamic candidate limit must keep exactly the Main-AI request and description repair request");
+assert(mainAi.includes('phase: "api.main_ai_request"'), "dynamic candidate limit must keep the Main-AI request diagnostic");
+assert(mainAi.includes('phase: "api.description_translation_repair_request"'), "dynamic candidate limit must keep the description repair request diagnostic");
 assert(count(mainAi, "verifyRecommendationSafetyAI({") === 1, "dynamic candidate limit must not add Safety-AI calls");
 assert(
   route.includes("buildProductionMainFunnelTraceFields") &&

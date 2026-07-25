@@ -9,7 +9,7 @@ function assert(condition, message) {
 }
 
 function loadSafetyVerifier() {
-  const source = fs.readFileSync("apps/api/src/recommendation/recommendationSafetyVerifier.ts", "utf8");
+  const source = fs.readFileSync("apps/api/src/recommendation/recommendationSafetyVerifier.ts", "utf8").replace(/\r\n/g, "\n");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -69,7 +69,9 @@ check({
   response: {
     candidates: baseCandidates().map((candidate) => ({
       candidateId: candidate.id,
-      checks: [{ restrictionId: "allergen_0", verdict: "safe", evidence: null, source: null }]
+      overallVerdict: "safe",
+      checkedRestrictionIds: ["allergen_0"],
+      matchedRestrictions: []
     }))
   },
   expected: {
@@ -78,7 +80,7 @@ check({
     diagnostics: {
       safetyRequestedCandidateCount: 2,
       safetyReturnedCandidateIdCount: 2,
-      safetyReturnedCheckCount: 2,
+      safetyReturnedCheckCount: 0,
       safetyTruncatedOrIncompleteCount: 0
     }
   }
@@ -89,7 +91,9 @@ check({
   response: {
     candidates: baseCandidates().map((candidate) => ({
       candidateId: candidate.id,
-      checks: [{ restrictionId: "allergen_0", verdict: "uncertain", evidence: null, source: null }]
+      overallVerdict: "uncertain",
+      checkedRestrictionIds: ["allergen_0"],
+      matchedRestrictions: [{ restrictionId: "allergen_0", verdict: "uncertain", evidence: null, source: null }]
     }))
   },
   expected: {
@@ -103,9 +107,9 @@ check({
   candidates: baseCandidates(3),
   response: {
     candidates: [
-      { candidateId: "candidate_0", checks: [{ restrictionId: "allergen_0", verdict: "safe" }] },
-      { candidateId: "candidate_1", checks: [{ restrictionId: "allergen_0", verdict: "conflict", evidence: "lactose", source: "description" }] },
-      { candidateId: "candidate_2", checks: [{ restrictionId: "allergen_0", verdict: "uncertain" }] }
+      { candidateId: "candidate_0", overallVerdict: "safe", checkedRestrictionIds: ["allergen_0"], matchedRestrictions: [] },
+      { candidateId: "candidate_1", overallVerdict: "conflict", checkedRestrictionIds: ["allergen_0"], matchedRestrictions: [{ restrictionId: "allergen_0", verdict: "conflict", evidence: "lactose", source: "description" }] },
+      { candidateId: "candidate_2", overallVerdict: "uncertain", checkedRestrictionIds: ["allergen_0"], matchedRestrictions: [{ restrictionId: "allergen_0", verdict: "uncertain" }] }
     ]
   },
   expected: {
@@ -118,7 +122,7 @@ check({
   name: "fewer checks than requested",
   response: {
     candidates: [
-      { candidateId: "candidate_0", checks: [{ restrictionId: "allergen_0", verdict: "safe" }] }
+      { candidateId: "candidate_0", overallVerdict: "safe", checkedRestrictionIds: ["allergen_0"], matchedRestrictions: [] }
     ]
   },
   expected: {
@@ -150,8 +154,8 @@ check({
   candidates: baseCandidates(1),
   response: {
     candidates: [
-      { candidateId: "candidate_0", checks: [{ restrictionId: "allergen_0", verdict: "safe" }] },
-      { candidateId: "candidate_0", checks: [{ restrictionId: "allergen_0", verdict: "safe" }] }
+      { candidateId: "candidate_0", overallVerdict: "safe", checkedRestrictionIds: ["allergen_0"], matchedRestrictions: [] },
+      { candidateId: "candidate_0", overallVerdict: "safe", checkedRestrictionIds: ["allergen_0"], matchedRestrictions: [] }
     ]
   },
   expected: {
@@ -169,7 +173,7 @@ check({
   candidates: baseCandidates(1),
   response: {
     candidates: [
-      { candidateId: "candidate_x", checks: [{ restrictionId: "allergen_0", verdict: "safe" }] }
+      { candidateId: "candidate_x", overallVerdict: "safe", checkedRestrictionIds: ["allergen_0"], matchedRestrictions: [] }
     ]
   },
   expected: {
@@ -187,7 +191,7 @@ check({
   candidates: baseCandidates(1),
   response: {
     candidates: [
-      { candidateId: "candidate_0", checks: [{ restrictionId: "allergen_0" }] }
+      { candidateId: "candidate_0", overallVerdict: "conflict", checkedRestrictionIds: ["allergen_0"], matchedRestrictions: [{ restrictionId: "allergen_0" }] }
     ]
   },
   expected: {
@@ -204,7 +208,7 @@ check({
   candidates: baseCandidates(1),
   response: {
     candidates: [
-      { candidateId: "candidate_0", checks: [{ restrictionId: "allergen_0", verdict: "maybe" }] }
+      { candidateId: "candidate_0", overallVerdict: "conflict", checkedRestrictionIds: ["allergen_0"], matchedRestrictions: [{ restrictionId: "allergen_0", verdict: "maybe" }] }
     ]
   },
   expected: {
@@ -221,7 +225,7 @@ check({
   candidates: baseCandidates(1),
   response: {
     candidates: [
-      { candidateId: "candidate_0", checks: null }
+      { candidateId: "candidate_0", overallVerdict: "safe", checkedRestrictionIds: null, matchedRestrictions: [] }
     ]
   },
   expected: {
@@ -280,19 +284,19 @@ check({
   candidates: baseCandidates(1),
   response: {
     candidates: [
-      { candidateId: "candidate_0", checks: [] }
+      { candidateId: "candidate_0", overallVerdict: "safe", checkedRestrictionIds: [], matchedRestrictions: [] }
     ]
   },
   expected: {
     safeCount: 0,
     validationReasons: ["invalid_response"],
     diagnostics: {
-      safetyTruncatedOrIncompleteCount: 1
+      safetyInvalidSchemaCount: 1
     }
   }
 });
 
-const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8");
+const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8").replace(/\r\n/g, "\n");
 const traceTypeStart = route.indexOf("type ProductionRequestTraceFields = {");
 const traceTypeEnd = route.indexOf("};", traceTypeStart);
 const traceType = route.slice(traceTypeStart, traceTypeEnd);
@@ -301,8 +305,8 @@ for (const forbidden of ["candidateId", "nameOriginal", "descriptionOriginal", "
 }
 assert(route.includes("buildProductionSafetyTraceFields"), "Route must map safety diagnostics into the trace line");
 
-const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8");
+const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8").replace(/\r\n/g, "\n");
 assert((mainAi.match(/verifyRecommendationSafetyAI\(/g) ?? []).length === 1, "Must not add Safety-AI calls");
-assert((mainAi.match(/client\.responses\.create\(/g) ?? []).length === 1, "Must not add Main-AI calls");
+assert((mainAi.match(/client\.responses\.create\(/g) ?? []).length === 2, "Must keep exactly the Main-AI request and description repair request");
 
 console.log("safety-invalid-diagnostics-regression: passed");

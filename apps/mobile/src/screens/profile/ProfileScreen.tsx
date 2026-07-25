@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Dimensions, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { classifyProfileInput, classifyProfilePreference, submitTestFeedback, type TestFeedbackCategory, type TestFeedbackSeverity } from "../../api/pickformeApi";
@@ -150,6 +150,7 @@ export function ProfileScreen({
   const quickExclusions = editor.quickExclusions as ValueOption[];
   const allergyOptions = editor.allergyOptions as ValueOption[];
   const allergenModuleEnabled = profileFeatures.allergenModuleEnabled;
+  const wineFeatureEnabled = profileFeatures.wineFeatureEnabled;
 
   const profileSections: { id: ProfileEditorSection; label: string }[] = [
     { id: "preferences", label: content.profileScreen.preferencesButton },
@@ -184,7 +185,7 @@ export function ProfileScreen({
   ]);
   const visibleAllergyOptions = allergenModuleEnabled ? allergyOptions : [];
   const activeIntoleranceCount = allergenModuleEnabled ? allergens.length : 0;
-  const activeWinePreferenceCount = countActiveWinePreferences(winePreference);
+  const activeWinePreferenceCount = wineFeatureEnabled ? countActiveWinePreferences(winePreference) : 0;
   const overviewCanScrollFurther = overviewContentHeight > overviewViewportHeight + 18 && overviewScrollY + overviewViewportHeight < overviewContentHeight - 36;
   const selectedOutputLocale = resolveOutputLocale(profile.outputLocale);
   const outputLocaleOptions = useMemo(
@@ -195,6 +196,12 @@ export function ProfileScreen({
       })),
     [selectedOutputLocale]
   );
+
+  useEffect(() => {
+    if (!wineFeatureEnabled && activeSection === "wine") {
+      setActiveSection(null);
+    }
+  }, [activeSection, setActiveSection, wineFeatureEnabled]);
 
   function handleOverviewLayout(event: LayoutChangeEvent) {
     setOverviewViewportHeight(event.nativeEvent.layout.height);
@@ -1059,7 +1066,7 @@ export function ProfileScreen({
       );
     }
 
-    if (activeSection === "wine") {
+    if (activeSection === "wine" && wineFeatureEnabled) {
       return (
         <Screen contentContainerStyle={local.detailContent}>
           <PremiumProfileBackLink
@@ -1133,6 +1140,10 @@ export function ProfileScreen({
           </View>
         </Screen>
       );
+    }
+
+    if (activeSection === "wine") {
+      return null;
     }
 
     return (
@@ -1215,15 +1226,18 @@ export function ProfileScreen({
             title={allergenModuleEnabled ? content.profileScreen.intolerancesButton : content.profileScreen.intolerancesOnlyButton}
             detail={activeStatus(activeIntoleranceCount, content)}
             onPress={() => setActiveSection("intolerances")}
+            isLast={!wineFeatureEnabled}
           />
-          <ProfileMenuRow
-            icon={content.profileScreen.winePreferenceIcon}
-            iconVariant="general"
-            title={content.profileScreen.winePreferenceButton}
-            detail={activeStatus(activeWinePreferenceCount, content)}
-            onPress={() => setActiveSection("wine")}
-            isLast
-          />
+          {wineFeatureEnabled ? (
+            <ProfileMenuRow
+              icon={content.profileScreen.winePreferenceIcon}
+              iconVariant="general"
+              title={content.profileScreen.winePreferenceButton}
+              detail={activeStatus(activeWinePreferenceCount, content)}
+              onPress={() => setActiveSection("wine")}
+              isLast
+            />
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>

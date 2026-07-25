@@ -1282,6 +1282,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     acceptedRecommendations: gatekeeperResult.accepted,
     data: mappedWithoutPriceCompatibility,
     deviceLocale,
+    menuLanguage: mainDishResult.menuLanguage,
     sourceContext: [
       augmentedSourceForMainAi.sourceUrl,
       augmentedSourceForMainAi.text,

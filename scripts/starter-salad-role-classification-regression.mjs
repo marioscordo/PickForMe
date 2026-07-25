@@ -18,9 +18,9 @@ function countMatches(value, pattern) {
   return (value.match(pattern) ?? []).length;
 }
 
-const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8");
-const schemas = fs.readFileSync("apps/api/src/ai/twoStepRecommendationSchemas.ts", "utf8");
-const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8");
+const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8").replace(/\r\n/g, "\n");
+const schemas = fs.readFileSync("apps/api/src/ai/twoStepRecommendationSchemas.ts", "utf8").replace(/\r\n/g, "\n");
+const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8").replace(/\r\n/g, "\n");
 
 const mainCompactDishSchema = between(
   schemas,
@@ -45,7 +45,7 @@ const roleAssignment = between(
   "function buildRequestedDishRoleAssignment",
   "function buildPreferredDishRoleAssignment"
 );
-const mainBranchMarker = "  return {\r\n    roles: [\"main\"],";
+const mainBranchMarker = "  return {\n    roles: [\"main\"],";
 const starterBranch = between(
   roleAssignment,
   "if (roles.includes(\"starter\") || roles.includes(\"salad\"))",
@@ -128,7 +128,9 @@ for (const forbidden of [
   assert(!traceFields.includes(forbidden), `Production trace type must not expose forbidden content marker ${forbidden}`);
 }
 
-assert(countMatches(mainAi, /client\.responses\.create\(/g) === 1, "Role diagnostics must not add Main-AI calls");
+assert(countMatches(mainAi, /client\.responses\.create\(/g) === 2, "Role diagnostics must keep exactly the Main-AI request and description repair request");
+assert(mainAi.includes('phase: "api.main_ai_request"'), "Role diagnostics must keep the Main-AI request diagnostic");
+assert(mainAi.includes('phase: "api.description_translation_repair_request"'), "Role diagnostics must keep the description repair request diagnostic");
 assert(countMatches(mainAi, /verifyRecommendationSafetyAI\(/g) === 1, "Role diagnostics must not add Safety-AI calls");
 assert(!mainAi.includes("rankRecommendationsByPreferenceAttribution(compactParsed"), "Role diagnostics must not change ranking inputs");
 assert(!mainAi.includes("applyStarterSaladRoleClassificationDiagnostics(parsed"), "Role diagnostics must not run after final selection");

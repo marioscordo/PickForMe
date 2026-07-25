@@ -4,7 +4,7 @@ import path from "node:path";
 const repoRoot = process.cwd();
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8").replace(/\r\n/g, "\n");
 }
 
 function assert(condition, message) {
@@ -20,7 +20,7 @@ const schemas = read("apps/api/src/ai/twoStepRecommendationSchemas.ts");
 
 assert(
   mainAi.includes("source: TwoStepMenuSourceInput;") &&
-    mainAi.includes("source\n    })"),
+    /prompt: buildMainDishPrompt\(\{[\s\S]*?source,\n\s+candidateLimit[\s\S]*?\}\)/.test(mainAi),
   "Main AI prompt builder must receive source metadata"
 );
 assert(
@@ -75,14 +75,14 @@ assert(
   "PDF fallback must still use the existing single input_file path and file count limit"
 );
 assert(
-  schemas.includes('.max(10, "Main AI compact response must not contain more than 10 dishes")') &&
-    mainAi.includes("Liefere maximal 10 Compact-Dishes") &&
-    !mainAi.includes("15 Compact-Dishes"),
-  "Candidate limit must remain 10 with no 10/15 change"
+  schemas.includes('.max(15, "Main AI compact response must not contain more than 15 dishes")') &&
+    mainAi.includes("`- Liefere maximal ${candidateLimit} Compact-Dishes.`") &&
+    mainAi.includes("const candidateLimit = getMainDishCandidateLimit(profile);"),
+  "Candidate limit must use the shared dynamic 10/15 contract"
 );
 assert(
-  count(mainAi, "client.responses.create(request") === 1,
-  "Main AI must still perform exactly one model request"
+  count(mainAi, "client.responses.create(request") === 2,
+  "Main AI must keep exactly the Main-AI request and description repair request"
 );
 assert(
   count(mainAi, "verifyRecommendationSafetyAI({") === 1,

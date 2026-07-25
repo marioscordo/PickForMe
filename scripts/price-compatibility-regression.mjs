@@ -123,6 +123,7 @@ async function enrich(priceRaw, options = {}) {
     }],
     data: baseData(12),
     deviceLocale: options.deviceLocale ?? "de-DE",
+    menuLanguage: options.menuLanguage,
     sourceContext: options.sourceContext,
     targetLocale: "de-DE"
   });
@@ -168,6 +169,11 @@ assert.match(range.dishes[0].priceApproxDisplay, /–/);
 const fallbackRub = await enrich("890", { sourceContext: "https://hacha.ru/theater" });
 assert.equal(fallbackRub.dishes[0].priceCurrency, "RUB");
 assert.equal(fallbackRub.dishes[0].priceDisplay, "890 ₽");
+
+const menuLanguageRub = await enrich("8.50", { menuLanguage: "ru", sourceContext: "Fotografierte Speisekarte" });
+assert.equal(menuLanguageRub.dishes[0].priceCurrency, "RUB");
+assert.equal(menuLanguageRub.dishes[0].priceDisplay, "8.50 ₽");
+assert.match(menuLanguageRub.dishes[0].priceApproxDisplay, /^ca\. /);
 
 const santoHabaneroContext = [
   "Santo Habanero",

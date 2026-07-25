@@ -11,6 +11,7 @@ import {
   type MenuImageSource
 } from "../../api/pickformeApi";
 import { DEFAULT_OUTPUT_LOCALE, resolveOutputLocale } from "../../config/outputLocales";
+import { profileFeatures } from "../../config/profileFeatures";
 import { useMobileContent } from "../../content/useMobileContent";
 import { getAnalyzeMenuErrorMessage } from "../../hooks/useAnalyzeMenu";
 import { premiumColors, radius, semanticColors, spacing, typography } from "../../theme/tokens";
@@ -265,6 +266,8 @@ export function RecommendationCard({
   const content = useMobileContent();
   const { profile } = useProfile();
   const { winePreference } = useWinePreference();
+  const wineFeatureEnabled = profileFeatures.wineFeatureEnabled;
+  const activeWinePreference = wineFeatureEnabled ? winePreference : null;
   const nestedLoadingDishIdsRef = useRef(new Set<string>());
   const activeNestedDishIdRef = useRef<string | null>(null);
   const nestedRequestIdRef = useRef(0);
@@ -302,9 +305,9 @@ export function RecommendationCard({
         primaryLikes: profile.primaryLikes,
         customExclusions: profile.customExclusions,
         allergens: profile.allergens,
-        winePreference
+        ...(activeWinePreference ? { winePreference: activeWinePreference } : {})
       }),
-    [profile, winePreference]
+    [profile, activeWinePreference]
   );
 
   const safeRecommendations = visibleRecommendations
@@ -519,6 +522,10 @@ export function RecommendationCard({
   }
 
   async function handleWineRecommendationSearch(dishId: string) {
+    if (!wineFeatureEnabled) {
+      return;
+    }
+
     const activeDishId = activeWineDishIdRef.current;
     const currentStatus = wineRecommendationsByDishId[dishId]?.status;
     const dish = dishesById.get(dishId);
@@ -613,6 +620,10 @@ export function RecommendationCard({
   }
 
   async function handleWineMenuSearch(dishId: string) {
+    if (!wineFeatureEnabled) {
+      return;
+    }
+
     const dish = dishesById.get(dishId);
     const recommendation = visibleRecommendations.find((item) => item.dishId === dishId);
     const currentStatus = wineMenuSearchByDishId[dishId]?.status;
@@ -964,7 +975,7 @@ export function RecommendationCard({
                   </View>
                 ) : null}
 
-                {showWineRecommendationAction && !isUncertainReview ? (
+                {showWineRecommendationAction && wineFeatureEnabled && !isUncertainReview ? (
                   <View style={local.nestedActionBox}>
                     <PremiumCardAction
                       disabled={wineActionDisabled}

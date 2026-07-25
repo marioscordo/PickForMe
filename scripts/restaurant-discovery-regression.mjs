@@ -1,103 +1,58 @@
 import fs from "node:fs";
 
-const read = (path) => fs.readFileSync(path, "utf8");
+const read = (path) => fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 const assert = (condition, message) => {
   if (!condition) {
     throw new Error(message);
   }
 };
 
-const pickScreen = read("apps/mobile/src/screens/pick/PickScreen.tsx");
-const menuInput = read("apps/mobile/src/components/pick/MenuInputCard.tsx");
-const dialog = read("apps/mobile/src/components/pick/RestaurantDiscoveryDialog.tsx");
-const routine = read("apps/mobile/src/gustaroai/restaurantDiscoveryRoutine.ts");
-const mobileApi = read("apps/mobile/src/api/pickformeApi.ts");
-const backendRoute = read("apps/api/app/api/restaurant-discovery/route.ts");
-const backendService = read("apps/api/src/restaurant/discoverRestaurantSource.ts");
+const restaurantDiscoveryRoute = read("apps/api/app/api/restaurant-discovery/route.ts");
+const restaurantMenuDiscoveryRoute = read("apps/api/app/api/restaurant-menu-discovery/route.ts");
+const discoveryService = read("apps/api/src/restaurant/discoverRestaurantSource.ts");
+const menuSourceSelector = read("apps/api/src/restaurant/selectRestaurantMenuSource.ts");
 const menuParser = read("apps/api/src/menu/parseMenu.ts");
 const textAiFacts = read("apps/api/src/ai/extractMenuFactsFromTextAI.ts");
 const analyzeRoute = read("apps/api/app/api/analyze-menu/route.ts");
-const content = JSON.parse(read("apps/mobile/src/content/mobileContent.de-DE.json"));
+const mobileApi = read("apps/mobile/src/api/pickformeApi.ts");
 
-function extractStyleNumber(source, styleName, propertyName) {
-  const styleMatch = new RegExp(`${styleName}:\\s*{([\\s\\S]*?)\\n\\s*}`, "m").exec(source);
-  if (!styleMatch) return null;
+assert(restaurantDiscoveryRoute.includes("requireUser(request)"), "Restaurant discovery route must be auth-gated");
+assert(restaurantDiscoveryRoute.includes("discoverRestaurantCandidatesOnly(body)"), "Restaurant discovery route must return restaurant candidates only");
+assert(restaurantDiscoveryRoute.includes("RestaurantDiscoveryRequestSchema"), "Restaurant discovery route must validate request shape");
+assert(!mobileApi.includes('"/api/restaurant-discovery"'), "Mobile app must not expose retired restaurant discovery UI calls");
 
-  const propertyMatch = new RegExp(`${propertyName}:\\s*(\\d+)`).exec(styleMatch[1]);
-  return propertyMatch ? Number(propertyMatch[1]) : null;
-}
+assert(restaurantMenuDiscoveryRoute.includes("requireUser(request)"), "Restaurant menu discovery route must be auth-gated");
+assert(restaurantMenuDiscoveryRoute.includes("RestaurantMenuDiscoveryRequestSchema"), "Restaurant menu discovery route must validate selected restaurant shape");
+assert(restaurantMenuDiscoveryRoute.includes("selectRestaurantMenuSource"), "Restaurant menu discovery route must use shared menu source selection");
+assert(restaurantMenuDiscoveryRoute.includes("MENU_DISCOVERY_TIMEOUT_MS"), "Restaurant menu discovery must have a governed timeout");
+assert(restaurantMenuDiscoveryRoute.includes("websiteUrl") && restaurantMenuDiscoveryRoute.includes("menuUrl"), "Restaurant menu discovery must return website and menu URL fields");
 
-function extractFunctionBody(source, functionName) {
-  const start = source.indexOf(`function ${functionName}(`);
-  if (start < 0) return "";
+assert(discoveryService.includes("web_search_preview"), "Restaurant discovery must use the governed web search provider");
+assert(discoveryService.includes("discoverRestaurantCandidatesOnly"), "Restaurant-only discovery entrypoint missing");
+assert(discoveryService.includes("discoverRestaurantSources"), "Full restaurant source discovery entrypoint missing");
+assert(discoveryService.includes("buildMenuRecoveryPrompt") && discoveryService.includes("hasAnalyzableMenuCandidate"), "Full discovery must keep menu-focused recovery");
+assert(discoveryService.includes("buildLikelyOfficialWebsiteCandidates") && discoveryService.includes("addVerifiedMenuCandidate"), "Full discovery must probe likely official domains only as verified menu candidates");
+assert(discoveryService.includes("getRegistrableDomain") && discoveryService.includes("verifyReachableUrl"), "Discovery URL guards missing");
+assert(discoveryService.includes("loadMenuTextFromUrl") && discoveryService.includes("verifyDirectAnalyzableMenuUrl"), "Discovery must preflight menu URLs with the shared loader");
+assert(discoveryService.includes("findSameDomainAnalyzableMenuUrl") && discoveryService.includes("findLinkedAnalyzableMenuUrl"), "Discovery crawler must resolve same-domain analyzable menu URLs");
+assert(discoveryService.includes("return parseMenu(menuText).length >= 2"), "Full discovery must fail closed when fewer than two menu entries are parseable");
 
-  const openBrace = source.indexOf("{", start);
-  if (openBrace < 0) return "";
+assert(menuSourceSelector.includes("selectRestaurantMenuSource"), "Shared menu source selector missing");
+assert(menuSourceSelector.includes("loadMenuTextFromUrl"), "Shared menu source selector must use the shared loader");
+assert(menuSourceSelector.includes("parseMenu(trimmed).filter((dish) => dish.itemType !== \"drink\").length >= 2"), "Shared menu source selector must require at least two non-drink menu entries");
+assert(menuSourceSelector.includes("trustedExternalProvider"), "Shared menu source selector must keep trusted external provider handling");
+assert(menuSourceSelector.includes("rejectedCandidates"), "Shared menu source selector must keep rejected candidate diagnostics");
 
-  let depth = 0;
-  for (let index = openBrace; index < source.length; index += 1) {
-    if (source[index] === "{") depth += 1;
-    if (source[index] === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        return source.slice(openBrace + 1, index);
-      }
-    }
-  }
+assert(menuParser.includes('itemType: isDrink ? "drink" : "dish"') && menuParser.includes('dishRole: isDrink ? "drink" : undefined'), "Menu parser must classify recognized drinks as drink items");
+assert(textAiFacts.includes("Getraenke duerfen niemals itemType dish bekommen"), "Text AI extraction prompt must protect dish classification from drinks");
+assert(textAiFacts.includes("coerceMenuItemType") && textAiFacts.includes('itemType: "drink"'), "Text AI facts validation must correct obvious drink items away from dish");
 
-  return "";
-}
-
-const baseInputHeight = extractStyleNumber(menuInput, "textArea", "height");
-const compactInputHeight = extractStyleNumber(menuInput, "textAreaCompact", "height");
-const compactInputMaxHeight = extractStyleNumber(menuInput, "textAreaCompact", "maxHeight");
-const closeRestaurantDiscoveryBody = extractFunctionBody(pickScreen, "closeRestaurantDiscovery");
-const applyDiscoveredMenuUrlBody = extractFunctionBody(pickScreen, "applyDiscoveredMenuUrl");
-
-assert(content.pick.findMenuButton === "Speisekarte finden", "Button text missing");
-assert(pickScreen.includes("content.pick.findMenuButton"), "PickScreen does not render discovery button");
-assert(pickScreen.includes("<MenuInputCard menuText={menuText} setMenuText={setMenuText} compact />"), "Menu input is not compacted");
-assert(menuInput.includes("textAreaCompact"), "Compact input style missing");
-assert(baseInputHeight && compactInputHeight, "Menu input heights missing");
-assert(compactInputHeight < baseInputHeight, "Compact input height is not smaller than default input height");
-assert(compactInputMaxHeight === compactInputHeight, "Compact input maxHeight must match compact height");
-assert(dialog.includes("generateRestaurantCandidates") && dialog.includes("showCandidates"), "Candidate search binding missing");
-assert(dialog.includes("gustaroaiRestaurantDiscoveryProvider"), "Dialog does not use GustaroAI backend discovery provider");
-assert(mobileApi.includes('"/api/restaurant-discovery"'), "Mobile API does not call restaurant discovery backend");
-assert(backendRoute.includes("requireUser(request)"), "Restaurant discovery backend route is not auth-gated");
-assert(backendService.includes("web_search_preview"), "Backend discovery does not use web search provider");
-assert(backendService.includes("buildMenuRecoveryPrompt") && backendService.includes("hasAnalyzableMenuCandidate"), "Backend discovery does not run menu-focused recovery when first-pass candidates have no analyzable menu");
-assert(backendService.includes("buildLikelyOfficialWebsiteCandidates") && backendService.includes("addVerifiedMenuCandidate"), "Backend discovery does not probe likely official domains only as verified menu candidates");
-assert(backendService.includes("getRegistrableDomain") && backendService.includes("verifyReachableUrl"), "Backend discovery URL guards missing");
-assert(backendService.includes("loadMenuTextFromUrl") && backendService.includes("verifyAnalyzableMenuUrl"), "Backend discovery does not preflight menu URLs with the shared loader");
-assert(backendService.includes("parseMenu(menuText)") && backendService.includes("isAnalyzableMenuText"), "Backend discovery does not validate menu text analyzability");
-assert(backendService.includes("findSameDomainAnalyzableMenuUrl"), "Backend discovery crawler does not require analyzable menu URLs");
-assert(backendService.includes("findLinkedAnalyzableMenuUrl") && backendService.includes("verifyDirectAnalyzableMenuUrl"), "Backend discovery does not resolve menu landing pages to directly analyzable menu files");
-assert(backendService.includes("return parseMenu(menuText).length >= 2"), "Backend discovery must fail closed when shared parser finds fewer than two menu entries");
-assert(backendService.includes("buildLikelyMenuUrls") && backendService.includes("/menu/"), "Backend discovery crawler does not probe likely menu paths");
-assert(menuParser.includes('itemType: isDrink ? "drink" : "dish"') && menuParser.includes('dishRole: isDrink ? "drink" : undefined'), "Menu parser does not classify recognized drinks as drink items");
-assert(textAiFacts.includes("Getraenke duerfen niemals itemType dish bekommen"), "Text AI extraction prompt does not protect dish classification from drinks");
-assert(textAiFacts.includes("coerceMenuItemType") && textAiFacts.includes('itemType: "drink"'), "Text AI facts validation does not correct obvious drink items away from dish");
-assert(analyzeRoute.includes("askPickForMePdfUrlAI"), "Analyze route does not use the direct PDF AI path");
-assert(analyzeRoute.includes('mode: "ai_pdf"'), "Analyze route does not return direct PDF AI results");
-assert(analyzeRoute.includes("SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE"), "Analyze route does not have a safe closed-failure message");
-assert(analyzeRoute.includes("TEXT_AI_TIMEOUT_MS"), "Analyze route does not define a governed text AI timeout");
-assert(analyzeRoute.includes("PDF_AI_TIMEOUT_MS"), "Analyze route does not define a governed PDF AI timeout");
+assert(analyzeRoute.includes('responseMode: "ai_pdf"'), "Analyze route must keep the PDF Two-Step AI path");
+assert(analyzeRoute.includes('mainAiInputMode: "extracted_text"') && analyzeRoute.includes('mainAiInputMode: "pdf_file_fallback"'), "Analyze route must keep both PDF extracted-text and file-fallback modes");
+assert(analyzeRoute.includes("SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE"), "Analyze route must keep safe closed-failure messaging");
+assert(analyzeRoute.includes("TEXT_AI_TIMEOUT_MS") && analyzeRoute.includes("PDF_AI_TIMEOUT_MS"), "Analyze route must keep governed AI timeouts");
 assert(analyzeRoute.includes('message.includes("TEXT_AI_TIMEOUT")') && !analyzeRoute.includes("falling back to local recommendation"), "Analyze route must not silently fall back to local recommendations after AI timeout");
-assert(analyzeRoute.includes("parsedMenuItems.filter(isFoodDish)") && analyzeRoute.includes('dish.itemType !== "drink"'), "Analyze route does not keep drink items out of food recommendations");
+assert(analyzeRoute.includes("parsedMenuItems.filter(isFoodDish)") && analyzeRoute.includes('dish.itemType !== "drink"'), "Analyze route must keep drink items out of food recommendations");
 assert(analyzeRoute.includes('throw new AppError(400, "PDF_AI_DISABLED"'), "Analyze route must fail closed for PDF links when AI is disabled");
-assert(dialog.includes("DOUBLE_TAP_WINDOW_MS") && dialog.includes("setSelectedCandidate(candidate)"), "Double-tap selection missing");
-assert(dialog.includes("disabled={loadingMenu || !selectedCandidate}"), "Menu button is not gated by selected restaurant");
-assert(content.restaurantDiscovery.noMenuUrl === "Kein auswertbarer Speisekartenlink gefunden. Bitte Link, Text oder Foto manuell einfügen", "Exact no-menu-url message changed");
-assert(dialog.includes("const nextMenuUrl = menuUrl") && dialog.includes("onApply(nextMenuUrl)"), "Apply does not preserve and return the menu URL");
-assert(dialog.includes("resetDialogState()") && dialog.includes("sessionIdRef.current += 1"), "Dialog state reset/session invalidation missing");
-assert(dialog.includes("onRequestClose={closeDialog}") && dialog.includes("onPress={closeDialog}") && content.restaurantDiscovery.backButton === "zur\u00fcck", "Back flow reset missing");
-assert(pickScreen.includes("function resetAnalysisState()") && pickScreen.includes("setLastAnalyzedMenuUrl(\"\")"), "Explicit analysis reset function missing");
-assert(closeRestaurantDiscoveryBody && !closeRestaurantDiscoveryBody.includes("resetAnalysisState"), "Closing discovery must preserve existing analysis state");
-assert(applyDiscoveredMenuUrlBody && !applyDiscoveredMenuUrlBody.includes("resetAnalysisState"), "Applying discovered menu URL must preserve existing analysis state until a new analysis starts");
-assert(routine.includes("gustaroai-api"), "GustaroAI backend provider missing");
-assert(routine.includes("const result = await discoverRestaurantMenu(candidate)") && routine.includes("return result.menuUrl ? [{ url: result.menuUrl, kind: \"menu\" }] : []"), "GustaroAI backend provider must use backend menu discovery instead of local crawling");
-assert(routine.includes("getRegistrableDomain(menuUrl) !== websiteDomain"), "Same-domain guard missing");
-assert(routine.includes("kind !== \"menu\""), "Structured menu kind guard missing");
 
-console.log("Restaurant discovery regression checks passed.");
+console.log("restaurant-discovery-regression: passed");

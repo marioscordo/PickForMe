@@ -6,8 +6,8 @@ function assert(condition, message) {
   }
 }
 
-const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8");
-const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8");
+const mainAi = fs.readFileSync("apps/api/src/ai/recommendMainDishesAI.ts", "utf8").replace(/\r\n/g, "\n");
+const route = fs.readFileSync("apps/api/app/api/analyze-menu/route.ts", "utf8").replace(/\r\n/g, "\n");
 
 const requiredMainFields = [
   "mainRawOutputItemCount",
@@ -56,7 +56,9 @@ const parseSequence = [
   "const mainFunnelDiagnostics = buildMainAICandidateFunnelDiagnostics({",
   "const compactParsed = parseMainDishCompactResponse(compactJson, usesStarterSaladRoleClassification);",
   "mainFunnelDiagnostics.mainParsedCandidateCount = compactParsed.dishes.length",
-  "normalizeMissingCompactTranslatedDescriptions(compactParsed, targetLocale);",
+  "await repairMissingCompactTranslatedDescriptions({",
+  "validateCompactDescriptionTranslationContract(compactParsed, targetLocale, runId);",
+  "parsed = buildMainDishResponseFromCompactDishes({",
   "const verifierSafe = await applyMainDishVerifierSafety(parsed, profile, runId, signal, mainFunnelDiagnostics);"
 ];
 let previousIndex = -1;
@@ -112,8 +114,10 @@ assert(
   "Main-AI funnel must expose available non-sensitive response metadata"
 );
 
-const mainAiCreateCallCount = (mainAi.match(/client\.responses\.create\(/g) ?? []).length;
-assert(mainAiCreateCallCount === 1, "Main-AI funnel diagnostics must not add Main-AI calls");
+const openAiCreateCallCount = (mainAi.match(/client\.responses\.create\(/g) ?? []).length;
+assert(openAiCreateCallCount === 2, "Main-AI funnel must keep exactly the Main-AI request and description repair request");
+assert(mainAi.includes('phase: "api.main_ai_request"'), "Main-AI funnel diagnostics must keep the Main-AI request diagnostic");
+assert(mainAi.includes('phase: "api.description_translation_repair_request"'), "Main-AI funnel must allow the separate description repair request diagnostic");
 const verifySafetyCallCount = (mainAi.match(/verifyRecommendationSafetyAI\(/g) ?? []).length;
 assert(verifySafetyCallCount === 1, "Main-AI funnel diagnostics must not add Safety-AI calls");
 

@@ -5,11 +5,11 @@ import path from "node:path";
 const repoRoot = process.cwd();
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8").replace(/\r\n/g, "\n");
 }
 
 function readHead(relativePath) {
-  return execFileSync("git", ["show", `HEAD:${relativePath}`], { cwd: repoRoot, encoding: "utf8" });
+  return execFileSync("git", ["show", `HEAD:${relativePath}`], { cwd: repoRoot, encoding: "utf8" }).replace(/\r\n/g, "\n");
 }
 
 function parseJson(relativePath) {
