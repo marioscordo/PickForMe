@@ -119,6 +119,32 @@ assert(
   "attribution failures must not be propagated as global HTTP 409/503/504 errors"
 );
 
+assert(
+  diagnostics.includes("isProductionEnvironment()") &&
+    /isAnalyzeDiagnosticsEnabled\(\)\s*{\s*return !isProductionEnvironment\(\)/.test(diagnostics) &&
+    /isAnalyzeOpsDiagnosticsEnabled\(\)\s*{\s*return !isProductionEnvironment\(\)/.test(diagnostics),
+  "both diagnostics flags must be hard-disabled in production regardless of the env var value"
+);
+
+assert(
+  diagnostics.includes("export function fingerprintDiagnosticText"),
+  "diagnostics module must expose a one-way fingerprint helper for sensitive log values"
+);
+
+assert(
+  mainAi.includes("candidateNameFp=${fingerprintDiagnosticText(candidate.nameOriginal)}") &&
+    mainAi.includes("restrictionLabelFp=${fingerprintDiagnosticText(restriction.label)}") &&
+    mainAi.includes("evidenceFp=${fingerprintDiagnosticText(evidence)}"),
+  "GUSTARO_SAFETY_VERIFIER_DECISION must log fingerprints, not raw dish names, restriction labels or evidence text"
+);
+
+assert(
+  !/restrictionLabel=\$\{restriction\.label/.test(mainAi) &&
+    !/evidence=\$\{evidence\.replace/.test(mainAi) &&
+    !/candidateName=\$\{candidate\.nameOriginal\.replace/.test(mainAi),
+  "GUSTARO_SAFETY_VERIFIER_DECISION must not log raw profile values or menu text, even redacted inline"
+);
+
 console.log("analyze ops diagnostics regression passed");
 
 function hasForbiddenOpsField(source, field) {

@@ -11,6 +11,7 @@ import {
   stripJsonFence
 } from "./twoStepRecommendationAIUtils";
 import {
+  fingerprintDiagnosticText,
   isAnalyzeDiagnosticsEnabled,
   logAnalyzeOpsDiagnostic
 } from "./twoStepRecommendationDiagnostics";
@@ -1587,18 +1588,23 @@ function logVerifierDecisionDiagnostics({
         ? Boolean(evidence && source && candidateContainsEvidence(candidate, evidence, source))
         : undefined;
 
+      // Privacy-sichere Diagnostik: Gerichtname, Allergen-/Ausschluss-Label
+      // und Belegtext sind Menuetext bzw. Profilwerte und duerfen laut
+      // Technischer Gesamtbeschreibung (Abschnitt 6) nicht im Klartext in
+      // Betriebsdiagnosen erscheinen. Es wird nur ein nicht umkehrbarer
+      // Fingerabdruck geloggt.
       console.info(`[GUSTARO_SAFETY_VERIFIER_DECISION] ${[
         `runId=${runId ?? ""}`,
         `candidateId=${candidate.id}`,
-        `candidateName=${candidate.nameOriginal.replace(/\s+/g, "_")}`,
+        `candidateNameFp=${fingerprintDiagnosticText(candidate.nameOriginal)}`,
         `restrictionId=${restriction.id}`,
         `restrictionType=${restriction.type}`,
-        `restrictionLabel=${restriction.label.replace(/\s+/g, "_")}`,
+        `restrictionLabelFp=${fingerprintDiagnosticText(restriction.label)}`,
         `overallVerdict=${responseCandidate?.overallVerdict ?? "missing"}`,
         `verdict=${check?.verdict ?? "safe_or_not_matched"}`,
         `reason=${validationResult?.reason ?? "safe"}`,
         evidenceValid === undefined ? null : `evidenceValid=${evidenceValid}`,
-        evidence ? `evidence=${evidence.replace(/\s+/g, "_")}` : null,
+        evidence ? `evidenceFp=${fingerprintDiagnosticText(evidence)}` : null,
         source ? `source=${source}` : null
       ].filter(Boolean).join(" ")}`);
     }
