@@ -252,6 +252,45 @@ const outage = await enrich("$30");
 assert.equal(outage.dishes[0].priceDisplay, "$30");
 assert.equal(outage.dishes[0].priceApproxDisplay, undefined);
 
+// Regression fuer den 2026-07-27 Bug: MX$1300 wurde angezeigt, "ca. X €"
+// fehlte ohne jeden Fehler. Ursache war ein einzelner fehlgeschlagener
+// Kursabruf ohne Retry. Diese beiden Faelle nutzen USD statt MXN, weil MXN_EUR
+// oben im selben Testlauf bereits erfolgreich gecacht wurde (EXCHANGE_RATE_CACHE
+// ist modul-global) - mit einer bereits gecachten Paarung wuerde gar kein
+// fetch mehr ausgeloest und der Retry-Pfad nie erreicht.
+let transientAttemptCount = 0;
+globalThis.fetch = async () => {
+  transientAttemptCount++;
+
+  if (transientAttemptCount === 1) {
+    throw new Error("transient network blip");
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ date: "2026-07-27", rate: 0.92 })
+  };
+};
+
+const transientFailureThenSuccess = await enrich("USD 50", { sourceContext: "https://example.us/menu" });
+assert.equal(transientFailureThenSuccess.dishes[0].priceDisplay, "USD 50");
+assert.match(transientFailureThenSuccess.dishes[0].priceApproxDisplay, /^ca\. /);
+assert.equal(transientAttemptCount, 2, "must retry exactly once after a transient failure");
+
+// Wenn auch der zweite Versuch scheitert, weiterhin sauber ohne
+// priceApproxDisplay degradieren statt haengen zu bleiben oder zu werfen.
+let persistentAttemptCount = 0;
+globalThis.fetch = async () => {
+  persistentAttemptCount++;
+  throw new Error("still down");
+};
+
+const persistentFailure = await enrich("GBP 40");
+assert.equal(persistentFailure.dishes[0].priceDisplay, "GBP 40");
+assert.equal(persistentFailure.dishes[0].priceApproxDisplay, undefined);
+assert.equal(persistentAttemptCount, 2, "must give up after exactly two attempts, not retry indefinitely");
+
 globalThis.fetch = originalFetch;
 
 console.log("price-compatibility regression passed");

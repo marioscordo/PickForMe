@@ -585,6 +585,16 @@ function uniqueCurrencyPairs(values: PriceParts[], targetCurrency: PriceCompatib
   return pairs;
 }
 
+// Kein API-Key, keine Retry-Infrastruktur beim Anbieter - ein einzelner
+// Ausreißer (Timeout, kurzer Netzwerkfehler) hat vorher die gesamte
+// €-Umrechnung fuer den Request stillschweigend entfernt (priceDisplay blieb,
+// priceApproxDisplay fehlte einfach - kein Fehler, keine Warnung). Ein
+// zweiter Versuch mit frischem Timeout-Budget faengt genau diesen Fall ab,
+// ohne einen zusaetzlichen Fetch-Pfad einzufuehren - es bleibt bei einer
+// einzigen Aufrufstelle der Timeout-Helper-Funktion, nur in einer Schleife.
+const EXCHANGE_RATE_FETCH_TIMEOUT_MS = 2500;
+const EXCHANGE_RATE_MAX_ATTEMPTS = 2;
+
 async function getExchangeRate(
   sourceCurrency: PriceCompatibilityCurrency,
   targetCurrency: PriceCompatibilityCurrency
@@ -597,31 +607,46 @@ async function getExchangeRate(
     return cached;
   }
 
+  for (let attempt = 1; attempt <= EXCHANGE_RATE_MAX_ATTEMPTS; attempt++) {
+    const entry = await fetchExchangeRateOnce(sourceCurrency, targetCurrency, now);
+
+    if (entry) {
+      EXCHANGE_RATE_CACHE.set(key, entry);
+      return entry;
+    }
+  }
+
+  return cached && now - cached.fetchedAt < EXCHANGE_RATE_STALE_MS ? cached : null;
+}
+
+async function fetchExchangeRateOnce(
+  sourceCurrency: PriceCompatibilityCurrency,
+  targetCurrency: PriceCompatibilityCurrency,
+  fetchedAt: number
+): Promise<ExchangeRateEntry | null> {
   try {
     const response = await fetchWithTimeout(
       `https://api.frankfurter.dev/v2/rate/${sourceCurrency}/${targetCurrency}`,
-      2500
+      EXCHANGE_RATE_FETCH_TIMEOUT_MS
     );
 
     if (!response.ok) {
-      return cached && now - cached.fetchedAt < EXCHANGE_RATE_STALE_MS ? cached : null;
+      return null;
     }
 
     const payload = await response.json() as { date?: string; rate?: number };
 
     if (!payload.date || typeof payload.rate !== "number" || !Number.isFinite(payload.rate)) {
-      return cached && now - cached.fetchedAt < EXCHANGE_RATE_STALE_MS ? cached : null;
+      return null;
     }
 
-    const entry = {
+    return {
       date: payload.date,
-      fetchedAt: now,
+      fetchedAt,
       rate: payload.rate
     };
-    EXCHANGE_RATE_CACHE.set(key, entry);
-    return entry;
   } catch {
-    return cached && now - cached.fetchedAt < EXCHANGE_RATE_STALE_MS ? cached : null;
+    return null;
   }
 }
 
