@@ -40,6 +40,10 @@ type WineMenuSearchState = {
 type SelectedOrderItem = {
   nameOriginal: string;
   priceText?: string;
+  // Nur fuer die Zusatzzeile im Bestellung-Screen - nameOriginal bleibt dort
+  // die primaer sichtbare Angabe, damit man sie dem Personal in der
+  // Menuesprache zeigen/vorlesen kann.
+  translatedName?: string;
 };
 function buildDisplayTranslation(originalName: string, translatedName?: string) {
   const cleaned = translatedName?.trim() ?? "";
@@ -1082,7 +1086,8 @@ export function RecommendationCard({
             label={isSelectedWine ? content.recommendation.orderSelectedLabel : content.recommendation.orderSelectWine}
             onPress={() => selectWineForOrder(dishId, {
               nameOriginal: wine.nameOriginal,
-              priceText
+              priceText,
+              translatedName: wine.displayName && wine.displayName !== wine.nameOriginal ? wine.displayName : undefined
             })}
             tone="secondary"
           />
@@ -1182,6 +1187,7 @@ export function RecommendationCard({
       price?: number;
     };
     const mainNameOriginal = dishData.nameOriginal ?? dishData.name ?? content.recommendation.fallbackDishName;
+    const mainTranslatedName = buildDisplayTranslation(mainNameOriginal, rec.translatedName);
     const mainPriceText = formatDisplayPrice({
       missingPriceText: content.recommendation.missingPriceText,
       price: dishData.price,
@@ -1190,6 +1196,7 @@ export function RecommendationCard({
     });
     const mainDish: SelectedOrderItem = {
       nameOriginal: mainNameOriginal,
+      translatedName: mainTranslatedName || undefined,
       priceText: mainPriceText
     };
     const dishId = activeOrderDishId;
@@ -1222,6 +1229,7 @@ export function RecommendationCard({
               <View key={`${label}-${item.nameOriginal}`} style={local.orderScreenRow}>
                 <Text style={local.orderLabel}>{label}:</Text>
                 <Text style={local.orderName}>{item.nameOriginal}</Text>
+                {item.translatedName ? <Text style={local.orderTranslatedName}>{item.translatedName}</Text> : null}
                 {item.priceText ? <Text style={local.orderMeta}>{item.priceText}</Text> : null}
               </View>
             ))}
@@ -1295,7 +1303,8 @@ export function RecommendationCard({
                 key={dish.id}
                 onPress={() => selectStarterForOrder(dishId, {
                   nameOriginal: originalName,
-                  priceText
+                  priceText,
+                  translatedName: translatedName || undefined
                 })}
                 style={({ pressed }) => [
                   local.nestedResultItem,
@@ -1842,6 +1851,14 @@ const local = StyleSheet.create({
     lineHeight: 27,
     flexShrink: 1,
     width: "100%"
+  },
+
+  orderTranslatedName: {
+    color: premiumColors.textMuted,
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 20,
+    marginTop: spacing.xxs
   },
 
   orderMeta: {
