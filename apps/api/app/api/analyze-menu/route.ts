@@ -1261,24 +1261,19 @@ async function localizeRecommendationsForPayload(
       console.warn("GustaroAI recommendation localization failed.", error);
     }
 
-    if (isRecommendationTranslationFailure(error)) {
-      const controlledError = new AppError(
-        422,
-        "ANALYSIS_NOT_SAFE",
-        SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE
-      );
-      attachAnalyzeOpsDiagnosticReason(controlledError, "recommendation_translation_failed");
-      throw controlledError;
-    }
-
+    // RECOMMENDATION_TRANSLATION_FAILED/_RATE_LIMIT wurden frueher als
+    // fail-closed (422, ganze Analyse verworfen) behandelt. Root cause laut
+    // Analyse vom 2026-07-27: localizeRecommendationDisplayTexts() respektiert
+    // die Main-AI-Uebersetzung bereits, scheitert aber am selben zu engen
+    // Sprach-Validierungs-Gate wie die Reparatur-AI (z.B. bereits deutsche
+    // Texte ohne Umlaut/aus der festen Wortliste, wie "vegetarisch"). Die
+    // eigentliche Empfehlung (inkl. Safety-Verifier) ist zu diesem Zeitpunkt
+    // bereits fertig und sicher geprueft - nur die Anzeige-Uebersetzung ist
+    // betroffen. Deshalb hier wie bei jedem anderen Uebersetzungsfehler ueber
+    // den bestehenden Fallback einzelne unsichere Uebersetzungsfelder
+    // entfernen, statt die ganze Empfehlung wegzuwerfen.
     return stripUnsafeRecommendationTranslations(input.recommendations, input.dishes, input.userLocale);
   }
-}
-
-function isRecommendationTranslationFailure(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return message === "RECOMMENDATION_TRANSLATION_FAILED" ||
-    message === "RECOMMENDATION_TRANSLATION_RATE_LIMIT";
 }
 
 function buildOrderLabelsForMenuLanguage(

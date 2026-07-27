@@ -39,6 +39,39 @@ assert(
   "display localization must validate names and descriptions together"
 );
 assert(
+  localizer.includes('phase: "recommendation_translation_validation_failed"') &&
+    localizer.includes("reason,") &&
+    localizer.includes("targetLocale,") &&
+    localizer.includes("dishId: item.dishId"),
+  "display localization must log validation failure reason, target locale and dish id"
+);
+assert(
+  localizer.includes("fingerprintDiagnosticText(item.nameOriginal)") &&
+    localizer.includes("fingerprintDiagnosticText(item.descriptionOriginal)") &&
+    localizer.includes("fingerprintDiagnosticText(translation?.translatedName)") &&
+    localizer.includes("fingerprintDiagnosticText(translation?.translatedDescription)"),
+  "display localization diagnostics must fingerprint sensitive menu text instead of logging raw values"
+);
+const translationFailureLogStart = localizer.indexOf('phase: "recommendation_translation_validation_failed"');
+const translationFailureLogEnd = localizer.indexOf("});", translationFailureLogStart);
+const translationFailureLogBlock = localizer.slice(translationFailureLogStart, translationFailureLogEnd);
+assert(
+  translationFailureLogStart >= 0 &&
+    !translationFailureLogBlock.includes("nameOriginal: item.nameOriginal") &&
+    !translationFailureLogBlock.includes("descriptionOriginal: item.descriptionOriginal") &&
+    !translationFailureLogBlock.includes("translatedName: translation?.translatedName") &&
+    !translationFailureLogBlock.includes("translatedDescription: translation?.translatedDescription"),
+  "display localization diagnostics must not log raw menu text in the validation failure block"
+);
+assert(
+  localizer.includes('"translated_name_identical_to_original"') &&
+    localizer.includes('"translated_name_english_in_non_english_target"') &&
+    localizer.includes('"translated_description_missing"') &&
+    localizer.includes('"translated_description_identical_to_foreign_original"') &&
+    localizer.includes('"translated_description_lamb_beef_conflict"'),
+  "display localization diagnostics must expose concrete validation failure reasons"
+);
+assert(
   localizer.includes("const translationsToRepair = requestItems.filter((item) => !existingTranslations.has(item.dishId));") &&
     localizer.includes("items: translationsToRepair") &&
     localizer.includes("const translations = new Map([...existingTranslations, ...repairedTranslations]);"),
@@ -81,22 +114,28 @@ const localizeHelperEnd = route.indexOf("\nfunction buildOrderLabelsForMenuLangu
 assert(localizeHelperStart >= 0 && localizeHelperEnd > localizeHelperStart, "localizeRecommendationsForPayload helper not found");
 const localizeHelper = route.slice(localizeHelperStart, localizeHelperEnd);
 
+// Root cause (belegt 2026-07-27): localizeRecommendationDisplayTexts()
+// respektiert die Main-AI-Uebersetzung bereits, scheitert aber am selben zu
+// engen Sprach-Validierungs-Gate wie die Reparatur-AI (z.B. bereits deutsche
+// Texte ohne Umlaut/aus der festen Wortliste, wie "vegetarisch"). Die
+// Empfehlung (inkl. Safety-Verifier) ist zu diesem Zeitpunkt bereits fertig
+// und sicher geprueft - RECOMMENDATION_TRANSLATION_FAILED/_RATE_LIMIT duerfen
+// deshalb nicht mehr die ganze Analyse verwerfen (frueher: 422
+// ANALYSIS_NOT_SAFE), sondern laufen wie jeder andere Uebersetzungsfehler
+// ueber den bestehenden Strip-Fallback - nur unsichere Uebersetzungsfelder
+// werden entfernt, die Empfehlung selbst bleibt sichtbar.
 assert(
-  localizeHelper.includes("if (isRecommendationTranslationFailure(error))") &&
-    localizeHelper.includes('"ANALYSIS_NOT_SAFE"') &&
-    localizeHelper.includes("SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE") &&
-    localizeHelper.includes('attachAnalyzeOpsDiagnosticReason(controlledError, "recommendation_translation_failed")') &&
-    localizeHelper.includes("throw controlledError;"),
-  "known recommendation translation failures must fail closed as ANALYSIS_NOT_SAFE"
+  !localizeHelper.includes("isRecommendationTranslationFailure") &&
+    !localizeHelper.includes('"ANALYSIS_NOT_SAFE"'),
+  "recommendation translation failures must no longer fail closed the whole analysis"
 );
 assert(
   localizeHelper.includes("return stripUnsafeRecommendationTranslations(input.recommendations, input.dishes, input.userLocale);"),
-  "unexpected localization errors must keep the existing strip fallback"
+  "all localization errors (including RECOMMENDATION_TRANSLATION_FAILED/_RATE_LIMIT) must use the existing strip fallback"
 );
 assert(
-  route.includes('message === "RECOMMENDATION_TRANSLATION_FAILED"') &&
-    route.includes('message === "RECOMMENDATION_TRANSLATION_RATE_LIMIT"'),
-  "only known recommendation translation failure codes should be treated as fail-closed"
+  !route.includes("function isRecommendationTranslationFailure("),
+  "the now-unused fail-closed classifier must not be left behind as dead code"
 );
 
 console.log("translation-overlay-regression: passed");
