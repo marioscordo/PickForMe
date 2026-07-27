@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { z } from "zod";
+import { fingerprintDiagnosticText, logAnalyzeOpsDiagnostic } from "./twoStepRecommendationDiagnostics";
 import type { Dish } from "../types/menu";
 import type { Recommendation } from "../types/recommendations";
 
@@ -26,6 +27,17 @@ type TranslationRequestItem = {
   currentTranslatedName?: string;
   currentTranslatedDescription?: string;
 };
+
+type TranslationValidationFailureReason =
+  | "translated_name_missing"
+  | "translated_name_identical_to_original"
+  | "translated_name_english_in_non_english_target"
+  | "translated_name_lamb_beef_conflict"
+  | "translated_description_unexpected"
+  | "translated_description_missing"
+  | "translated_description_identical_to_foreign_original"
+  | "translated_description_english_in_non_english_target"
+  | "translated_description_lamb_beef_conflict";
 
 export async function localizeRecommendationDisplayTexts({
   dishes,
@@ -210,11 +222,35 @@ function assertValidTranslations(
   translations: Map<string, DisplayTranslation>,
   targetLocale: string
 ) {
-  const invalidItems = items.filter((item) =>
-    !isValidDisplayTranslation(item, translations.get(item.dishId), targetLocale)
-  );
+  const invalidItems = items
+    .map((item) => ({
+      item,
+      reason: getDisplayTranslationValidationFailureReason(item, translations.get(item.dishId), targetLocale)
+    }))
+    .filter((entry): entry is {
+      item: TranslationRequestItem;
+      reason: TranslationValidationFailureReason;
+    } => Boolean(entry.reason));
 
   if (invalidItems.length > 0) {
+    for (const { item, reason } of invalidItems) {
+      const translation = translations.get(item.dishId);
+
+      logAnalyzeOpsDiagnostic({
+        phase: "recommendation_translation_validation_failed",
+        targetLocale,
+        dishId: item.dishId,
+        reason,
+        nameOriginalFp: fingerprintDiagnosticText(item.nameOriginal),
+        translatedNameFp: fingerprintDiagnosticText(translation?.translatedName),
+        descriptionOriginalFp: fingerprintDiagnosticText(item.descriptionOriginal),
+        translatedDescriptionFp: fingerprintDiagnosticText(translation?.translatedDescription),
+        sourceLineFp: fingerprintDiagnosticText(item.sourceLine),
+        hasDescriptionOriginal: Boolean(item.descriptionOriginal?.trim()),
+        hasTranslatedDescription: Boolean(translation?.translatedDescription?.trim())
+      });
+    }
+
     throw new Error("RECOMMENDATION_TRANSLATION_FAILED");
   }
 }
@@ -224,11 +260,16 @@ function isValidDisplayTranslation(
   translation: DisplayTranslation | undefined,
   targetLocale: string
 ) {
-  if (!isValidDishTranslation(item, translation?.translatedName, targetLocale)) {
-    return false;
-  }
+  return !getDisplayTranslationValidationFailureReason(item, translation, targetLocale);
+}
 
-  return isValidDescriptionTranslation(item, translation?.translatedDescription, targetLocale);
+function getDisplayTranslationValidationFailureReason(
+  item: TranslationRequestItem,
+  translation: DisplayTranslation | undefined,
+  targetLocale: string
+): TranslationValidationFailureReason | null {
+  return getDishTranslationValidationFailureReason(item, translation?.translatedName, targetLocale) ??
+    getDescriptionTranslationValidationFailureReason(item, translation?.translatedDescription, targetLocale);
 }
 
 function isValidDishTranslation(
@@ -236,23 +277,35 @@ function isValidDishTranslation(
   translatedName: string | undefined,
   targetLocale: string
 ) {
+  return !getDishTranslationValidationFailureReason(item, translatedName, targetLocale);
+}
+
+function getDishTranslationValidationFailureReason(
+  item: TranslationRequestItem,
+  translatedName: string | undefined,
+  targetLocale: string
+): TranslationValidationFailureReason | null {
   const value = translatedName?.trim();
 
   if (!value) {
-    return false;
+    return "translated_name_missing";
   }
 
   if (normalizeForTranslationCheck(value) === normalizeForTranslationCheck(item.nameOriginal)) {
-    return false;
+    return "translated_name_identical_to_original";
   }
 
   const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
 
   if (targetLanguageCode !== "en" && hasLikelyEnglishDisplayText(value)) {
-    return false;
+    return "translated_name_english_in_non_english_target";
   }
 
-  return !hasLikelyLambBeefTranslationConflict(item, value);
+  if (hasLikelyLambBeefTranslationConflict(item, value)) {
+    return "translated_name_lamb_beef_conflict";
+  }
+
+  return null;
 }
 
 function hasValidExistingDisplayText(item: TranslationRequestItem, targetLocale: string) {
@@ -303,31 +356,43 @@ function isValidDescriptionTranslation(
   translatedDescription: string | null | undefined,
   targetLocale: string
 ) {
+  return !getDescriptionTranslationValidationFailureReason(item, translatedDescription, targetLocale);
+}
+
+function getDescriptionTranslationValidationFailureReason(
+  item: TranslationRequestItem,
+  translatedDescription: string | null | undefined,
+  targetLocale: string
+): TranslationValidationFailureReason | null {
   const descriptionOriginal = item.descriptionOriginal?.trim();
   const value = translatedDescription?.trim();
 
   if (!descriptionOriginal) {
-    return !value;
+    return value ? "translated_description_unexpected" : null;
   }
 
   if (!value) {
-    return false;
+    return "translated_description_missing";
   }
 
   if (
     normalizeForTranslationCheck(value) === normalizeForTranslationCheck(descriptionOriginal) &&
     !isSameLanguageDescriptionAllowed(descriptionOriginal, targetLocale)
   ) {
-    return false;
+    return "translated_description_identical_to_foreign_original";
   }
 
   const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
 
   if (targetLanguageCode !== "en" && hasLikelyEnglishDisplayText(value)) {
-    return false;
+    return "translated_description_english_in_non_english_target";
   }
 
-  return !hasLikelyLambBeefTranslationConflict(item, value);
+  if (hasLikelyLambBeefTranslationConflict(item, value)) {
+    return "translated_description_lamb_beef_conflict";
+  }
+
+  return null;
 }
 
 function isSameLanguageDescriptionAllowed(value: string, targetLocale: string) {
