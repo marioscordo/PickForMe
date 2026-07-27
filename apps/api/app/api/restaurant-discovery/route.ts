@@ -45,35 +45,50 @@ export async function POST(request: Request) {
 }
 
 async function enforceDailySearchLimit(userId: string) {
-  const supabase = getSupabaseAdmin();
-  const userIdHash = pseudonymizeUserId(userId);
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
+  // Bewusst weit gefasstes try/catch: die Kostenbremse darf die Suche selbst
+  // nie verhindern, wenn irgendetwas an ihrer eigenen Infrastruktur nicht
+  // funktioniert (fehlende SUPABASE_*-Env-Variablen, Migration noch nicht
+  // angewendet, Netzwerkproblem). getSupabaseAdmin() wirft synchron, wenn
+  // die Env-Variablen fehlen - das ist kein "Zaehlung fehlgeschlagen"-Fall,
+  // der von den einzelnen error-Feldern unten abgefangen wuerde, sondern ein
+  // echter throw, der sonst die ganze Route mit 500 abschiessen wuerde.
+  try {
+    const supabase = getSupabaseAdmin();
+    const userIdHash = pseudonymizeUserId(userId);
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
 
-  const { count, error: countError } = await supabase
-    .from("restaurant_discovery_searches")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id_hash", userIdHash)
-    .gte("created_at", startOfDay.toISOString());
+    const { count, error: countError } = await supabase
+      .from("restaurant_discovery_searches")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id_hash", userIdHash)
+      .gte("created_at", startOfDay.toISOString());
 
-  if (countError) {
-    // Zaehlung fehlgeschlagen: die Suche trotzdem zuzulassen ist sicherer
-    // als GustaroAI fuer alle Nutzer wegen eines DB-Fehlers zu blockieren.
-    console.error("restaurant_discovery_searches count failed", countError);
-  } else if ((count ?? 0) >= MAX_DISCOVERY_SEARCHES_PER_DAY) {
-    throw new AppError(
-      429,
-      "RESTAURANT_DISCOVERY_DAILY_LIMIT_REACHED",
-      "Du hast das Tageslimit für die Restaurantsuche erreicht. Bitte morgen erneut versuchen."
-    );
-  }
+    if (countError) {
+      // Zaehlung fehlgeschlagen: die Suche trotzdem zuzulassen ist sicherer
+      // als GustaroAI fuer alle Nutzer wegen eines DB-Fehlers zu blockieren.
+      console.error("restaurant_discovery_searches count failed", countError);
+    } else if ((count ?? 0) >= MAX_DISCOVERY_SEARCHES_PER_DAY) {
+      throw new AppError(
+        429,
+        "RESTAURANT_DISCOVERY_DAILY_LIMIT_REACHED",
+        "Du hast das Tageslimit für die Restaurantsuche erreicht. Bitte morgen erneut versuchen."
+      );
+    }
 
-  const { error: insertError } = await supabase
-    .from("restaurant_discovery_searches")
-    .insert({ user_id_hash: userIdHash });
+    const { error: insertError } = await supabase
+      .from("restaurant_discovery_searches")
+      .insert({ user_id_hash: userIdHash });
 
-  if (insertError) {
-    console.error("restaurant_discovery_searches insert failed", insertError);
+    if (insertError) {
+      console.error("restaurant_discovery_searches insert failed", insertError);
+    }
+  } catch (error) {
+    if (error instanceof AppError && error.code === "RESTAURANT_DISCOVERY_DAILY_LIMIT_REACHED") {
+      throw error;
+    }
+
+    console.error("restaurant_discovery_searches enforceDailySearchLimit failed, allowing search", error);
   }
 }
 
