@@ -593,6 +593,36 @@ function sourceTextMatchesCity(city: string, sourceText: string) {
   return normalizeComparableText(sourceText).includes(cityToken);
 }
 
+// verifyTrustedExternalProviderRestaurantCandidate prueft unten schon per
+// sourceTextMatchesRestaurant/-City, ob eine Seite wirklich zum gesuchten
+// Restaurant passt. verifyRestaurantCandidate/verifyCandidate (Hauptpfad,
+// von der KI-Websuche gespeiste "offizielle Website") pruefte das bisher
+// NICHT - nur Erreichbarkeit (verifyReachableUrl), nicht Inhalt. Codereview
+// Juli 2026: In einer Stichprobe hat das zu falschen Treffern gefuehrt (die
+// KI lieferte eine erreichbare, aber voellig unpassende Website, z.B. ein
+// anderes Restaurant in derselben Stadt). Mit dieser Pruefung - via
+// Testskript verifiziert, 5 von 6 korrekte Treffer inkl. korrekter
+// Filial-Unterscheidung bei einer Kette - wird das abgefangen.
+async function contentMatchesRestaurant(url: string, name: string, city: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { headers: REQUEST_HEADERS, redirect: "follow" });
+    if (!response.ok) return false;
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+      // z.B. direkte PDF-Antwort - Textabgleich hier nicht sinnvoll, nicht blockieren.
+      return true;
+    }
+
+    const html = await response.text();
+    const text = htmlToPlainText(html);
+
+    return sourceTextMatchesRestaurant(name, text) && sourceTextMatchesCity(city, text);
+  } catch {
+    return false;
+  }
+}
+
 function extractProviderAddress(sourceText: string, city: string) {
   const normalizedSource = sourceText.replace(/\s+/g, " ").trim();
   const cityToken = normalizeComparableText(city);
@@ -796,6 +826,10 @@ async function verifyRestaurantCandidate(rawCandidate: RawRestaurantCandidate): 
 
   const reachableWebsiteUrl = verifiedWebsiteUrl || websiteUrl;
 
+  if (!(await contentMatchesRestaurant(reachableWebsiteUrl, rawCandidate.name, rawCandidate.city))) {
+    return null;
+  }
+
   return {
     id: stableCandidateId({ ...rawCandidate, menuUrl: "" }, reachableWebsiteUrl),
     name: rawCandidate.name.trim(),
@@ -814,6 +848,10 @@ async function verifyCandidate(rawCandidate: RawDiscoveryCandidate): Promise<Res
   if (!verifiedWebsiteUrl && rawCandidate.evidence !== "openstreetmap-nominatim") return null;
 
   const reachableWebsiteUrl = verifiedWebsiteUrl || websiteUrl;
+
+  if (!(await contentMatchesRestaurant(reachableWebsiteUrl, rawCandidate.name, rawCandidate.city))) {
+    return null;
+  }
 
   const websiteDomain = getRegistrableDomain(reachableWebsiteUrl);
   const rawMenuUrl = normalizeOfficialUrl(rawCandidate.menuUrl, reachableWebsiteUrl);
