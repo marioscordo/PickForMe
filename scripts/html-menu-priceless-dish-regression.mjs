@@ -196,4 +196,57 @@ const burrata = regularResult.items.find((item) => item.title === "Burrata");
 assert(burrata?.price === "9,50 €", "existing price + multi-line description flow must keep working");
 assert(burrata?.description === "mit Tomaten, Basilikum und Olivenoel", "existing description capture must keep working");
 
+// Struktur-Absicherung fuer die zusammengesetzte Kategorie-Erkennung.
+assert(
+  source.includes("function findCombinedCategorySegments"),
+  "extractHtmlMenu.ts must keep the combined-category-heading detector"
+);
+assert(
+  extractBalancedBlock(source, "function findCombinedCategorySegments(line: string): string[] | null {")
+    .includes("segments.every((segment) => CATEGORY_TERMS.has(segment))"),
+  "a combined heading must only be recognized when EVERY segment is a known category term (avoids false positives like a dish named \"Fisch & Chips\")"
+);
+
+// Funktionale Pruefung: eine zusammengesetzte Kategorie-Ueberschrift
+// ("Vorspeisen & Salate") muss erkannt werden, damit die Gerichte darunter
+// ueberhaupt eine Kategorie bekommen (Voraussetzung fuer
+// finishPendingWithoutPrice, siehe oben) - vorher gingen solche Abschnitte
+// komplett verloren, weil kein exakter Taxonomie-Treffer vorlag.
+const combinedCategoryHtml = `
+<h2>Vorspeisen & Salate</h2>
+<p>Burrata</p>
+<p>Caesar Salad</p>
+<h2>Pizza</h2>
+<p>Margherita</p>
+`;
+
+const combinedResult = extractHtmlMenuFromHtml(combinedCategoryHtml);
+const combinedBurrata = combinedResult.items.find((item) => item.title === "Burrata");
+const caesarSalad = combinedResult.items.find((item) => item.title === "Caesar Salad");
+
+assert(combinedBurrata, "a dish under a combined category heading must still be extracted");
+assert(
+  combinedBurrata.category === "Vorspeisen & Salate",
+  `combined heading must be attached as category, got: ${combinedBurrata.category}`
+);
+assert(!combinedBurrata.price, "price-less dish under a combined heading must not get a fabricated price");
+assert(combinedBurrata.dishRole && combinedBurrata.dishRole !== "unknown", "combined heading must resolve to a real dishRole instead of falling back to unknown");
+assert(caesarSalad?.category === "Vorspeisen & Salate", "second dish under the same combined heading must also get the category");
+
+// Negativtest: ein Gerichtsname, der zufaellig einen Kategoriebegriff
+// enthaelt ("Fisch"), darf NICHT als Kategorie-Ueberschrift fehlklassifiziert
+// werden, nur weil das zweite Wort ("Chips") kein bekannter Begriff ist.
+const falsePositiveGuardHtml = `
+<h2>Hauptgerichte</h2>
+<p>Fisch & Chips</p>
+<p>12,50</p>
+`;
+
+const falsePositiveResult = extractHtmlMenuFromHtml(falsePositiveGuardHtml);
+const fishAndChips = falsePositiveResult.items.find((item) => item.title === "Fisch & Chips");
+
+assert(fishAndChips, `"Fisch & Chips" must be extracted as a dish, not swallowed as a mistaken category line, got items: ${JSON.stringify(falsePositiveResult.items.map((i) => i.title))}`);
+assert(fishAndChips.category === "Hauptgerichte", `"Fisch & Chips" must stay under its real category, got: ${fishAndChips.category}`);
+assert(fishAndChips.price === "12,50 €", "the real price of the dish must still be captured");
+
 console.log("html menu price-less dish regression passed");

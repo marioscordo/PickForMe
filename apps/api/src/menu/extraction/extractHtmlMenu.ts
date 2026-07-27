@@ -594,6 +594,34 @@ function normalizePriceNumber(value: string | undefined) {
   return value?.match(/\d{1,3}(?:[.,]\d{2})/)?.[0]?.replace(",", ".") ?? "";
 }
 
+const CATEGORY_HEADING_SPLIT_PATTERN = /\s*(?:&|\/|\+|,)\s*|\s+(?:und|and)\s+/gi;
+
+function splitCategoryHeadingSegments(line: string): string[] {
+  return line
+    .split(CATEGORY_HEADING_SPLIT_PATTERN)
+    .map((segment) => normalizeForMatching(segment))
+    .filter(Boolean);
+}
+
+// Manche Speisekarten fassen mehrere Kategorien in einer Ueberschrift
+// zusammen (z.B. "Vorspeisen & Salate"). Ein exakter String-Abgleich gegen
+// die Taxonomie schlaegt dafuer fehl, obwohl beide Teilbegriffe einzeln
+// bekannt sind - die Ueberschrift wurde dadurch nicht als Kategorie erkannt
+// und alle Gerichte darunter blieben ohne Kategorie (Codereview Juli 2026).
+// Wir erkennen eine zusammengesetzte Ueberschrift nur, wenn ALLE Segmente
+// bekannte Kategoriebegriffe sind - das grenzt sie zuverlaessig von einem
+// Gerichtsnamen wie "Fisch & Chips" ab, bei dem nur ein Segment ("fisch")
+// in der Taxonomie steht.
+function findCombinedCategorySegments(line: string): string[] | null {
+  const segments = splitCategoryHeadingSegments(line);
+
+  if (segments.length < 2) {
+    return null;
+  }
+
+  return segments.every((segment) => CATEGORY_TERMS.has(segment)) ? segments : null;
+}
+
 function isCategoryLine(line: string) {
   if (line.length < 3 || line.length > 40 || PRICE_SCAN_PATTERN.test(line) || parseNumberedTitle(line)) {
     PRICE_SCAN_PATTERN.lastIndex = 0;
@@ -603,7 +631,7 @@ function isCategoryLine(line: string) {
   PRICE_SCAN_PATTERN.lastIndex = 0;
   const normalized = normalizeForMatching(line);
 
-  if (CATEGORY_TERMS.has(normalized)) {
+  if (CATEGORY_TERMS.has(normalized) || findCombinedCategorySegments(line)) {
     return true;
   }
 
@@ -735,8 +763,10 @@ function isSafeDishTitle(title: string) {
 }
 
 function classifyHtmlMenuCategory(category: string | undefined) {
-  const key = normalizeForMatching(category ?? "");
-  const classification = CATEGORY_CLASSIFICATIONS[key];
+  const value = category ?? "";
+  const key = normalizeForMatching(value);
+  const combinedKey = findCombinedCategorySegments(value)?.[0];
+  const classification = CATEGORY_CLASSIFICATIONS[key] ?? (combinedKey ? CATEGORY_CLASSIFICATIONS[combinedKey] : undefined);
 
   return classification
     ? {
