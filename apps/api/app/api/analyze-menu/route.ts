@@ -830,6 +830,19 @@ export async function POST(request: Request) {
       throw aiError;
     }
 
+    // ACHTUNG - unerreichbarer Legacy-Code (Stand: Codereview Juli 2026):
+    // Der try-Block direkt oberhalb ruft ausschliesslich
+    // analyzeMenuWithTwoStepMainFlow(...) auf und endet in jedem Fall mit
+    // einem return (Erfolg) oder einem throw im zugehoerigen catch (jeder
+    // Fehlerfall wird dort explizit abgefangen und weitergereicht). Es gibt
+    // aktuell keinen Kontrollfluss, der von hier aus erreicht werden kann.
+    // Der folgende "fallback"-Zweig (inkl. recommendDishes() ohne Attribution
+    // Validator) laeuft deshalb im Produktivbetrieb nicht mehr mit.
+    // Absichtlich noch nicht entfernt: der Block ist ca. 234 Zeilen gross und
+    // beruehrt mehrere mitbenutzte Funktionen (askPickForMeImageUrlsAI,
+    // applyAllergySafetyGate, classifyUnclearDishRoles, recommendDishes).
+    // Entfernen ist ein bewusst separat freizugebender, groesserer Schnitt,
+    // kein Nebeneffekt eines anderen Tasks. Siehe Codereview-Notiz Juli 2026.
     const parsedMenuItems = htmlMenuDishes ?? parseMenu(effectiveMenuText);
     let dishes = parsedMenuItems.filter(isFoodDish);
 
