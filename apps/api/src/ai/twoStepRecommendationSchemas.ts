@@ -3,7 +3,7 @@ import { z } from "zod";
 export const TwoStepSourceKindSchema = z.enum(["pdf", "html", "image", "text", "unknown"]);
 export const TwoStepConfidenceSchema = z.enum(["high", "medium", "low"]);
 export const TwoStepCommittedConfidenceSchema = z.enum(["high", "medium"]);
-export const MenuLanguageSchema = z.enum(["de", "en", "it", "es", "fr", "ru", "unknown"]);
+export const MenuLanguageSchema = z.enum(["de", "en", "it", "es", "fr", "id", "ru", "unknown"]);
 
 const OptionalNullableStringSchema = z.string().trim().min(1).nullable().optional();
 const RequiredNullableStringSchema = z.string().trim().min(1).nullable();

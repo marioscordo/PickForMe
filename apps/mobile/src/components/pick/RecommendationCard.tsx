@@ -16,7 +16,7 @@ import { useMobileContent } from "../../content/useMobileContent";
 import { getAnalyzeMenuErrorMessage } from "../../hooks/useAnalyzeMenu";
 import { premiumColors, radius, semanticColors, spacing, typography } from "../../theme/tokens";
 import type { Dish } from "../../types/menu";
-import type { AnalyzeData, ConcreteWineRecommendation, Recommendation, WineRecommendation } from "../../types/recommendations";
+import type { AnalyzeData, ConcreteWineRecommendation, OrderLabels, Recommendation, WineRecommendation } from "../../types/recommendations";
 import { AnalysisLoadingBox } from "./AnalysisLoadingBox";
 import { Surface } from "../ui/Surface";
 
@@ -41,13 +41,6 @@ type SelectedOrderItem = {
   nameOriginal: string;
   priceText?: string;
 };
-type OrderLabels = {
-  main: string;
-  starter: string;
-  title: string;
-  wine: string;
-};
-
 function buildDisplayTranslation(originalName: string, translatedName?: string) {
   const cleaned = translatedName?.trim() ?? "";
 
@@ -119,23 +112,8 @@ function formatDisplayPrice({
   return missingPriceText;
 }
 
-function getOrderLabelsForMenuLanguage(menuLanguage: AnalyzeData["menuLanguage"]): OrderLabels {
-  switch (menuLanguage) {
-    case "es":
-      return { title: "Orden", starter: "Entrada", main: "Plato fuerte", wine: "Vino" };
-    case "it":
-      return { title: "Ordine", starter: "Antipasto", main: "Piatto principale", wine: "Vino" };
-    case "fr":
-      return { title: "Commande", starter: "Entree", main: "Plat principal", wine: "Vin" };
-    case "ru":
-      return { title: "Заказ", starter: "Закуска", main: "Основное блюдо", wine: "Вино" };
-    case "en":
-      return { title: "Order", starter: "Starter", main: "Main dish", wine: "Wine" };
-    case "de":
-    case "unknown":
-    default:
-      return { title: "Bestellung", starter: "Vorspeise", main: "Hauptspeise", wine: "Wein" };
-  }
+function fallbackOrderLabels(): OrderLabels {
+  return { title: "Bestellung", starter: "Vorspeise", main: "Hauptspeise", wine: "Wein" };
 }
 
 function normalizeRestaurantIntroText(value: string) {
@@ -313,7 +291,6 @@ export function RecommendationCard({
   const safeRecommendations = visibleRecommendations
     .map((rec) => ({ rec, dish: dishesById.get(rec.dishId) }))
     .filter((item): item is { rec: Recommendation; dish: Dish } => Boolean(item.dish));
-  const orderLabels = useMemo(() => getOrderLabelsForMenuLanguage(result.menuLanguage), [result.menuLanguage]);
 
   useEffect(() => {
     if (!__DEV__) {
@@ -1218,6 +1195,7 @@ export function RecommendationCard({
     const dishId = activeOrderDishId;
     const starter = selectedStarterByDishId[dishId];
     const wine = selectedWineByDishId[dishId];
+    const orderLabels = result.orderLabels ?? fallbackOrderLabels();
     const rows = [
       starter ? { label: orderLabels.starter, item: starter } : null,
       { label: orderLabels.main, item: mainDish },

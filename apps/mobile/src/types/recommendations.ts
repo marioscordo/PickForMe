@@ -23,9 +23,17 @@ export type Recommendation = {
   starter?: StarterPairing;
 };
 
+export type OrderLabels = {
+  main: string;
+  starter: string;
+  title: string;
+  wine: string;
+};
+
 export type AnalyzeData = {
   mode: "ai" | "ai_pdf" | "fallback";
-  menuLanguage?: "de" | "en" | "it" | "es" | "fr" | "ru" | "unknown";
+  menuLanguage?: "de" | "en" | "it" | "es" | "fr" | "id" | "ru" | "unknown";
+  orderLabels?: OrderLabels;
   dishes: Dish[];
   starterCandidateDishes?: Dish[];
   recommendations: Recommendation[];

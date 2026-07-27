@@ -107,6 +107,8 @@ const baseData = (price) => ({
 });
 
 async function enrich(priceRaw, options = {}) {
+  const dataPrice = Object.hasOwn(options, "dataPrice") ? options.dataPrice : 12;
+
   return enrichPriceCompatibility({
     acceptedRecommendations: [{
       confidence: "high",
@@ -121,7 +123,7 @@ async function enrich(priceRaw, options = {}) {
       sourceEvidence: "Dish",
       translatedName: "Gericht"
     }],
-    data: baseData(12),
+    data: baseData(dataPrice),
     deviceLocale: options.deviceLocale ?? "de-DE",
     menuLanguage: options.menuLanguage,
     sourceContext: options.sourceContext,
@@ -156,6 +158,16 @@ const inferredInr = await enrich("1245", { sourceContext: "Holiday Inn New Delhi
 assert.equal(inferredInr.dishes[0].priceCurrency, "INR");
 assert.equal(inferredInr.dishes[0].priceDisplay, "vermutlich INR 1245");
 assert.match(inferredInr.dishes[0].priceApproxDisplay, /^ca\. /);
+
+const inferredEur = await enrich("15,00", { dataPrice: undefined, sourceContext: "https://example.it/menu" });
+assert.equal(inferredEur.dishes[0].price, 15);
+assert.equal(inferredEur.dishes[0].priceCurrency, "EUR");
+assert.equal(inferredEur.dishes[0].priceDisplay, undefined);
+
+const unknownNumeric = await enrich("15,00", { dataPrice: undefined, sourceContext: "https://example.test/menu" });
+assert.equal(unknownNumeric.dishes[0].price, undefined);
+assert.equal(unknownNumeric.dishes[0].priceCurrency, undefined);
+assert.equal(unknownNumeric.dishes[0].priceDisplay, undefined);
 
 const egp = await enrich("EGP 320");
 assert.equal(egp.dishes[0].priceCurrency, "EGP");

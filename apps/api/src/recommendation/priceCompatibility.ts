@@ -267,6 +267,21 @@ function enrichDishPrice({
   locale?: string;
 }): Dish {
   if (priceParts.currency !== "UNKNOWN" && priceParts.currency === targetCurrency) {
+    if (
+      priceParts.currency === "EUR" &&
+      priceParts.currencySource === "context" &&
+      isPlainNumericPrice(priceParts.raw) &&
+      typeof dish.price !== "number" &&
+      priceParts.amounts.length === 1
+    ) {
+      return {
+        ...dish,
+        price: priceParts.amounts[0],
+        priceOriginal: priceParts.raw,
+        priceCurrency: priceParts.currency
+      };
+    }
+
     return dish;
   }
 

@@ -43,7 +43,7 @@ import type { MenuExtractionResult } from "../../../src/menu/extraction/types";
 import type { RestaurantDescriptionResult } from "../../../src/restaurant/extractRestaurantDescription";
 import type { Dish } from "../../../src/types/menu";
 import type { Recommendation } from "../../../src/types/recommendations";
-import type { TwoStepMenuSourceInput } from "../../../src/ai/twoStepRecommendationSchemas";
+import type { MenuLanguage, TwoStepMenuSourceInput } from "../../../src/ai/twoStepRecommendationSchemas";
 
 type FallbackHeroContext = {
   dishes?: Dish[];
@@ -56,6 +56,13 @@ type FallbackHeroContext = {
 type TwoStepAnalyzeDataParts = {
   dishes: Dish[];
   recommendations: Recommendation[];
+};
+
+type OrderLabels = {
+  main: string;
+  starter: string;
+  title: string;
+  wine: string;
 };
 
 type LinkedPdfMenu = {
@@ -167,6 +174,7 @@ export async function POST(request: Request) {
           requestedDishRoles,
           preferredDishRole,
           outputLocale,
+          userLocale: body.userLocale,
           restaurantDescription: null,
           localizedRestaurantDescription: null,
           restaurantUrl: undefined,
@@ -355,6 +363,7 @@ export async function POST(request: Request) {
           requestedDishRoles,
           preferredDishRole,
           outputLocale,
+          userLocale: body.userLocale,
           restaurantDescription,
           localizedRestaurantDescription,
           restaurantUrl: officialRestaurantUrl,
@@ -462,6 +471,7 @@ export async function POST(request: Request) {
           requestedDishRoles,
           preferredDishRole,
           outputLocale,
+          userLocale: body.userLocale,
           restaurantDescription,
           localizedRestaurantDescription,
           restaurantUrl: officialRestaurantUrl,
@@ -627,6 +637,7 @@ export async function POST(request: Request) {
               requestedDishRoles,
               preferredDishRole,
               outputLocale,
+              userLocale: body.userLocale,
               restaurantDescription,
               localizedRestaurantDescription,
               restaurantUrl: officialRestaurantUrl,
@@ -743,6 +754,7 @@ export async function POST(request: Request) {
         requestedDishRoles,
         preferredDishRole,
         outputLocale,
+        userLocale: body.userLocale,
         restaurantDescription,
         localizedRestaurantDescription,
         restaurantUrl: officialRestaurantUrl,
@@ -878,6 +890,7 @@ export async function POST(request: Request) {
             ok: true,
             data: {
               mode: "ai_image",
+              orderLabels: buildOrderLabelsForMenuLanguage(undefined, body.userLocale),
               dishes: aiResult.dishes,
               recommendations,
               conciergeHero,
@@ -1035,6 +1048,7 @@ export async function POST(request: Request) {
       ok: true,
       data: {
         mode: "fallback",
+        orderLabels: buildOrderLabelsForMenuLanguage(undefined, body.userLocale),
         dishes,
         recommendations: localizedRecommendations,
         conciergeHero: await buildConciergeHeroFromOfficialWebsiteText({
@@ -1109,6 +1123,38 @@ async function localizeRecommendationsForPayload(
   }
 }
 
+function buildOrderLabelsForMenuLanguage(
+  menuLanguage: MenuLanguage | undefined,
+  userLocale: string | undefined
+): OrderLabels {
+  switch (menuLanguage) {
+    case "es":
+      return { title: "Orden", starter: "Entrada", main: "Plato fuerte", wine: "Vino" };
+    case "it":
+      return { title: "Ordine", starter: "Antipasto", main: "Piatto principale", wine: "Vino" };
+    case "fr":
+      return { title: "Commande", starter: "Entree", main: "Plat principal", wine: "Vin" };
+    case "id":
+      return { title: "Pesanan", starter: "Hidangan pembuka", main: "Hidangan utama", wine: "Anggur" };
+    case "ru":
+      return {
+        title: "\u0417\u0430\u043a\u0430\u0437",
+        starter: "\u0417\u0430\u043a\u0443\u0441\u043a\u0430",
+        main: "\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435 \u0431\u043b\u044e\u0434\u043e",
+        wine: "\u0412\u0438\u043d\u043e"
+      };
+    case "en":
+      return { title: "Order", starter: "Starter", main: "Main dish", wine: "Wine" };
+    case "de":
+      return { title: "Bestellung", starter: "Vorspeise", main: "Hauptspeise", wine: "Wein" };
+    case "unknown":
+    default:
+      return userLocale?.toLowerCase().startsWith("en")
+        ? { title: "Order", starter: "Starter", main: "Main dish", wine: "Wine" }
+        : { title: "Bestellung", starter: "Vorspeise", main: "Hauptspeise", wine: "Wein" };
+  }
+}
+
 type TwoStepAnalyzeResponseMode = "ai" | "ai_pdf" | "ai_image";
 
 async function analyzeMenuWithTwoStepMainFlow({
@@ -1119,6 +1165,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   requestedDishRoles,
   preferredDishRole,
   outputLocale,
+  userLocale,
   restaurantDescription,
   localizedRestaurantDescription,
   restaurantUrl,
@@ -1139,6 +1186,7 @@ async function analyzeMenuWithTwoStepMainFlow({
   requestedDishRoles: RequestedDishRole[];
   preferredDishRole?: PreferredDishRole;
   outputLocale: string;
+  userLocale?: string;
   restaurantDescription: RestaurantDescriptionResult | null;
   localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null;
   restaurantUrl?: string;
@@ -1421,6 +1469,12 @@ async function analyzeMenuWithTwoStepMainFlow({
     throw error;
   }
 
+  const localizedRecommendations = await localizeRecommendationsForPayload({
+    dishes: mapped.dishes,
+    recommendations: allergySafeRecommendations,
+    userLocale: outputLocale
+  });
+
   const conciergeHero = buildFallbackConciergeHero({
     dishes: mapped.dishes,
     restaurantContextText: fallbackHeroContextText
@@ -1439,14 +1493,17 @@ async function analyzeMenuWithTwoStepMainFlow({
     runId
   });
 
+  const orderLabels = buildOrderLabelsForMenuLanguage(mainDishResult.menuLanguage, userLocale);
+
   const responseSerializationStartedAt = Date.now();
   const response = NextResponse.json({
     ok: true,
     data: {
       mode: responseMode,
       menuLanguage: mainDishResult.menuLanguage,
+      orderLabels,
       dishes: mapped.dishes,
-      recommendations: allergySafeRecommendations,
+      recommendations: localizedRecommendations,
       conciergeHero,
       ...extraPayload,
       ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
@@ -1471,7 +1528,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     ...buildProductionMainFunnelTraceFields(mainDishResult.productionTrace),
     ...buildProductionSafetyTraceFields(mainDishResult.productionTrace),
     ...buildProductionPriceResolverTraceFields(mapped.priceResolverDiagnostics),
-    finalSafeCount: allergySafeRecommendations.length,
+    finalSafeCount: localizedRecommendations.length,
     reviewCandidateCount: mainDishResult.uncertainReviewCandidates.length,
     reviewReturnedCount: 0,
     recommendationResultType: "standard",
@@ -1495,7 +1552,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     phase: "total",
     durationMs: Date.now() - requestStartedAt,
     httpStatus: 200,
-    recommendationCount: allergySafeRecommendations.length
+    recommendationCount: localizedRecommendations.length
   });
 
   return response;
@@ -1589,6 +1646,7 @@ function buildUncertainReviewResponse({
     data: {
       mode: responseMode,
       recommendationResultType: "uncertain_review" as const,
+      orderLabels: buildOrderLabelsForMenuLanguage(undefined, outputLocale),
       dishes,
       recommendations: allergySafeRecommendations,
       conciergeHero,

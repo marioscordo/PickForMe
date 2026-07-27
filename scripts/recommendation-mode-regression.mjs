@@ -229,8 +229,15 @@ assert(mainAi.includes('phase: "api.description_translation_repair_request"'), "
 assert(mainAi.includes("dish.translatedDescription = translatedDescription"), "Main AI must write repaired translated descriptions back to compact dishes");
 assert(mainAi.includes("AI_RESPONSE_INVALID_FINAL_TRANSLATED_DESCRIPTION_MISSING"), "Missing translatedDescription after repair must reject the Main AI response");
 assert(mainAi.includes("AI_RESPONSE_INVALID_DESCRIPTION_WITHOUT_SOURCE"), "Invented translated descriptions without a source must still be rejected");
+assert(mainAi.includes("Erlaubte menuLanguage-Werte: de, en, it, es, fr, id, ru, unknown."), "Main AI prompt must allow Indonesian menuLanguage");
+assert(mainAi.includes('"menuLanguage": "de | en | it | es | fr | id | ru | unknown"'), "Main AI JSON contract must include Indonesian menuLanguage");
 assert(recommendationCard.includes("function visibleDescriptionForOutputLocale"), "RecommendationCard description locale guard missing");
 assert(recommendationCard.includes("return firstNonEmptyText(translatedDescription);"), "German output must not fall back to foreign original descriptions");
+assert(recommendationCard.includes("const orderLabels = result.orderLabels ?? fallbackOrderLabels();"), "Order list must render server-provided order labels");
+assert(recommendationCard.includes("function fallbackOrderLabels()"), "Order list must keep a fallback for older API responses");
+assert(!recommendationCard.includes("function getOrderLabelsForMenuLanguage"), "Mobile must not localize order labels from menuLanguage");
+assert(!recommendationCard.includes("function resolveOrderMenuLanguage"), "Mobile must not infer order language from selected dish names");
+assert(!recommendationCard.includes("function containsCyrillicText"), "Mobile must not use script detection for waiter-facing labels");
 
 const attributionValidator = read("apps/api/src/recommendation/attributionValidator.ts");
 assert(!attributionValidator.includes("ATTRIBUTION_ALIASES"), "Attribution validator must not keep a manual alias list");
@@ -240,8 +247,23 @@ assert(attributionValidator.includes("buildDeterministicPreferenceReason"), "Att
 assert(!attributionValidator.includes("reason: recommendation.reason"), "Attribution validator must not pass free AI recommendation reasons through");
 
 const twoStepSchemas = read("apps/api/src/ai/twoStepRecommendationSchemas.ts");
+assert(twoStepSchemas.includes('MenuLanguageSchema = z.enum(["de", "en", "it", "es", "fr", "id", "ru", "unknown"])'), "MenuLanguageSchema must include Indonesian");
 assert(twoStepSchemas.includes(".max(15, \"Main AI compact response must not contain more than 15 dishes\")"), "Compact Main AI schema must allow the hard-restriction limit and reject more");
 assert(twoStepSchemas.includes("MainDishAICompactResponseSchema"), "Compact Main AI schema missing");
+
+const recommendationTypes = read("apps/mobile/src/types/recommendations.ts");
+assert(recommendationTypes.includes('"de" | "en" | "it" | "es" | "fr" | "id" | "ru" | "unknown"'), "Mobile AnalyzeData menuLanguage type must include Indonesian");
+assert(recommendationTypes.includes("export type OrderLabels"), "Mobile AnalyzeData must expose server-provided order labels");
+assert(recommendationTypes.includes("orderLabels?: OrderLabels"), "Mobile AnalyzeData must carry optional order labels");
+
+assert(analyzeRoute.includes("function buildOrderLabelsForMenuLanguage"), "API must build server-side order labels");
+assert(analyzeRoute.includes('case "id":'), "API order labels must support Indonesian");
+assert(analyzeRoute.includes('title: "Pesanan"'), "Indonesian order title missing");
+assert(analyzeRoute.includes('starter: "Hidangan pembuka"'), "Indonesian starter label missing");
+assert(analyzeRoute.includes('main: "Hidangan utama"'), "Indonesian main label missing");
+assert(analyzeRoute.includes('wine: "Anggur"'), "Indonesian wine label missing");
+assert(analyzeRoute.includes("const orderLabels = buildOrderLabelsForMenuLanguage(mainDishResult.menuLanguage"), "Two-step response must compute menuLanguage-based order labels");
+assert(analyzeRoute.includes("buildOrderLabelsForMenuLanguage(mainDishResult.menuLanguage, userLocale)"), "Unknown menu language order label fallback must use GUI locale, not output locale");
 
 const twoStepUtils = read("apps/api/src/ai/twoStepRecommendationAIUtils.ts");
 assert(twoStepUtils.includes('source.mainAiInputMode !== "extracted_text"'), "extracted-text PDF mode must skip PDF file input");
