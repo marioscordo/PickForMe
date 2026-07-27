@@ -76,4 +76,27 @@ assert(
   "two-step flow must not localize before price compatibility and allergy safety"
 );
 
+const localizeHelperStart = route.indexOf("async function localizeRecommendationsForPayload(");
+const localizeHelperEnd = route.indexOf("\nfunction buildOrderLabelsForMenuLanguage(", localizeHelperStart);
+assert(localizeHelperStart >= 0 && localizeHelperEnd > localizeHelperStart, "localizeRecommendationsForPayload helper not found");
+const localizeHelper = route.slice(localizeHelperStart, localizeHelperEnd);
+
+assert(
+  localizeHelper.includes("if (isRecommendationTranslationFailure(error))") &&
+    localizeHelper.includes('"ANALYSIS_NOT_SAFE"') &&
+    localizeHelper.includes("SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE") &&
+    localizeHelper.includes('attachAnalyzeOpsDiagnosticReason(controlledError, "recommendation_translation_failed")') &&
+    localizeHelper.includes("throw controlledError;"),
+  "known recommendation translation failures must fail closed as ANALYSIS_NOT_SAFE"
+);
+assert(
+  localizeHelper.includes("return stripUnsafeRecommendationTranslations(input.recommendations, input.dishes, input.userLocale);"),
+  "unexpected localization errors must keep the existing strip fallback"
+);
+assert(
+  route.includes('message === "RECOMMENDATION_TRANSLATION_FAILED"') &&
+    route.includes('message === "RECOMMENDATION_TRANSLATION_RATE_LIMIT"'),
+  "only known recommendation translation failure codes should be treated as fail-closed"
+);
+
 console.log("translation-overlay-regression: passed");

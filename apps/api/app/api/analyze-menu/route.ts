@@ -1261,8 +1261,24 @@ async function localizeRecommendationsForPayload(
       console.warn("GustaroAI recommendation localization failed.", error);
     }
 
+    if (isRecommendationTranslationFailure(error)) {
+      const controlledError = new AppError(
+        422,
+        "ANALYSIS_NOT_SAFE",
+        SAFE_ANALYSIS_NOT_POSSIBLE_MESSAGE
+      );
+      attachAnalyzeOpsDiagnosticReason(controlledError, "recommendation_translation_failed");
+      throw controlledError;
+    }
+
     return stripUnsafeRecommendationTranslations(input.recommendations, input.dishes, input.userLocale);
   }
+}
+
+function isRecommendationTranslationFailure(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message === "RECOMMENDATION_TRANSLATION_FAILED" ||
+    message === "RECOMMENDATION_TRANSLATION_RATE_LIMIT";
 }
 
 function buildOrderLabelsForMenuLanguage(
