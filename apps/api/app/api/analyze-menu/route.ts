@@ -22,6 +22,7 @@ import { prepareRecommendationSearchSpace } from "../../../src/menu/prepareRecom
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import { findLinkedMenuImageUrls, looksLikeImageUrl } from "../../../src/menu/findLinkedMenuImageUrls";
 import { prepareBestTildaMenuImageFallback } from "../../../src/menu/prepareTildaMenuImageFallback";
+import { preparePubhtml5MenuImages } from "../../../src/menu/preparePubhtml5MenuImageFallback";
 import { loadMenuTextFromMenury, looksLikeMenuryUrl } from "../../../src/menu/loadMenuTextFromMenury";
 import {
   applyDishRoleClassifications,
@@ -492,6 +493,134 @@ export async function POST(request: Request) {
         }
 
         console.error("GustaroAI Image AI failed.", imageAiError);
+
+        const message = imageAiError instanceof Error ? imageAiError.message : "";
+
+        if (
+          message.includes("429") ||
+          message.includes("Rate limit") ||
+          message.includes("rate limit") ||
+          message.includes("TPM")
+        ) {
+          throw new AppError(
+            429,
+            "AI_RATE_LIMIT",
+            "Ich kann die Bild-Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+          );
+        }
+
+        if (isTemporaryConnectionError(imageAiError)) {
+          throw new AppError(
+            503,
+            "CONNECTION_ERROR",
+            "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
+            { retryable: true }
+          );
+        }
+
+        const attributionError = mapAttributionEvidenceError(imageAiError);
+        if (attributionError) {
+          throw attributionError;
+        }
+
+        if (imageAiError instanceof SyntaxError) {
+          throw new AppError(
+            500,
+            "AI_RESPONSE_INVALID",
+            "Die KI-Antwort konnte technisch nicht verarbeitet werden."
+          );
+        }
+
+        if (
+          message.includes("IMAGE_AI_TIMEOUT") ||
+          message.includes("TWO_STEP_MAIN_AI_TIMEOUT")
+        ) {
+          throw new AppError(
+            422,
+            "ANALYSIS_NOT_SAFE",
+            "Ich konnte diese Bild-Speisekarte nicht sicher auswerten."
+          );
+        }
+
+        if (isInvalidImageAiError(imageAiError)) {
+          throw new AppError(
+            422,
+            "IMAGE_MENU_NOT_READABLE",
+            "Diese Bild-Speisekarte konnte nicht sicher gelesen werden. Bitte nutze einen direkten Link zu einer PDF-Speisekarte oder fuege den Speisekartentext ein."
+          );
+        }
+
+        if (
+          message.includes("Profilregeln") ||
+          message.includes("keine sicher") ||
+          message.includes("NO_SAFE")
+        ) {
+          throw new AppError(
+            422,
+            "NO_SAFE_RECOMMENDATIONS",
+            "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+          );
+        }
+
+        throw imageAiError;
+      }
+    }
+
+    // pubhtml5.com-Flipbooks (z.B. PDF-Speisekarten, die als Umblaetter-
+    // Viewer eingebettet sind) liefern serverseitig keinerlei Text - die
+    // normale HTML-Extraktion und der Tilda-Bildfallback koennen diese
+    // Quelle nicht erkennen. Deshalb wird hier frueh geprueft, bevor die
+    // (nachweislich erfolglose) HTML-Extraktion versucht wird. Siehe
+    // preparePubhtml5MenuImageFallback.ts fuer die verifizierte Herleitung
+    // des Bild-URL-Musters.
+    const pubhtml5MenuImages = !dynamicMenuText && inputLooksLikeUrl
+      ? await preparePubhtml5MenuImages(rawMenuText)
+      : null;
+
+    if (pubhtml5MenuImages) {
+      if (process.env.GUSTAROAI_AI_ENABLED !== "true") {
+        throw new AppError(400, "IMAGE_AI_DISABLED", "Bild-Speisekarten benötigen in V1 den KI-Modus.");
+      }
+
+      try {
+        return await analyzeMenuWithTwoStepMainFlow({
+          source: {
+            kind: "image",
+            urls: pubhtml5MenuImages.imageDataUrls,
+            sourceUrl: rawMenuText,
+            text: [pubhtml5MenuImages.title, pubhtml5MenuImages.description]
+              .filter((value): value is string => Boolean(value?.trim()))
+              .join("\n")
+          },
+          responseMode: "ai_image",
+          profile,
+          situation: body.situation,
+          requestedDishRoles,
+          preferredDishRole,
+          outputLocale,
+          userLocale: body.userLocale,
+          restaurantDescription,
+          localizedRestaurantDescription,
+          restaurantUrl: officialRestaurantUrl,
+          fallbackHeroContextText: [pubhtml5MenuImages.title, pubhtml5MenuImages.description]
+            .filter((value): value is string => Boolean(value?.trim()))
+            .join("\n"),
+          htmlMenuExtraction: null,
+          deviceLocale: body.deviceLocale,
+          extraPayload: {
+            ...sourceInputAllergenWarningPayload
+          },
+          timeoutMs: 60000,
+          requestStartedAt,
+          runId: requestRunId,
+          supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true
+        });
+      } catch (imageAiError) {
+        if (imageAiError instanceof AppError) {
+          throw imageAiError;
+        }
+
+        console.error("GustaroAI Pubhtml5 Image AI failed.", imageAiError);
 
         const message = imageAiError instanceof Error ? imageAiError.message : "";
 
