@@ -7,7 +7,14 @@ import { profileFeatures } from "../config/profileFeatures";
 import { filterControlledProfileValues } from "../profile/profileInputPolicy";
 import type { UserProfile } from "../types/profile";
 import type { PreferredDishRole, RequestedDishRole } from "../types/recommendationMode";
-import type { AnalyzeData, RestaurantIntroData, WineRecommendationData } from "../types/recommendations";
+import type {
+  AnalyzeData,
+  RestaurantDiscoveryCandidate,
+  RestaurantDiscoveryData,
+  RestaurantIntroData,
+  RestaurantMenuSourceData,
+  WineRecommendationData
+} from "../types/recommendations";
 import type { WinePreference } from "../types/winePreference";
 
 type AnalyzeMenuMobileArgs = {
@@ -264,6 +271,66 @@ export function logAllergyWarningConfirmation(body: LogAllergyWarningConfirmatio
   return apiPost<{ logged: boolean }, LogAllergyWarningConfirmationBody>(
     "/api/safety/allergy-warning-confirmation",
     body
+  );
+}
+
+type SearchRestaurantCandidatesArgs = {
+  restaurantName: string;
+  city: string;
+  country?: string;
+  signal?: AbortSignal;
+};
+
+type SearchRestaurantCandidatesBody = {
+  restaurantName: string;
+  city: string;
+  country?: string;
+};
+
+// Schritt 1 der zweistufigen Restaurant-Suche: liefert nur eine Trefferliste
+// (Name/Adresse/Website) zur Bestaetigung durch den Nutzer - loest noch keine
+// Speisekarten-Analyse aus. Siehe restaurant-discovery-regression.mjs: der
+// automatische Ein-Schritt-Pfad (discoverRestaurantSources) darf hier nie
+// aufgerufen werden.
+export function searchRestaurantCandidates(args: SearchRestaurantCandidatesArgs) {
+  const body: SearchRestaurantCandidatesBody = {
+    restaurantName: args.restaurantName,
+    city: args.city,
+    ...(args.country ? { country: args.country } : {})
+  };
+
+  return apiPost<RestaurantDiscoveryData, SearchRestaurantCandidatesBody>(
+    "/api/restaurant-discovery",
+    body,
+    {
+      signal: args.signal
+    }
+  );
+}
+
+type ResolveRestaurantMenuSourceArgs = {
+  candidate: RestaurantDiscoveryCandidate;
+  signal?: AbortSignal;
+};
+
+type ResolveRestaurantMenuSourceBody = {
+  candidate: RestaurantDiscoveryCandidate;
+};
+
+// Schritt 2: erst NACH ausdruecklicher Nutzerbestaetigung eines Kandidaten
+// aus searchRestaurantCandidates() aufrufen - isoliert die eigentliche
+// Speisekartenquelle fuer die bereits bestehende analyzeMenu()-Pipeline.
+export function resolveRestaurantMenuSource(args: ResolveRestaurantMenuSourceArgs) {
+  const body: ResolveRestaurantMenuSourceBody = {
+    candidate: args.candidate
+  };
+
+  return apiPost<RestaurantMenuSourceData, ResolveRestaurantMenuSourceBody>(
+    "/api/restaurant-menu-discovery",
+    body,
+    {
+      signal: args.signal
+    }
   );
 }
 

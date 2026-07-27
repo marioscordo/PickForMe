@@ -99,4 +99,31 @@ export type RestaurantIntroData = {
   fallback?: boolean;
 };
 
+export type RestaurantDiscoveryCandidate = {
+  id: string;
+  name: string;
+  city: string;
+  country?: string;
+  address?: string;
+  websiteUrl?: string;
+};
+
+export type RestaurantDiscoveryData = {
+  candidates: RestaurantDiscoveryCandidate[];
+};
+
+export type RestaurantMenuSourceExternalCandidate = {
+  url: string;
+  providerDomain: string;
+};
+
+export type RestaurantMenuSourceData = {
+  websiteUrl: string;
+  menuUrl?: string;
+  menuUrls?: string[];
+  externalMenuCandidate?: RestaurantMenuSourceExternalCandidate;
+  confidence?: "high" | "medium" | "none";
+  reason?: string;
+};
+
 

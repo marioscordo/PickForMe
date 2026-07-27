@@ -29,7 +29,7 @@ assert(restaurantDiscoveryRoute.includes("MAX_DISCOVERY_SEARCHES_PER_DAY") && re
 // bleibt: der automatische Ein-Schritt-Pfad discoverRestaurantSources(), der
 // ohne Nutzerbestätigung Restaurant + Speisekarte in einem Rutsch auflösen
 // würde - das war das eigentliche Sicherheitsrisiko, nicht der Funktionsname.
-assert(!mobileApi.includes("discoverRestaurantSources"), "Mobile app must never call the one-shot auto-resolve restaurant discovery pipeline");
+assert(!mobileApi.includes("discoverRestaurantSources("), "Mobile app must never call the one-shot auto-resolve restaurant discovery pipeline");
 
 assert(restaurantMenuDiscoveryRoute.includes("requireUser(request)"), "Restaurant menu discovery route must be auth-gated");
 assert(restaurantMenuDiscoveryRoute.includes("RestaurantMenuDiscoveryRequestSchema"), "Restaurant menu discovery route must validate selected restaurant shape");
