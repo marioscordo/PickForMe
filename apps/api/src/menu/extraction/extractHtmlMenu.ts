@@ -177,6 +177,42 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
     pending = null;
   };
 
+  // Manche Speisekarten geben Preise nicht pro Gericht an (z.B. weil sie
+  // standortabhaengig sind). Ohne diese Ergaenzung wuerde ein erkannter
+  // Gerichtstitel ohne folgende Preiszeile stillschweigend verworfen oder
+  // als Beschreibung eines Nachbargerichts verschluckt (Codereview Juli
+  // 2026, Fallanalyse "60secondstonapoli.de"). Wir uebernehmen ihn deshalb
+  // ohne Preis, aber nur unter einer erkannten Kategorie-Zeile - das
+  // vermeidet False Positives aus nicht klassifizierbarem Text (Kopf-/
+  // Fusszeilen etc.). Kein erfundener Preis, nur ein fehlender.
+  const finishPendingWithoutPrice = () => {
+    if (!pending) {
+      return;
+    }
+
+    if (!pending.category) {
+      pending = null;
+      return;
+    }
+
+    const description = cleanDescription(pending.descriptionParts.join(" "));
+    const classification = classifyHtmlMenuCategory(pending.category);
+
+    items.push({
+      title: pending.title,
+      description: description || undefined,
+      category: pending.category,
+      sourceCategory: pending.category,
+      sourceSectionOriginal: pending.sourceSectionOriginal,
+      sourceFormat: "html",
+      ...classification,
+      confidence: 0.55,
+      sourceText: pending.sourceParts.join(" ").replace(/\s+/g, " ").trim()
+    });
+
+    pending = null;
+  };
+
   for (const line of lines) {
     if (isNoiseLine(line)) {
       pending = null;
@@ -250,16 +286,16 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
     }
 
     if (isWeekdayDateHeading(line)) {
+      finishPendingWithoutPrice();
       currentSourceSectionOriginal = line;
       currentCategory = undefined;
-      pending = null;
       pendingInlineDescriptionItemIndex = null;
       continue;
     }
 
     if (isCategoryLine(line)) {
+      finishPendingWithoutPrice();
       currentCategory = line;
-      pending = null;
       pendingInlineDescriptionItemIndex = null;
       continue;
     }
@@ -267,6 +303,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
     const numberedTitle = parseNumberedTitle(line);
 
     if (numberedTitle) {
+      finishPendingWithoutPrice();
       pendingInlineDescriptionItemIndex = null;
       const title = cleanDishTitle(numberedTitle);
 
@@ -285,6 +322,28 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
 
     if (pending) {
       pendingInlineDescriptionItemIndex = null;
+
+      // Eine neu erkennbare Gerichtszeile darf nicht als Beschreibung des
+      // vorherigen (noch preislosen) Gerichts verschluckt werden - sonst
+      // gehen bei Listen ohne Zeilenpreise (z.B. Pizzen) reihenweise
+      // Gerichte verloren. isInlineDescriptionFollower grenzt echte
+      // Beschreibungszeilen zuverlaessig von neuen Titeln ab.
+      const looksLikeNewPendingDishTitle =
+        (looksLikeStandaloneDishTitle(line) || looksLikeAdjacentPriceDishTitle(line)) &&
+        !isInlineDescriptionFollower(line);
+
+      if (looksLikeNewPendingDishTitle) {
+        finishPendingWithoutPrice();
+        pending = {
+          title: cleanDishTitle(line),
+          descriptionParts: [],
+          sourceParts: [line],
+          category: currentCategory,
+          sourceSectionOriginal: currentSourceSectionOriginal
+        };
+        continue;
+      }
+
       if (!isLikelyDescriptionNoise(line)) {
         pending.descriptionParts.push(line);
         pending.sourceParts.push(line);
@@ -341,6 +400,8 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       };
     }
   }
+
+  finishPendingWithoutPrice();
 
   const uniqueItems = dedupeItems(items);
   const confidence = getResultConfidence(uniqueItems);
