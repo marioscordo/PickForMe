@@ -8,6 +8,7 @@ import { Screen } from "../../components/ui/Screen";
 import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { PhotoMenuCamera } from "../../components/pick/PhotoMenuCamera";
 import { QrMenuScanner } from "../../components/pick/QrMenuScanner";
+import { RestaurantSearchFlow } from "../../components/pick/RestaurantSearchFlow";
 import { RecommendationCard } from "../../components/pick/RecommendationCard";
 import { RecommendationModeSelector } from "../../components/pick/SituationSelector";
 import { AnalysisLoadingBox } from "../../components/pick/AnalysisLoadingBox";
@@ -27,7 +28,7 @@ type PickScreenProps = {
   returnToMoodKey?: number;
 };
 
-type MenuInputOrigin = "empty" | "manual" | "qr" | "photo";
+type MenuInputOrigin = "empty" | "manual" | "qr" | "photo" | "restaurant_search";
 
 const ALLERGY_WARNING_CONFIRMATION_VERSION = "allergy-warning-v1";
 const RESULT_BOTTOM_SCROLL_INSET = 0;
@@ -62,6 +63,7 @@ export function PickScreen({
   const [recommendationMode, setRecommendationMode] = useState<RecommendationModeId>(DEFAULT_RECOMMENDATION_MODE);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showPhotoCamera, setShowPhotoCamera] = useState(false);
+  const [showRestaurantSearch, setShowRestaurantSearch] = useState(false);
   const photoMenuLoading = false;
   const [photoMenuError, setPhotoMenuError] = useState("");
   const [menuImageSource, setMenuImageSource] = useState<MenuImageSource | null>(null);
@@ -76,6 +78,7 @@ export function PickScreen({
   const [showAllergyWarning, setShowAllergyWarning] = useState(false);
   const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
+  const pendingMenuUrlsRef = useRef<string[] | undefined>(undefined);
   const linkConfirmedAtRef = useRef<number | null>(null);
   const menuBrowserOpeningRef = useRef(false);
   const allergyWarningParagraphs = content.allergyWarning.message.split("\n\n");
@@ -193,7 +196,7 @@ export function PickScreen({
     if (normalizedMenuUrl) {
       setOpenableMenuUrl(normalizedMenuUrl);
     }
-    analyze.run(menuText, requestedDishRolesForMode(recommendationMode), undefined, {
+    analyze.run(menuText, requestedDishRolesForMode(recommendationMode), pendingMenuUrlsRef.current, {
       linkConfirmedAt: linkConfirmedAtRef.current ?? undefined,
       menuImageSource
     });
@@ -232,6 +235,7 @@ export function PickScreen({
     analyze.reset();
     setRecommendationMode(DEFAULT_RECOMMENDATION_MODE);
     pendingConfirmedMenuTextRef.current = null;
+    pendingMenuUrlsRef.current = undefined;
     linkConfirmedAtRef.current = null;
     setMenuImageSource(null);
   }
@@ -246,6 +250,29 @@ export function PickScreen({
     setPhotoMenuError("");
     setShowPhotoCamera(false);
     startAnalyzeWithPhotoSource(photo);
+  }
+
+  function openRestaurantSearch() {
+    setShowQrScanner(false);
+    setShowRestaurantSearch(true);
+  }
+
+  // Wird erst aufgerufen, nachdem der Nutzer im RestaurantSearchFlow einen
+  // Kandidaten bestaetigt hat UND Schritt 2 (Speisekarten-Isolierung) eine
+  // nutzbare Quelle gefunden hat. Behandelt die gefundene URL genau wie einen
+  // manuell eingefuegten Link/QR-Scan - der Nutzer bestaetigt die Analyse
+  // danach ganz normal ueber den Hauptbutton (kein automatischer Start).
+  function handleRestaurantMenuResolved(resolvedMenuText: string, resolvedMenuUrls: string[] | undefined) {
+    const normalizedMenuUrl = normalizeMenuUrl(resolvedMenuText);
+
+    resetForNewMenuSource();
+    setMenuText(resolvedMenuText);
+    setMenuInputOrigin("restaurant_search");
+    setOpenableMenuUrl(normalizedMenuUrl || resolvedMenuText || null);
+    pendingMenuUrlsRef.current = resolvedMenuUrls;
+    linkConfirmedAtRef.current = Date.now();
+    setShowRestaurantSearch(false);
+    setEntryScrollToMoodKey((current) => current + 1);
   }
 
   function showAllergyWarningBeforeAnalyze() {
@@ -269,8 +296,8 @@ export function PickScreen({
       const pendingMenuText = pendingConfirmedMenuTextRef.current;
       pendingConfirmedMenuTextRef.current = null;
       if (pendingMenuText) {
-        logAnalyzeSource(pendingMenuText, undefined, "allergyConfirmed");
-        analyze.run(pendingMenuText, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), undefined, {
+        logAnalyzeSource(pendingMenuText, pendingMenuUrlsRef.current, "allergyConfirmed");
+        analyze.run(pendingMenuText, requestedDishRolesForMode(DEFAULT_RECOMMENDATION_MODE), pendingMenuUrlsRef.current, {
           linkConfirmedAt: linkConfirmedAtRef.current ?? undefined,
           menuImageSource
         });
@@ -383,6 +410,20 @@ export function PickScreen({
     );
   }
 
+  if (showRestaurantSearch) {
+    return (
+      <Screen
+        bottomScrollInset={s(48)}
+        scrollToTopKey="pick-entry-restaurant-search"
+      >
+        <RestaurantSearchFlow
+          onClose={() => setShowRestaurantSearch(false)}
+          onResolved={handleRestaurantMenuResolved}
+        />
+      </Screen>
+    );
+  }
+
   const showEmptyProfileHint = !hasActiveProfileChips(profile);
 
   return (
@@ -471,6 +512,18 @@ export function PickScreen({
             <Text style={local.findMenuText}>
               {photoMenuLoading ? content.photoMenu.extracting : content.pick.photoMenuButton}
             </Text>
+          </View>
+          <Feather color={premiumPalette.textSoft} name="chevron-right" size={s(24)} />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          style={local.findMenuRow}
+          onPress={openRestaurantSearch}
+        >
+          <View style={local.findMenuLeft}>
+            <Feather color={premiumPalette.gold} name="search" size={s(19)} />
+            <Text style={local.findMenuText}>{content.pick.restaurantSearchButton}</Text>
           </View>
           <Feather color={premiumPalette.textSoft} name="chevron-right" size={s(24)} />
         </Pressable>

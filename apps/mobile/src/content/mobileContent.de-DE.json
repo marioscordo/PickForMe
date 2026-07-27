@@ -38,6 +38,7 @@
     "reviewPreferences": "Vorlieben prüfen",
     "openMenu": "Speisekarte öffnen",
     "photoMenuButton": "Speisekarte fotografieren",
+    "restaurantSearchButton": "Restaurant suchen",
     "moodHint": "Wähle, ob ich Vorspeisen und Salate oder Hauptspeisen betrachten soll.",
     "profileHintTitle": "Profil noch leer",
     "profileHintText": "Aktiviere in Deinem Profil mindestens einen Chip für Vorlieben, Ausschlüsse, Unverträglichkeiten oder Allergien, damit GustaroAI persönlicher empfehlen kann.",
@@ -732,5 +733,29 @@
       ],
       "tip": "Gustaro Plus nutzt diese Angaben nur fuer Weinempfehlungen. Dein Essensprofil bleibt getrennt."
     }
+  },
+  "restaurantSearch": {
+    "title": "Restaurant suchen",
+    "nameLabel": "Restaurantname",
+    "namePlaceholder": "z. B. Il Pozzetto",
+    "cityLabel": "Stadt",
+    "cityPlaceholder": "z. B. Rom",
+    "countryLabel": "Land (optional)",
+    "countryPlaceholder": "z. B. Italien",
+    "searchButton": "Suchen",
+    "searching": "Ich suche nach dem Restaurant ...",
+    "searchErrorGeneric": "Die Suche hat gerade nicht geklappt. Bitte versuche es erneut.",
+    "noResults": "Ich konnte kein passendes Restaurant finden. Bitte prüfe Name und Stadt oder füge die Speisekarte manuell ein.",
+    "resultsTitle": "Das habe ich gefunden",
+    "resultsHint": "Wähle das richtige Restaurant aus - das ist besonders wichtig bei Filialen in mehreren Städten.",
+    "newSearch": "Neue Suche",
+    "confirmTitle": "Ist das Dein Restaurant?",
+    "confirmHint": "Ich isoliere danach die Speisekarte aus der offiziellen Quelle.",
+    "confirmButton": "Ja, weiter",
+    "backToResults": "Zurück zur Liste",
+    "resolving": "Ich suche die Speisekarte ... das kann bis zu 20 Sekunden dauern.",
+    "resolveErrorGeneric": "Ich konnte für dieses Restaurant keine verlässliche Speisekarte finden.",
+    "fallbackManual": "Speisekarte manuell einfügen",
+    "close": "Schließen"
   }
 }

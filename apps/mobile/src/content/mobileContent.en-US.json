@@ -38,6 +38,7 @@
     "reviewPreferences": "Review preferences",
     "openMenu": "Open menu",
     "photoMenuButton": "Photograph menu",
+    "restaurantSearchButton": "Search restaurant",
     "moodHint": "Choose whether I should look at starters and salads or main courses.",
     "profileHintTitle": "Profile still empty",
     "profileHintText": "Activate at least one chip for preferences, exclusions, intolerances, or allergies in your profile so GustaroAI can recommend more personally.",
@@ -732,5 +733,29 @@
       ],
       "tip": "Gustaro Plus uses these settings only for wine recommendations. Your food profile stays separate."
     }
+  },
+  "restaurantSearch": {
+    "title": "Search restaurant",
+    "nameLabel": "Restaurant name",
+    "namePlaceholder": "e.g. Il Pozzetto",
+    "cityLabel": "City",
+    "cityPlaceholder": "e.g. Rome",
+    "countryLabel": "Country (optional)",
+    "countryPlaceholder": "e.g. Italy",
+    "searchButton": "Search",
+    "searching": "Looking for the restaurant ...",
+    "searchErrorGeneric": "The search didn't work just now. Please try again.",
+    "noResults": "I couldn't find a matching restaurant. Please check the name and city, or add the menu manually.",
+    "resultsTitle": "Here's what I found",
+    "resultsHint": "Choose the right restaurant - this matters especially for chains with multiple locations.",
+    "newSearch": "New search",
+    "confirmTitle": "Is this your restaurant?",
+    "confirmHint": "I'll then isolate the menu from the official source.",
+    "confirmButton": "Yes, continue",
+    "backToResults": "Back to list",
+    "resolving": "Looking for the menu ... this can take up to 20 seconds.",
+    "resolveErrorGeneric": "I couldn't find a reliable menu for this restaurant.",
+    "fallbackManual": "Add menu manually",
+    "close": "Close"
   }
 }
