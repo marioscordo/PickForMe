@@ -72,6 +72,11 @@ type RestaurantMenuDiscoveryResult = {
   menuUrl?: string;
   menuUrls?: string[];
   externalMenuCandidate?: ExternalMenuCandidate;
+  // Optional statt required: der aktive Pfad (mapSelectedRestaurantMenuSource)
+  // setzt beide immer. findMenuInWebsiteSource() ist toter Code (siehe
+  // Notiz weiter unten) und bleibt bewusst unangetastet, daher hier optional.
+  confidence?: "high" | "medium" | "none";
+  reason?: string;
 };
 
 type SourceLink = {
@@ -153,7 +158,11 @@ export async function POST(request: Request) {
     const data = await withTimeout(
       resolveMenuForCandidate(body.candidate),
       MENU_DISCOVERY_TIMEOUT_MS,
-      { websiteUrl: normalizeOfficialUrl(body.candidate.websiteUrl) }
+      {
+        websiteUrl: normalizeOfficialUrl(body.candidate.websiteUrl),
+        confidence: "none" as const,
+        reason: "menu_discovery_timeout"
+      }
     );
 
     return NextResponse.json({
@@ -178,7 +187,7 @@ async function resolveMenuForCandidate(
   const discoveredWebsiteUrl = websiteUrl || await discoverOfficialRestaurantWebsite(candidate);
 
   if (!discoveredWebsiteUrl) {
-    return { websiteUrl };
+    return { websiteUrl, confidence: "none", reason: "no_official_website_found" };
   }
 
   return mapSelectedRestaurantMenuSource(await selectRestaurantMenuSource({
@@ -187,18 +196,28 @@ async function resolveMenuForCandidate(
   }));
 }
 
+// confidence/reason werden durchgereicht, damit die App vor der Analyse
+// entscheiden kann, ob eine Bestaetigung noetig ist (medium) oder ein
+// Fallback auf manuelle Eingabe (none) - siehe Restaurant-Discovery-
+// Minimalversion-Konzept.
 function mapSelectedRestaurantMenuSource(
   selection: Awaited<ReturnType<typeof selectRestaurantMenuSource>>
 ): RestaurantMenuDiscoveryResult {
+  const base = {
+    websiteUrl: selection.websiteUrl,
+    confidence: selection.confidence,
+    reason: selection.reason
+  };
+
   if (selection.externalMenuCandidate) {
     return {
-      websiteUrl: selection.websiteUrl,
+      ...base,
       externalMenuCandidate: selection.externalMenuCandidate
     };
   }
 
   return {
-    websiteUrl: selection.websiteUrl,
+    ...base,
     ...(selection.menuUrl ? { menuUrl: selection.menuUrl } : {}),
     ...(selection.menuUrls ? { menuUrls: selection.menuUrls } : {})
   };
