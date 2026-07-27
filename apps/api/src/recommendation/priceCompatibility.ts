@@ -3,7 +3,7 @@ import type { Dish } from "../types/menu";
 import type { Recommendation } from "../types/recommendations";
 import type { TwoStepAnalyzeDataParts } from "./twoStepRecommendationMappers";
 
-export type PriceCompatibilityCurrency = "EUR" | "CHF" | "USD" | "MXN" | "RUB" | "INR" | "EGP" | "GBP" | "UNKNOWN";
+export type PriceCompatibilityCurrency = "EUR" | "CHF" | "USD" | "MXN" | "RUB" | "INR" | "IDR" | "EGP" | "GBP" | "UNKNOWN";
 
 type PriceCompatibilityInput = {
   acceptedRecommendations: MainDishAIRecommendation[];
@@ -50,7 +50,7 @@ type ExchangeRateEntry = {
 const EXCHANGE_RATE_CACHE = new Map<string, ExchangeRateEntry>();
 const EXCHANGE_RATE_TTL_MS = 24 * 60 * 60 * 1000;
 const EXCHANGE_RATE_STALE_MS = 7 * EXCHANGE_RATE_TTL_MS;
-const SUPPORTED_TARGET_CURRENCIES = new Set<PriceCompatibilityCurrency>(["EUR", "CHF", "USD", "RUB", "INR", "EGP", "GBP"]);
+const SUPPORTED_TARGET_CURRENCIES = new Set<PriceCompatibilityCurrency>(["EUR", "CHF", "USD", "RUB", "INR", "IDR", "EGP", "GBP"]);
 
 export async function enrichPriceCompatibility({
   acceptedRecommendations,
@@ -140,7 +140,7 @@ export function parsePriceParts(
     fallbackCurrency;
   const currency = explicitCurrency ?? contextualCurrency ?? "UNKNOWN";
   const currencySource = explicitCurrency ? "explicit" : contextualCurrency ? "context" : "unknown";
-  const amounts = extractPriceAmounts(raw);
+  const amounts = extractPriceAmounts(raw, currency);
   recordPriceResolverDiagnostics({
     currency,
     diagnostics,
@@ -201,6 +201,8 @@ export function resolveTargetCurrencyFromDeviceLocale(locale: string | undefined
       return "RUB";
     case "IN":
       return "INR";
+    case "ID":
+      return "IDR";
     case "EG":
       return "EGP";
     case "GB":
@@ -219,6 +221,7 @@ export function inferCurrencyFromPriceRaw(value: string): PriceCompatibilityCurr
   if (/\bmxn\b|\bmx\s*\$/i.test(value)) return "MXN";
   if (/₽|\brub\b|руб\.?/i.test(value)) return "RUB";
   if (/₹|\binr\b|\brs\.?\b/i.test(value)) return "INR";
+  if (/\bidr\b|\brp\.?\b|\brupiah\b/i.test(value)) return "IDR";
   if (/\begp\b|e£|\ble\b|ج\.م/i.test(value)) return "EGP";
   if (normalized.includes("£") || /\bgbp\b/i.test(value)) return "GBP";
 
@@ -235,8 +238,10 @@ export function inferSourceCurrencyFromContext(value: string | undefined): Price
 
   if (hasMexicanPesoContext(comparable, hosts)) return "MXN";
   if (hasIndiaContext(comparable, hosts)) return "INR";
+  if (hasIndonesiaContext(comparable, hosts)) return "IDR";
   if (hosts.some((host) => /\.ru(?::\d+)?$/.test(host))) return "RUB";
   if (hosts.some((host) => /\.in(?::\d+)?$/.test(host))) return "INR";
+  if (hosts.some((host) => /\.id(?::\d+)?$/.test(host))) return "IDR";
   if (hosts.some((host) => /\.eg(?::\d+)?$/.test(host))) return "EGP";
   if (hosts.some((host) => /\.ch(?::\d+)?$/.test(host))) return "CHF";
   if (hosts.some((host) => /\.us(?::\d+)?$/.test(host))) return "USD";
@@ -247,6 +252,7 @@ export function inferSourceCurrencyFromContext(value: string | undefined): Price
 
 export function inferSourceCurrencyFromMenuLanguage(menuLanguage: string | undefined): PriceCompatibilityCurrency | undefined {
   if (menuLanguage === "ru") return "RUB";
+  if (menuLanguage === "id") return "IDR";
 
   return undefined;
 }
@@ -352,6 +358,11 @@ function hasMexicanPesoContext(comparable: string, hosts: string[]) {
 function hasIndiaContext(comparable: string, hosts: string[]) {
   return /\b(?:new\s+delhi|neu\s+delhi|delhi|india|indien)\b/.test(comparable) ||
     hosts.some((host) => /\.in(?::\d+)?$/.test(host));
+}
+
+function hasIndonesiaContext(comparable: string, hosts: string[]) {
+  return /\b(?:idr|rupiah|rp\.?)\b/.test(comparable) ||
+    hosts.some((host) => /\.id(?::\d+)?$/.test(host));
 }
 
 function hasAmbiguousDollarPrice(value: string) {
@@ -461,11 +472,16 @@ function isPlainNumericPrice(value: string) {
   return /^\s*\d+(?:[,.]\d{1,2})?\s*$/.test(value);
 }
 
-function extractPriceAmounts(value: string): number[] {
-  const matches = value.match(/\d+(?:[.,]\d{1,2})?/g) ?? [];
+function extractPriceAmounts(value: string, currency: PriceCompatibilityCurrency): number[] {
+  const matches = currency === "IDR" && /\b\d+(?:[.,]\d{1,2})?\s*k\b/i.test(value)
+    ? Array.from(value.matchAll(/\b\d+(?:[.,]\d{1,2})?\s*k\b/gi)).map((match) => match[0])
+    : value.match(/\d+(?:[.,]\d{1,2})?/g) ?? [];
   return matches
     .slice(0, 2)
-    .map((match) => Number(match.replace(",", ".")))
+    .map((match) => {
+      const amount = Number(match.replace(/\s*k\b/i, "").replace(",", "."));
+      return currency === "IDR" && /k\b/i.test(match) ? amount * 1000 : amount;
+    })
     .filter((amount) => Number.isFinite(amount));
 }
 
@@ -536,6 +552,8 @@ function currencySymbol(currency: PriceCompatibilityCurrency) {
       return "₽";
     case "INR":
       return "₹";
+    case "IDR":
+      return "IDR";
     case "EGP":
       return "EGP";
     case "GBP":

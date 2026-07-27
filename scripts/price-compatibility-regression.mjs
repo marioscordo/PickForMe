@@ -22,6 +22,7 @@ globalThis.fetch = async (value) => {
   const rates = {
     CHF_EUR: 1.05,
     EGP_EUR: 0.019,
+    IDR_EUR: 0.000055,
     INR_EUR: 0.011,
     MXN_EUR: 0.05,
     RUB_EUR: 0.0098,
@@ -66,6 +67,8 @@ assert.equal(inferCurrencyFromPriceRaw("MX $100"), "MXN");
 assert.equal(inferCurrencyFromPriceRaw("$18"), undefined);
 assert.equal(inferCurrencyFromPriceRaw("890 ₽"), "RUB");
 assert.equal(inferCurrencyFromPriceRaw("₹450"), "INR");
+assert.equal(inferCurrencyFromPriceRaw("IDR 39K"), "IDR");
+assert.equal(inferCurrencyFromPriceRaw("Rp 39K"), "IDR");
 assert.equal(inferCurrencyFromPriceRaw("EGP 320"), "EGP");
 assert.equal(inferCurrencyFromPriceRaw("market price"), undefined);
 
@@ -73,6 +76,9 @@ assert.equal(inferSourceCurrencyFromContext("https://hacha.ru/theater"), "RUB");
 assert.equal(inferSourceCurrencyFromContext("https://example.ch/menu"), "CHF");
 assert.equal(inferSourceCurrencyFromContext("Holiday Inn New Delhi menu"), "INR");
 assert.equal(inferSourceCurrencyFromContext("Hotelkarte Neu Delhi"), "INR");
+assert.equal(inferSourceCurrencyFromContext("https://example.id/menu"), "IDR");
+assert.equal(inferSourceCurrencyFromContext("Bali menu prices in IDR"), "IDR");
+assert.equal(inferSourceCurrencyFromContext("Bali restaurant menu"), undefined);
 assert.equal(inferSourceCurrencyFromContext("Carta Mexico precios en pesos mexicanos"), "MXN");
 assert.equal(inferSourceCurrencyFromContext("https://example.mx/carta"), "MXN");
 assert.equal(inferSourceCurrencyFromContext("Santo Habanero"), undefined);
@@ -84,6 +90,10 @@ assert.deepEqual(parsePriceParts("890–1190 ₽")?.amounts, [890, 1190]);
 assert.equal(parsePriceParts("$1300", undefined, "Carta Mexico precios en pesos mexicanos")?.currency, "MXN");
 assert.equal(parsePriceParts("$340", undefined, "https://santohabanero.example.mx/carta")?.currency, "MXN");
 assert.equal(parsePriceParts("1245", undefined, "Holiday Inn New Delhi menu")?.currency, "INR");
+assert.equal(parsePriceParts("IDR 39K")?.currency, "IDR");
+assert.deepEqual(parsePriceParts("IDR 39K")?.amounts, [39000]);
+assert.deepEqual(parsePriceParts("Rp 25K")?.amounts, [25000]);
+assert.deepEqual(parsePriceParts("39K", "IDR")?.amounts, [39000]);
 assert.equal(parsePriceParts("$100", undefined, "https://example.us/menu")?.currency, "USD");
 assert.equal(parsePriceParts("$100", undefined, "https://example.test/menu")?.currency, "UNKNOWN");
 assert.equal(parsePriceParts("$100", undefined, "Entradas, sopas, ensaladas y tacos")?.currency, "UNKNOWN");
@@ -158,6 +168,22 @@ const inferredInr = await enrich("1245", { sourceContext: "Holiday Inn New Delhi
 assert.equal(inferredInr.dishes[0].priceCurrency, "INR");
 assert.equal(inferredInr.dishes[0].priceDisplay, "vermutlich INR 1245");
 assert.match(inferredInr.dishes[0].priceApproxDisplay, /^ca\. /);
+
+const idr = await enrich("IDR 39K");
+assert.equal(idr.dishes[0].priceCurrency, "IDR");
+assert.equal(idr.dishes[0].priceDisplay, "IDR 39K");
+assert.match(idr.dishes[0].priceApproxDisplay, /^ca\. /);
+assert.match(idr.dishes[0].priceApproxDisplay, /^ca\. 2,15\s€$/);
+
+const menuLanguageIdr = await enrich("39K", { menuLanguage: "id", sourceContext: "Fotografierte Speisekarte" });
+assert.equal(menuLanguageIdr.dishes[0].priceCurrency, "IDR");
+assert.equal(menuLanguageIdr.dishes[0].priceDisplay, "39K IDR");
+assert.match(menuLanguageIdr.dishes[0].priceApproxDisplay, /^ca\. 2,15\s€$/);
+
+const unknownK = await enrich("39K", { dataPrice: undefined, sourceContext: "https://example.test/menu" });
+assert.equal(unknownK.dishes[0].priceCurrency, "UNKNOWN");
+assert.equal(unknownK.dishes[0].priceDisplay, "39K");
+assert.equal(unknownK.dishes[0].priceApproxDisplay, undefined);
 
 const inferredEur = await enrich("15,00", { dataPrice: undefined, sourceContext: "https://example.it/menu" });
 assert.equal(inferredEur.dishes[0].price, 15);
