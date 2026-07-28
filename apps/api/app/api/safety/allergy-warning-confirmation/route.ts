@@ -18,30 +18,48 @@ export async function POST(request: Request) {
     const body = (await request.json()) as ConfirmationBody;
     const confirmationVersion = parseConfirmationVersion(body.confirmationVersion);
     const confirmationTimestamp = parseConfirmationTimestamp(body.confirmationTimestamp);
-    const supabase = getSupabaseAdmin();
 
-    const { error } = await supabase.from("allergy_warning_confirmations").insert({
-      confirmation_timestamp: confirmationTimestamp.toISOString(),
-      confirmation_version: confirmationVersion,
-      user_id_hash: pseudonymizeUserId(user.id)
-    });
-
-    if (error) {
-      throw new AppError(
-        500,
-        "ALLERGY_WARNING_CONFIRMATION_LOG_FAILED",
-        "Die Bestätigung konnte nicht gespeichert werden."
-      );
-    }
+    const logged = await logConfirmationSafely(user.id, confirmationTimestamp, confirmationVersion);
 
     return NextResponse.json({
       ok: true,
       data: {
-        logged: true
+        logged
       }
     });
   } catch (error) {
     return errorResponse(error);
+  }
+}
+
+// Bewusst fail-open: dies ist nur der Audit-Log-Eintrag der Bestaetigung, nicht
+// der Sicherheitsmechanismus selbst - das ist der angezeigte Warnhinweis und
+// der Klick des Nutzers darauf, der bereits passiert ist, bevor diese Funktion
+// aufgerufen wird. Ein DB- oder Env-Fehler beim Protokollieren darf die
+// Kernfunktion (Empfehlung anzeigen) nicht blockieren - gleiches Muster wie
+// enforceDailySearchLimit in restaurant-discovery/route.ts.
+async function logConfirmationSafely(
+  userId: string,
+  confirmationTimestamp: Date,
+  confirmationVersion: string
+): Promise<boolean> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase.from("allergy_warning_confirmations").insert({
+      confirmation_timestamp: confirmationTimestamp.toISOString(),
+      confirmation_version: confirmationVersion,
+      user_id_hash: pseudonymizeUserId(userId)
+    });
+
+    if (error) {
+      console.error("allergy_warning_confirmations insert failed", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("allergy_warning_confirmation logging failed, allowing confirmation to proceed", error);
+    return false;
   }
 }
 
