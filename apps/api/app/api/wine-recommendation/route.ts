@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     await requireUser(request);
 
     if (!profileFeatures.wineFeatureEnabled) {
-      throw new AppError(403, "FEATURE_DISABLED", "Wine recommendations are not enabled.");
+      throw new AppError(403, "FEATURE_DISABLED", "Weinempfehlungen sind derzeit nicht verfügbar.");
     }
 
     const body = (await request.json()) as WineRecommendationRequest;
