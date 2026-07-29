@@ -124,6 +124,7 @@ const GENERIC_RESTAURANT_WORDS = new Set([
   "bar"
 ]);
 const MAX_CANDIDATES = 5;
+const CONTACT_PAGE_FETCH_TIMEOUT_MS = 4500;
 const MAX_LINKS_PER_PAGE = 60;
 const MAX_CRAWL_PAGES = 12;
 const MAX_ANALYZABILITY_CANDIDATES_PER_PAGE = 8;
@@ -665,8 +666,23 @@ async function contactPageMatchesCity(baseUrl: string, city: string): Promise<bo
     const candidateUrl = normalizeOfficialUrl(`${slug}/`, baseForRelativeLinks);
     if (!candidateUrl || getRegistrableDomain(candidateUrl) !== expectedDomain) continue;
 
+    // Ohne Timeout kann eine einzelne langsame/haengende Kontaktseite die
+    // gesamte Kandidaten-Pruefung unnoetig verzoegern (bis zu drei
+    // zusaetzliche Fetches pro Kandidat) - bei einem Vercel-Funktionslimit
+    // kann das im Zweifel eine sonst funktionierende Suche zum Scheitern
+    // bringen. Ein Praxis-Test (28.07.2026) zeigte genau dieses Muster: ein
+    // zuvor funktionierendes Restaurant scheiterte einmalig und lief beim
+    // naechsten Versuch wieder durch - typisch fuer eine haengende Anfrage,
+    // nicht fuer einen Logikfehler.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CONTACT_PAGE_FETCH_TIMEOUT_MS);
+
     try {
-      const response = await fetch(candidateUrl, { headers: REQUEST_HEADERS, redirect: "follow" });
+      const response = await fetch(candidateUrl, {
+        headers: REQUEST_HEADERS,
+        redirect: "follow",
+        signal: controller.signal
+      });
       if (!response.ok) continue;
 
       const contentType = response.headers.get("content-type") ?? "";
@@ -676,6 +692,8 @@ async function contactPageMatchesCity(baseUrl: string, city: string): Promise<bo
       if (sourceTextMatchesCity(city, text)) return true;
     } catch {
       continue;
+    } finally {
+      clearTimeout(timer);
     }
   }
 

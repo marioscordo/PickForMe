@@ -424,7 +424,19 @@ async function buildOfficialLinkCandidate(
 
   const probe = normalizeMenuText(`${link.url} ${link.label}`);
   const isPdf = looksLikePdfUrl(link.url);
-  const isAnchor = Boolean(getUrlHash(link.url));
+  // getUrlHash() liefert fuer ein blosses "href=\"#\"" (haeufig ein reiner
+  // JS-UI-Umschalter, z.B. ein mobiles Menue-Toggle, kein echtes Linkziel)
+  // einen LEEREN String zurueck, der als falsy durchfaellt - der Link wurde
+  // dadurch faelschlich wie eine echte Unterseite behandelt statt wie der
+  // Seiten-Anker, der er ist. buildOfficialAnchorCandidates() (siehe unten)
+  // ist fuer genau solche Anker zustaendig und lehnt einen leeren Anker dort
+  // bereits korrekt ab - diese Funktion muss ihn deshalb ebenfalls
+  // ausschliessen, statt ihn ueber den laxeren Fallback-Score erneut ins
+  // Rennen zu schicken. Fallanalyse "sonnenalm.de", Juli 2026: ein solcher
+  // "#"-Toggle-Link (Label "Menü") gewann per Score-Zufall (34+30 Punkte
+  // durch Doppelzaehlung von "menue"/"menu") gegen den echten
+  // "/berggasthof/speisekarte/"-Link.
+  const isAnchor = link.url.includes("#");
 
   if (hasExcludedMenuTerm(probe)) {
     rejectedCandidates.push({
