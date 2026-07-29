@@ -65,6 +65,13 @@ export async function enrichPriceCompatibility({
   const pricePartsByDishId = new Map<string, PriceParts>();
   const sourceCurrencyFallback = inferSourceCurrencyFromContext(sourceContext) ?? inferSourceCurrencyFromMenuLanguage(menuLanguage);
 
+  logDevPriceResolver({
+    phase: "target_currency_resolved",
+    deviceLocale,
+    targetLocale,
+    targetCurrency: targetCurrency ?? "none"
+  });
+
   acceptedRecommendations.forEach((item, index) => {
     const dishId = data.dishes[index]?.id;
     const priceParts = parsePriceParts(item.priceRaw, sourceCurrencyFallback, sourceContext, diagnostics);
@@ -78,7 +85,16 @@ export async function enrichPriceCompatibility({
   const rates = new Map<string, ExchangeRateEntry>();
 
   for (const pair of currencyPairs) {
+    const fetchStartedAt = Date.now();
     const rate = await getExchangeRate(pair.sourceCurrency, pair.targetCurrency);
+
+    logDevPriceResolver({
+      phase: "exchange_rate_fetch",
+      sourceCurrency: pair.sourceCurrency,
+      targetCurrency: pair.targetCurrency,
+      durationMs: Date.now() - fetchStartedAt,
+      success: Boolean(rate)
+    });
 
     if (rate) {
       rates.set(currencyPairKey(pair.sourceCurrency, pair.targetCurrency), rate);
@@ -648,6 +664,26 @@ async function fetchExchangeRateOnce(
   } catch {
     return null;
   }
+}
+
+// Nur fuer die Fehlersuche: bisher gab es keinen sichtbaren Hinweis darauf,
+// ob eine fehlende Umrechnung (kein priceApproxDisplay) daran lag, dass die
+// Zielwaehrung nicht bestimmt werden konnte (z.B. Geraete-Locale ohne
+// Region), oder daran, dass der Kursabruf selbst fehlgeschlagen ist. Beides
+// fuehrte bisher zum selben, stillen Ergebnis: keine €-Anzeige, kein Log.
+type DevPriceResolverValue = string | number | boolean | undefined;
+
+function logDevPriceResolver(fields: Record<string, DevPriceResolverValue>) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  const payload = Object.entries(fields)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}=${String(value).replace(/\s+/g, "_")}`)
+    .join(" ");
+
+  console.info(`[GUSTARO_DEV_PRICE_RESOLVER] ${payload}`);
 }
 
 function currencyPairKey(sourceCurrency: PriceCompatibilityCurrency, targetCurrency: PriceCompatibilityCurrency) {
