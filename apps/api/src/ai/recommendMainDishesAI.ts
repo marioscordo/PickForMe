@@ -2005,6 +2005,8 @@ function buildRequestedDishRoleAssignment(values: RequestedDishRole[] | undefine
       "- Der aktive Rollenraum ist ausschliesslich main.",
       "- Identifiziere sichtbare Hauptgerichte und vollwertige Hauptspeisen.",
       "- Vorspeisen, Salate als reine Vorspeisen, Desserts, Getraenke und Beilagen duerfen nicht als Ersatz empfohlen werden.",
+      "- Suppen sind in der Regel keine Hauptspeisen und duerfen nicht als Ersatz empfohlen werden, ausser sie sind eindeutig als eigenstaendiges, sattmachendes Hauptgericht gekennzeichnet (z. B. als Eintopf).",
+      "- Suesse Mehlspeisen (z. B. Germknoedel, Kaiserschmarrn als Suessspeise) gelten als Dessert, nicht als Hauptspeise, ausser sie sind eindeutig als herzhafte Hauptspeisen-Portion gekennzeichnet.",
       `- Wenn weniger als ${candidateLimit} sichtbare Hauptspeisen vorhanden sind, liefere alle geeigneten statt mit Vorspeisen oder Salaten aufzufuellen.`
     ]
   };
