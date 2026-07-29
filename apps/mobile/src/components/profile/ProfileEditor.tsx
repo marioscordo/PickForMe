@@ -73,6 +73,12 @@ export function ProfileEditor({
     ...hiddenPreferences.filter((value) => !includesValue(quickPreferenceValues, value))
   ]);
 
+  // Loeschbare Vorlieben: aktive (primaryLikes) PLUS eigene/alte Werte, die
+  // gerade deaktiviert sind (nur in hiddenPreferences stehen). Vorher wurden
+  // hier nur aktive Werte gelistet, wodurch deaktivierte alte/kaputte
+  // Eintraege zwar oben aktivierbar, aber nirgends loeschbar waren.
+  const deletablePreferenceValues = uniqueValues([...profile.primaryLikes, ...visibleCustomPreferenceValues]);
+
   const visibleQuickExclusions = quickExclusions.filter(
     (option) => !includesValue(deletedExclusions, optionValue(option))
   );
@@ -81,6 +87,11 @@ export function ProfileEditor({
     ...customExclusions.filter((value) => !includesValue(quickExclusionValues, value)),
     ...hiddenExclusions.filter((value) => !includesValue(quickExclusionValues, value))
   ]);
+
+  // Loeschbare Abneigungen: aktive (customExclusions) PLUS eigene/alte Werte,
+  // die gerade deaktiviert sind (nur in hiddenExclusions stehen). Analog zur
+  // gleichen Korrektur bei den Vorlieben oben.
+  const deletableExclusionValues = uniqueValues([...customExclusions, ...visibleCustomExclusionValues]);
 
   const visibleAllergyOptions = allergenModuleEnabled ? allergyOptions : [];
 
@@ -370,16 +381,16 @@ export function ProfileEditor({
           />
         </View>
 
-        {profile.primaryLikes.length > 0 ? (
+        {deletablePreferenceValues.length > 0 ? (
           <View style={styles.profileSubBlock}>
             <Text style={styles.label}>{editor.deleteActivePreferencesLabel}</Text>
             <View style={styles.chipRow}>
-              {profile.primaryLikes.map((value) => (
+              {deletablePreferenceValues.map((value) => (
                 <Chip
                   key={value}
                   label={displayPreferenceValue(value)}
                   icon={editor.preferenceValueIcon}
-                  active
+                  active={profile.primaryLikes.includes(value)}
                   onPress={() => deletePreference(value)}
                 />
               ))}
@@ -445,16 +456,16 @@ export function ProfileEditor({
           />
         </View>
 
-        {customExclusions.length > 0 ? (
+        {deletableExclusionValues.length > 0 ? (
           <View style={styles.profileSubBlock}>
             <Text style={styles.label}>{editor.deleteActiveExclusionsLabel}</Text>
             <View style={styles.chipRow}>
-              {customExclusions.map((value) => (
+              {deletableExclusionValues.map((value) => (
                 <Chip
                   key={value}
                   label={displayExclusionValue(value)}
                   icon={editor.exclusionValueIcon}
-                  active
+                  active={customExclusions.includes(value)}
                   onPress={() => deleteExclusion(value)}
                 />
               ))}
