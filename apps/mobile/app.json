@@ -14,7 +14,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.marioscordo.gustaroai",
-      "buildNumber": "1.0.23",
+      "buildNumber": "1.0.24",
       "supportsTablet": false,
       "infoPlist": {
         "CFBundleDevelopmentRegion": "de",
