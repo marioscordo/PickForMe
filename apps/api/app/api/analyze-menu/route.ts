@@ -698,6 +698,7 @@ export async function POST(request: Request) {
     const htmlMenuExtraction = shouldExtractHtmlMenu
       ? await extractHtmlMenuFamilyFromUrl(rawMenuText)
       : null;
+    const htmlMenuUsedFragmentsFallback = Boolean(htmlMenuExtraction) && !htmlMenuExtraction?.items.length;
     const htmlMenuText = htmlMenuExtraction
       ? htmlMenuExtraction.items.length
         ? htmlMenuExtractionToMenuText(htmlMenuExtraction)
@@ -706,6 +707,18 @@ export async function POST(request: Request) {
     const htmlMenuDishes = htmlMenuExtraction?.items.length
       ? htmlMenuExtractionToDishes(htmlMenuExtraction)
       : null;
+
+    if (shouldExtractHtmlMenu) {
+      logDevHtmlMenuExtraction({
+        phase: "html_menu_extraction",
+        attempted: true,
+        itemCount: htmlMenuExtraction?.items.length ?? 0,
+        fragmentCount: htmlMenuExtraction?.fragments.length ?? 0,
+        confidence: htmlMenuExtraction?.confidence,
+        usedFragmentsFallback: htmlMenuUsedFragmentsFallback,
+        firstCategories: htmlMenuExtraction?.items.slice(0, 5).map((item) => item.category ?? "none").join("|")
+      });
+    }
 
     let effectiveMenuText: string;
 
@@ -2515,6 +2528,25 @@ function logDevAnalyzeTiming(fields: Record<string, TwoStepMainLogValue>) {
     .join(" ");
 
   console.info(`[GUSTARO_DEV_ANALYZE_TIMING] ${payload}`);
+}
+
+// Diagnose fuer die HTML-Menue-Extraktion: zeigt, ob strukturierte Items
+// gefunden wurden oder ob auf den schwaecheren Fragments-Fallback
+// zurueckgefallen wurde (Fallanalyse "60secondstonapoli.de", Juli 2026).
+// Ohne dieses Log war bei einem gemeldeten Extraktionsproblem nicht
+// nachvollziehbar, ob die Ursache eine leere Items-Liste oder etwas anderes
+// (z.B. Kategorisierung) war.
+function logDevHtmlMenuExtraction(fields: Record<string, TwoStepMainLogValue>) {
+  if (!isAnalyzeDiagnosticsEnabled()) {
+    return;
+  }
+
+  const payload = Object.entries(fields)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${formatTwoStepMainLogValue(value)}`)
+    .join(" ");
+
+  console.info(`[GUSTARO_DEV_HTML_MENU_EXTRACTION] ${payload}`);
 }
 
 function logTwoStepMainError({

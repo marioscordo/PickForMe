@@ -464,6 +464,16 @@ function htmlToLines(html: string): string[] {
       .replace(/<header[\s\S]*?<\/header>/gi, " ")
       .replace(/<aside[\s\S]*?<\/aside>/gi, " ")
       .replace(/<form[\s\S]*?<\/form>/gi, " ")
+      // Tab-Navigation von Menuebuildern (z.B. Elementor "e-n-tabs") enthaelt
+      // Reiterbeschriftungen wie "Pizza" oder "Dessert", die vor dem
+      // eigentlichen Inhalt im HTML stehen. isCategoryLine() erkennt diese
+      // Reiter faelschlich als echte Kategorie-Ueberschriften, weil sie
+      // woertlich in der Taxonomie stehen - das setzt currentCategory schon
+      // vor dem ersten Gericht auf einen falschen Wert (Fallanalyse
+      // "60secondstonapoli.de", Codereview Juli 2026). Buttons mit
+      // role="tab" sind nicht verschachtelt, daher ist ein nicht-gieriger
+      // Regex-Abgleich hier sicher.
+      .replace(/<button\b[^>]*\brole=["']tab["'][^>]*>[\s\S]*?<\/button>/gi, " ")
       .replace(/<\s*(?:br|hr)\b[^>]*\/?>/gi, "\n")
       .replace(/<\/(?:p|div|li|tr|td|th|h1|h2|h3|h4|section|article|span|strong|em)>/gi, "\n")
       .replace(/<[^>]+>/g, " ")
