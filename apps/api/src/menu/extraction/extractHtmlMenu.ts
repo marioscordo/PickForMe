@@ -129,7 +129,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
   let currentCategory: string | undefined;
   let currentSourceSectionOriginal: string | undefined;
 
-  const rememberFragment = (line: string) => {
+  const rememberFragment = (line: string, nextLine?: string) => {
     if (fragments.length >= 80 || isNoiseLine(line) || isAllergenCodeLine(line)) {
       return;
     }
@@ -138,9 +138,9 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       parseNumberedTitle(line) ||
       PRICE_LINE_PATTERN.test(line) ||
       extractLastPrice(line) ||
-      isCategoryLine(line) ||
+      isCategoryLine(line, nextLine) ||
       isWeekdayDateHeading(line) ||
-      looksLikeAdjacentPriceDishTitle(line) ||
+      looksLikeAdjacentPriceDishTitle(line, nextLine) ||
       pending
     ) {
       fragments.push(line);
@@ -213,7 +213,10 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
     pending = null;
   };
 
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex]!;
+    const nextLine = lines[lineIndex + 1];
+
     if (isNoiseLine(line)) {
       pending = null;
       pendingInlineDescriptionItemIndex = null;
@@ -228,7 +231,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       continue;
     }
 
-    rememberFragment(line);
+    rememberFragment(line, nextLine);
 
     const standalonePrice = line.match(PRICE_LINE_PATTERN)?.[0];
 
@@ -293,7 +296,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       continue;
     }
 
-    if (isCategoryLine(line)) {
+    if (isCategoryLine(line, nextLine)) {
       finishPendingWithoutPrice();
       currentCategory = line;
       pendingInlineDescriptionItemIndex = null;
@@ -329,8 +332,8 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       // Gerichte verloren. isInlineDescriptionFollower grenzt echte
       // Beschreibungszeilen zuverlaessig von neuen Titeln ab.
       const looksLikeNewPendingDishTitle =
-        (looksLikeStandaloneDishTitle(line) || looksLikeAdjacentPriceDishTitle(line)) &&
-        !isInlineDescriptionFollower(line);
+        (looksLikeStandaloneDishTitle(line, nextLine) || looksLikeAdjacentPriceDishTitle(line, nextLine)) &&
+        !isInlineDescriptionFollower(line, nextLine);
 
       if (looksLikeNewPendingDishTitle) {
         finishPendingWithoutPrice();
@@ -344,7 +347,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
         continue;
       }
 
-      if (!isLikelyDescriptionNoise(line)) {
+      if (!isLikelyDescriptionNoise(line, nextLine)) {
         pending.descriptionParts.push(line);
         pending.sourceParts.push(line);
       }
@@ -360,7 +363,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
         pendingInlineItem &&
         pendingInlineItem.category === currentCategory &&
         pendingInlineItem.sourceSectionOriginal === currentSourceSectionOriginal &&
-        isInlineDescriptionFollower(line)
+        isInlineDescriptionFollower(line, nextLine)
       ) {
         const description = cleanDescription(line);
         items[pendingInlineDescriptionItemIndex] = {
@@ -378,7 +381,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       }
     }
 
-    if (currentCategory && looksLikeStandaloneDishTitle(line)) {
+    if (currentCategory && looksLikeStandaloneDishTitle(line, nextLine)) {
       pending = {
         title: cleanDishTitle(line),
         descriptionParts: [],
@@ -389,7 +392,7 @@ export function extractHtmlMenuFromHtml(html: string): MenuExtractionResult {
       continue;
     }
 
-    if (looksLikeAdjacentPriceDishTitle(line)) {
+    if (looksLikeAdjacentPriceDishTitle(line, nextLine)) {
       pendingInlineDescriptionItemIndex = null;
       pending = {
         title: cleanDishTitle(line),
@@ -632,7 +635,7 @@ function findCombinedCategorySegments(line: string): string[] | null {
   return segments.every((segment) => CATEGORY_TERMS.has(segment)) ? segments : null;
 }
 
-function isCategoryLine(line: string) {
+function isCategoryLine(line: string, nextLine?: string) {
   if (line.length < 3 || line.length > 40 || PRICE_SCAN_PATTERN.test(line) || parseNumberedTitle(line)) {
     PRICE_SCAN_PATTERN.lastIndex = 0;
     return false;
@@ -645,7 +648,23 @@ function isCategoryLine(line: string) {
     return true;
   }
 
-  return /^[\p{Lu}\s&/-]+$/u.test(line) && line.length <= 28;
+  if (!/^[\p{Lu}\s&/-]+$/u.test(line) || line.length > 28) {
+    return false;
+  }
+
+  // Der Fallback fuer nicht in der Taxonomie stehende GROSSGESCHRIEBENE
+  // Ueberschriften trifft auch auf komplett grossgeschriebene Gerichtsnamen
+  // zu (z.B. italienische Pizzennamen wie "MARGHERITA"). Eine echte
+  // Kategorie-Ueberschrift wird praktisch nie direkt von einer
+  // Zutaten-Beschreibung gefolgt - ein grossgeschriebener Gerichtsname aber
+  // fast immer (Fallanalyse "60secondstonapoli.de", Juli 2026). Der Check
+  // greift nur, wenn eine naechste Zeile uebergeben wurde, damit andere
+  // Aufrufer ohne Kontext (Fragments, Titel-Heuristiken) unveraendert bleiben.
+  if (nextLine !== undefined && looksLikeInlineDescriptionText(nextLine)) {
+    return false;
+  }
+
+  return true;
 }
 
 function isNoiseLine(line: string) {
@@ -695,21 +714,21 @@ function isNoiseLine(line: string) {
   ].some((term) => normalized.includes(term));
 }
 
-function isLikelyDescriptionNoise(line: string) {
+function isLikelyDescriptionNoise(line: string, nextLine?: string) {
   return isNoiseLine(line) ||
     CURRENCY_ONLY_PATTERN.test(line) ||
     isAllergenCodeLine(line) ||
-    isCategoryLine(line) ||
+    isCategoryLine(line, nextLine) ||
     isWeekdayDateHeading(line);
 }
 
-function isInlineDescriptionFollower(line: string) {
-  return !isLikelyDescriptionNoise(line) &&
+function isInlineDescriptionFollower(line: string, nextLine?: string) {
+  return !isLikelyDescriptionNoise(line, nextLine) &&
     !PRICE_LINE_PATTERN.test(line) &&
     !extractLastPrice(line) &&
     !parseNumberedTitle(line) &&
-    !looksLikeAdjacentPriceDishTitle(line) &&
-    (!looksLikeStandaloneDishTitle(line) || looksLikeInlineDescriptionText(line));
+    !looksLikeAdjacentPriceDishTitle(line, nextLine) &&
+    (!looksLikeStandaloneDishTitle(line, nextLine) || looksLikeInlineDescriptionText(line));
 }
 
 function looksLikeInlineDescriptionText(line: string) {
@@ -722,8 +741,8 @@ function isAllergenCodeLine(line: string) {
   return isMenuMarkerLine(line);
 }
 
-function looksLikeStandaloneDishTitle(line: string) {
-  if (line.length < 4 || line.length > 90 || isCategoryLine(line) || isNoiseLine(line)) {
+function looksLikeStandaloneDishTitle(line: string, nextLine?: string) {
+  if (line.length < 4 || line.length > 90 || isCategoryLine(line, nextLine) || isNoiseLine(line)) {
     return false;
   }
 
@@ -734,12 +753,12 @@ function looksLikeStandaloneDishTitle(line: string) {
   return /^\p{Lu}/u.test(line);
 }
 
-function looksLikeAdjacentPriceDishTitle(line: string) {
+function looksLikeAdjacentPriceDishTitle(line: string, nextLine?: string) {
   const title = cleanDishTitle(line);
 
   if (
     !isSafeDishTitle(title) ||
-    isCategoryLine(title) ||
+    isCategoryLine(title, nextLine) ||
     isWeekdayDateHeading(title) ||
     isPackageOrDrinkOfferTitle(title)
   ) {

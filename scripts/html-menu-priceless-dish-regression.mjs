@@ -131,7 +131,7 @@ assert(
   "finishPendingWithoutPrice must be wired into all pending-reset branches (weekday heading, category line, numbered title, new-title-in-pending, EOF)"
 );
 assert(
-  source.includes("looksLikeNewPendingDishTitle") && source.includes("isInlineDescriptionFollower(line)"),
+  source.includes("looksLikeNewPendingDishTitle") && source.includes("isInlineDescriptionFollower(line"),
   "a new dish title line must not be absorbed as description text of the previous pending dish"
 );
 
