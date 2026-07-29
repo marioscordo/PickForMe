@@ -401,10 +401,12 @@ async function repairMissingCompactTranslatedDescriptions({
               "- Fuege keine Zutaten, Details, Empfehlungen oder Begruendungen hinzu.",
               "- Wenn die Beschreibung bereits eine knappe fremdsprachige Umschreibung ist, uebertrage sie treu in die Zielsprache.",
               "- Gib fuer jedes item genau eine nicht-leere translatedDescription zurueck.",
+              "- Gib den 'index'-Wert jedes items unveraendert zurueck; er dient ausschliesslich der Zuordnung und darf nicht neu vergeben, sortiert oder ausgelassen werden.",
               "- Return only valid JSON.",
               "",
               JSON.stringify({
-                items: repairItems.map((dish) => ({
+                items: repairItems.map((dish, index) => ({
+                  index,
                   nameOriginal: dish.nameOriginal,
                   descriptionOriginal: dish.descriptionOriginal
                 }))
@@ -429,10 +431,10 @@ async function repairMissingCompactTranslatedDescriptions({
                 type: "object",
                 additionalProperties: false,
                 properties: {
-                  nameOriginal: { type: "string" },
+                  index: { type: "integer" },
                   translatedDescription: { type: "string" }
                 },
-                required: ["nameOriginal", "translatedDescription"]
+                required: ["index", "translatedDescription"]
               }
             }
           },
@@ -456,21 +458,30 @@ async function repairMissingCompactTranslatedDescriptions({
   });
 
   const parsed = parseDescriptionTranslationRepairResponse(response.output_text ?? "{}");
-  const translationsByName = new Map(parsed.items.map((item) => [normalizeNameKey(item.nameOriginal), item.translatedDescription.trim()]));
+  // Fallanalyse Juli 2026: eine fruehere Fassung ordnete die reparierte
+  // translatedDescription per lose normalisiertem nameOriginal-String zu
+  // (Map ueber normalizeNameKey). Bei zwei aehnlich benannten oder vom
+  // Reparatur-Modell nicht exakt identisch echoten Namen konnte dadurch die
+  // Beschreibung eines VOELLIG ANDEREN Gerichts zugeordnet werden (z.B. ein
+  // Haehnchen-Gericht erhielt die Beschreibung eines Schweinefleisch-
+  // Gerichts). Die Zuordnung laeuft jetzt ausschliesslich ueber den
+  // expliziten, im Request mitgesendeten "index"-Anker - keine Textnormali-
+  // sierung, keine Kollisionsmoeglichkeit.
+  const translationsByIndex = new Map(parsed.items.map((item) => [item.index, item.translatedDescription.trim()]));
 
-  for (const dish of repairItems) {
-    const translatedDescription = translationsByName.get(normalizeNameKey(dish.nameOriginal));
+  repairItems.forEach((dish, index) => {
+    const translatedDescription = translationsByIndex.get(index);
 
     if (translatedDescription) {
       dish.translatedDescription = translatedDescription;
     }
-  }
+  });
 }
 
 function parseDescriptionTranslationRepairResponse(value: string) {
   const parsed = JSON.parse(stripJsonFence(value)) as {
     items?: Array<{
-      nameOriginal?: unknown;
+      index?: unknown;
       translatedDescription?: unknown;
     }>;
   };
@@ -479,10 +490,10 @@ function parseDescriptionTranslationRepairResponse(value: string) {
     items: Array.isArray(parsed.items)
       ? parsed.items
         .map((item) => ({
-          nameOriginal: typeof item.nameOriginal === "string" ? item.nameOriginal.trim() : "",
+          index: typeof item.index === "number" && Number.isInteger(item.index) ? item.index : -1,
           translatedDescription: typeof item.translatedDescription === "string" ? item.translatedDescription.trim() : ""
         }))
-        .filter((item) => item.nameOriginal && item.translatedDescription)
+        .filter((item) => item.index >= 0 && item.translatedDescription)
       : []
   };
 }
@@ -838,13 +849,6 @@ function normalizeDisplayContractText(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function normalizeNameKey(value: string) {
-  return value
-    .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
 }
