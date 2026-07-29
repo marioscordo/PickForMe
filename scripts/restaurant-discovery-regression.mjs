@@ -47,7 +47,9 @@ assert(discoveryService.includes("getRegistrableDomain") && discoveryService.inc
 assert(discoveryService.includes("loadMenuTextFromUrl") && discoveryService.includes("verifyDirectAnalyzableMenuUrl"), "Discovery must preflight menu URLs with the shared loader");
 assert(discoveryService.includes("findSameDomainAnalyzableMenuUrl") && discoveryService.includes("findLinkedAnalyzableMenuUrl"), "Discovery crawler must resolve same-domain analyzable menu URLs");
 assert(discoveryService.includes("return parseMenu(menuText).length >= 2"), "Full discovery must fail closed when fewer than two menu entries are parseable");
-assert(discoveryService.includes("contentMatchesRestaurant") && discoveryService.includes("sourceTextMatchesRestaurant(name, text) && sourceTextMatchesCity(city, text)"), "Restaurant candidate verification must check page content against the searched restaurant, not just URL reachability");
+assert(discoveryService.includes("contentMatchesRestaurant") && discoveryService.includes("sourceTextMatchesRestaurant(name, text)") && discoveryService.includes("sourceTextMatchesCity(city, text)"), "Restaurant candidate verification must check page content against the searched restaurant, not just URL reachability");
+assert(discoveryService.includes("contactPageMatchesCity") && discoveryService.includes("CONTACT_PAGE_SLUGS"), "Restaurant candidate verification must also check a contact/imprint subpage when the homepage does not confirm the city");
+assert(discoveryService.includes("sourceContainsNameToken") && discoveryService.includes("token.slice(0, i) + token.slice(i + 1)"), "Restaurant name matching must tolerate a single-character spelling variant for longer name tokens");
 
 assert(menuSourceSelector.includes("selectRestaurantMenuSource"), "Shared menu source selector missing");
 assert(menuSourceSelector.includes("loadMenuTextFromUrl"), "Shared menu source selector must use the shared loader");

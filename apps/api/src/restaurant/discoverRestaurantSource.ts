@@ -583,7 +583,28 @@ function sourceTextMatchesRestaurant(restaurantName: string, sourceText: string)
   const source = normalizeComparableText(sourceText);
   const tokens = restaurantNameTokens(restaurantName);
 
-  return tokens.length > 0 && tokens.every((token) => source.includes(token));
+  return tokens.length > 0 && tokens.every((token) => sourceContainsNameToken(token, source));
+}
+
+// Nutzereingaben zum Restaurantnamen koennen von der auf der Website
+// tatsaechlich verwendeten Schreibweise leicht abweichen (z.B. "Winkelmoos"
+// statt "Winklmoos" - Fallanalyse "sonnenalm.de", Juli 2026). Ein reiner
+// Substring-Abgleich verwirft dann einen inhaltlich korrekten Treffer
+// komplett. Fuer laengere Woerter (ab 6 Zeichen) wird deshalb zusaetzlich
+// jede Variante mit genau einem entfernten Zeichen als Teilstring geprueft -
+// das deckt den haeufigsten Fall (ein ueberzaehliger Buchstabe in der
+// Eingabe) ab, ohne die Pruefung insgesamt zu lockern: es muss weiterhin
+// jedes Namens-Token irgendeine Entsprechung im Seitentext haben.
+function sourceContainsNameToken(token: string, source: string): boolean {
+  if (source.includes(token)) return true;
+  if (token.length < 6) return false;
+
+  for (let i = 0; i < token.length; i += 1) {
+    const variant = token.slice(0, i) + token.slice(i + 1);
+    if (source.includes(variant)) return true;
+  }
+
+  return false;
 }
 
 function sourceTextMatchesCity(city: string, sourceText: string) {
@@ -617,10 +638,48 @@ async function contentMatchesRestaurant(url: string, name: string, city: string)
     const html = await response.text();
     const text = htmlToPlainText(html);
 
-    return sourceTextMatchesRestaurant(name, text) && sourceTextMatchesCity(city, text);
+    if (!sourceTextMatchesRestaurant(name, text)) return false;
+    if (sourceTextMatchesCity(city, text)) return true;
+
+    // Manche Websites nennen den Ort nicht auf der Startseite, sondern nur
+    // auf einer Kontakt-/Impressum-Unterseite (Fallanalyse "sonnenalm.de",
+    // Juli 2026: "Reit im Winkl" stand nur unter /kontakt/, nicht auf der
+    // Startseite). Bevor der Kandidat verworfen wird, deshalb noch eine
+    // kleine, auf dieselbe Domain begrenzte Auswahl ueblicher
+    // Kontaktseiten pruefen.
+    return await contactPageMatchesCity(response.url || url, city);
   } catch {
     return false;
   }
+}
+
+const CONTACT_PAGE_SLUGS = ["kontakt", "contact", "impressum"];
+
+async function contactPageMatchesCity(baseUrl: string, city: string): Promise<boolean> {
+  const expectedDomain = getRegistrableDomain(baseUrl);
+  if (!expectedDomain) return false;
+
+  const baseForRelativeLinks = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+
+  for (const slug of CONTACT_PAGE_SLUGS) {
+    const candidateUrl = normalizeOfficialUrl(`${slug}/`, baseForRelativeLinks);
+    if (!candidateUrl || getRegistrableDomain(candidateUrl) !== expectedDomain) continue;
+
+    try {
+      const response = await fetch(candidateUrl, { headers: REQUEST_HEADERS, redirect: "follow" });
+      if (!response.ok) continue;
+
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) continue;
+
+      const text = htmlToPlainText(await response.text());
+      if (sourceTextMatchesCity(city, text)) return true;
+    } catch {
+      continue;
+    }
+  }
+
+  return false;
 }
 
 function extractProviderAddress(sourceText: string, city: string) {
