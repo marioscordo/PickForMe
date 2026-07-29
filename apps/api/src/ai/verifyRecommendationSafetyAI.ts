@@ -36,6 +36,10 @@ export async function verifyRecommendationSafetyAI({
   const model = getTwoStepModelForSource({ kind: "text" });
   const request: ResponseCreateParamsNonStreaming = {
     model,
+    // Feste, niedrige Temperatur fuer konsistentere Kategorisierungs-
+    // Entscheidungen bei Grenzfaellen (z.B. "Pilze" vs. "Pfifferlinge")
+    // zwischen wiederholten Anfragen.
+    temperature: 0,
     input: [
       {
         role: "user",
@@ -102,7 +106,9 @@ function buildSafetyVerifierPrompt({
     "Pruefe nur sichtbaren Originaltext gegen aktive Allergene, Ausschluesse und Unvertraeglichkeiten.",
     "Du bewertest keine Vorlieben, kein Ranking und keine Restaurantdaten.",
     "Nutze nur nameOriginal und descriptionOriginal der Kandidaten.",
-    "Keine Websuche. Kein typisches Rezeptwissen. Keine Zutaten erfinden.",
+    "Keine Websuche. Erfinde keine Zutaten, die im Text nicht vorkommen, und nimm nicht an, ein Gericht enthalte typische Rezeptzutaten, die nicht genannt sind.",
+    "Ordne aber jede im Text tatsaechlich genannte Zutat mit deinem Lebensmittelwissen korrekt einer Restriction zu, auch wenn der Restriktionsbegriff selbst nicht woertlich im Text vorkommt (Synonyme, Sorten, Unterarten, Singular/Plural, regionale Schreibweisen). Das ist Kategorisierung einer genannten Zutat, keine Erfindung.",
+    "Beispiel: Der Ausschluss 'Pilze' gilt auch fuer im Text genannte Pilzarten wie Pfifferlinge, Steinpilze, Trueffel, Morcheln oder Shiitake, selbst wenn das Wort 'Pilz' selbst nicht vorkommt.",
     "Liefere fuer jeden Kandidaten genau ein Paket-Ergebnis.",
     "Pruefe jeden Kandidaten gegen das komplette Restriktionspaket.",
     "Jede Restriction-ID muss pro Kandidat in checkedRestrictionIds enthalten sein.",
@@ -122,6 +128,7 @@ function buildSafetyVerifierPrompt({
     "- Evidence muss bei conflict ein kurzer exakter Ausschnitt aus nameOriginal oder descriptionOriginal sein.",
     "- source ist bei conflict name oder description.",
     "- Bei uncertain ist evidence optional; wenn gesetzt, muss sie sichtbar aus nameOriginal oder descriptionOriginal stammen.",
+    "- Bist du dir bei der Kategorisierung einer genannten Zutat nicht sicher, ob sie zu einer Restriction gehoert, waehle uncertain statt safe.",
     "- Verwende ausschliesslich die gelieferten IDs.",
     "- Aendere Candidate-IDs und Restriction-IDs nicht.",
     "- Fuehre vor der finalen Antwort intern eine Vollstaendigkeitspruefung durch: Kandidaten zaehlen, Restrictions zaehlen und sicherstellen, dass jeder Kandidat alle Restriction-IDs in checkedRestrictionIds enthaelt.",
