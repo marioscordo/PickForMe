@@ -1625,7 +1625,8 @@ async function analyzeMenuWithTwoStepMainFlow({
   const localizedRecommendations = await localizeRecommendationsForPayload({
     dishes: mapped.dishes,
     recommendations: allergySafeRecommendations,
-    userLocale: outputLocale
+    userLocale: outputLocale,
+    menuLanguage: mainDishResult.menuLanguage
   });
 
   const conciergeHero = buildFallbackConciergeHero({

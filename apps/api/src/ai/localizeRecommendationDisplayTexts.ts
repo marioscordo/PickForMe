@@ -16,6 +16,11 @@ type LocalizeRecommendationDisplayTextsInput = {
   dishes: Dish[];
   recommendations: Recommendation[];
   userLocale?: string;
+  // Von der Haupt-KI erkannte Sprache der Original-Speisekarte (z.B. "de").
+  // Stimmt sie mit der Zielsprache ueberein, ist eine unveraenderte
+  // Uebernahme des Originaltexts die korrekte "Uebersetzung" - kein Grund,
+  // einen KI-Call auszuloesen oder als ungueltig zu werten.
+  menuLanguage?: string;
 };
 
 type TranslationRequestItem = {
@@ -42,13 +47,15 @@ type TranslationValidationFailureReason =
 export async function localizeRecommendationDisplayTexts({
   dishes,
   recommendations,
-  userLocale
+  userLocale,
+  menuLanguage
 }: LocalizeRecommendationDisplayTextsInput): Promise<Recommendation[]> {
   if (recommendations.length === 0) {
     return recommendations;
   }
 
   const targetLocale = normalizeTargetLocale(userLocale);
+  const sourceMatchesTarget = isMenuLanguageSameAsTarget(menuLanguage, targetLocale);
   const dishesById = new Map(dishes.map((dish) => [dish.id, dish]));
   const requestItems = recommendations
     .map((recommendation): TranslationRequestItem | null => {
@@ -76,10 +83,10 @@ export async function localizeRecommendationDisplayTexts({
 
   const existingTranslations = new Map(
     requestItems
-      .filter((item) => hasValidExistingDisplayText(item, targetLocale))
+      .filter((item) => hasValidExistingDisplayText(item, targetLocale, sourceMatchesTarget))
       .map((item) => [item.dishId, {
-        translatedName: item.currentTranslatedName!.trim(),
-        translatedDescription: normalizedExistingTranslatedDescription(item, targetLocale)
+        translatedName: (item.currentTranslatedName?.trim() || item.nameOriginal).trim(),
+        translatedDescription: normalizedExistingTranslatedDescription(item, targetLocale, sourceMatchesTarget)
       }])
   );
 
@@ -90,7 +97,8 @@ export async function localizeRecommendationDisplayTexts({
   const translationsToRepair = requestItems.filter((item) => !existingTranslations.has(item.dishId));
   const repairedTranslations = await requestDishDisplayTranslations({
     items: translationsToRepair,
-    targetLocale
+    targetLocale,
+    sourceMatchesTarget
   });
   const translations = new Map([...existingTranslations, ...repairedTranslations]);
 
@@ -99,10 +107,12 @@ export async function localizeRecommendationDisplayTexts({
 
 async function requestDishDisplayTranslations({
   items,
-  targetLocale
+  targetLocale,
+  sourceMatchesTarget
 }: {
   items: TranslationRequestItem[];
   targetLocale: string;
+  sourceMatchesTarget: boolean;
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -184,7 +194,7 @@ async function requestDishDisplayTranslations({
         }])
       );
 
-      assertValidTranslations(items, translations, targetLocale);
+      assertValidTranslations(items, translations, targetLocale, sourceMatchesTarget);
 
       return translations;
     } catch (error) {
@@ -220,12 +230,13 @@ function applyTranslations(recommendations: Recommendation[], translations: Map<
 function assertValidTranslations(
   items: TranslationRequestItem[],
   translations: Map<string, DisplayTranslation>,
-  targetLocale: string
+  targetLocale: string,
+  sourceMatchesTarget: boolean
 ) {
   const invalidItems = items
     .map((item) => ({
       item,
-      reason: getDisplayTranslationValidationFailureReason(item, translations.get(item.dishId), targetLocale)
+      reason: getDisplayTranslationValidationFailureReason(item, translations.get(item.dishId), targetLocale, sourceMatchesTarget)
     }))
     .filter((entry): entry is {
       item: TranslationRequestItem;
@@ -258,41 +269,45 @@ function assertValidTranslations(
 function isValidDisplayTranslation(
   item: TranslationRequestItem,
   translation: DisplayTranslation | undefined,
-  targetLocale: string
+  targetLocale: string,
+  sourceMatchesTarget: boolean
 ) {
-  return !getDisplayTranslationValidationFailureReason(item, translation, targetLocale);
+  return !getDisplayTranslationValidationFailureReason(item, translation, targetLocale, sourceMatchesTarget);
 }
 
 function getDisplayTranslationValidationFailureReason(
   item: TranslationRequestItem,
   translation: DisplayTranslation | undefined,
-  targetLocale: string
+  targetLocale: string,
+  sourceMatchesTarget: boolean
 ): TranslationValidationFailureReason | null {
-  return getDishTranslationValidationFailureReason(item, translation?.translatedName, targetLocale) ??
-    getDescriptionTranslationValidationFailureReason(item, translation?.translatedDescription, targetLocale);
+  return getDishTranslationValidationFailureReason(item, translation?.translatedName, targetLocale, sourceMatchesTarget) ??
+    getDescriptionTranslationValidationFailureReason(item, translation?.translatedDescription, targetLocale, sourceMatchesTarget);
 }
 
 function isValidDishTranslation(
   item: TranslationRequestItem,
   translatedName: string | undefined,
-  targetLocale: string
+  targetLocale: string,
+  sourceMatchesTarget: boolean
 ) {
-  return !getDishTranslationValidationFailureReason(item, translatedName, targetLocale);
+  return !getDishTranslationValidationFailureReason(item, translatedName, targetLocale, sourceMatchesTarget);
 }
 
 function getDishTranslationValidationFailureReason(
   item: TranslationRequestItem,
   translatedName: string | undefined,
-  targetLocale: string
+  targetLocale: string,
+  sourceMatchesTarget: boolean
 ): TranslationValidationFailureReason | null {
   const value = translatedName?.trim();
 
   if (!value) {
-    return "translated_name_missing";
+    return sourceMatchesTarget ? null : "translated_name_missing";
   }
 
   if (normalizeForTranslationCheck(value) === normalizeForTranslationCheck(item.nameOriginal)) {
-    return "translated_name_identical_to_original";
+    return sourceMatchesTarget ? null : "translated_name_identical_to_original";
   }
 
   const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
@@ -308,19 +323,20 @@ function getDishTranslationValidationFailureReason(
   return null;
 }
 
-function hasValidExistingDisplayText(item: TranslationRequestItem, targetLocale: string) {
-  if (!isValidDishTranslation(item, item.currentTranslatedName, targetLocale)) {
+function hasValidExistingDisplayText(item: TranslationRequestItem, targetLocale: string, sourceMatchesTarget: boolean) {
+  if (!isValidDishTranslation(item, item.currentTranslatedName, targetLocale, sourceMatchesTarget)) {
     return false;
   }
 
   return isValidDescriptionTranslation(
     item,
-    normalizedExistingTranslatedDescription(item, targetLocale),
-    targetLocale
+    normalizedExistingTranslatedDescription(item, targetLocale, sourceMatchesTarget),
+    targetLocale,
+    sourceMatchesTarget
   );
 }
 
-function normalizedExistingTranslatedDescription(item: TranslationRequestItem, targetLocale: string) {
+function normalizedExistingTranslatedDescription(item: TranslationRequestItem, targetLocale: string, sourceMatchesTarget: boolean) {
   const current = item.currentTranslatedDescription?.trim();
 
   if (current) {
@@ -329,7 +345,7 @@ function normalizedExistingTranslatedDescription(item: TranslationRequestItem, t
 
   const original = item.descriptionOriginal?.trim();
 
-  if (original && isSameLanguageDescriptionAllowed(original, targetLocale)) {
+  if (original && (sourceMatchesTarget || isSameLanguageDescriptionAllowed(original, targetLocale))) {
     return original;
   }
 
@@ -354,15 +370,17 @@ function buildTranslatedDescriptionPatch(
 function isValidDescriptionTranslation(
   item: TranslationRequestItem,
   translatedDescription: string | null | undefined,
-  targetLocale: string
+  targetLocale: string,
+  sourceMatchesTarget: boolean
 ) {
-  return !getDescriptionTranslationValidationFailureReason(item, translatedDescription, targetLocale);
+  return !getDescriptionTranslationValidationFailureReason(item, translatedDescription, targetLocale, sourceMatchesTarget);
 }
 
 function getDescriptionTranslationValidationFailureReason(
   item: TranslationRequestItem,
   translatedDescription: string | null | undefined,
-  targetLocale: string
+  targetLocale: string,
+  sourceMatchesTarget: boolean
 ): TranslationValidationFailureReason | null {
   const descriptionOriginal = item.descriptionOriginal?.trim();
   const value = translatedDescription?.trim();
@@ -372,11 +390,12 @@ function getDescriptionTranslationValidationFailureReason(
   }
 
   if (!value) {
-    return "translated_description_missing";
+    return sourceMatchesTarget ? null : "translated_description_missing";
   }
 
   if (
     normalizeForTranslationCheck(value) === normalizeForTranslationCheck(descriptionOriginal) &&
+    !sourceMatchesTarget &&
     !isSameLanguageDescriptionAllowed(descriptionOriginal, targetLocale)
   ) {
     return "translated_description_identical_to_foreign_original";
@@ -499,6 +518,22 @@ function normalizeTargetLocale(value: string | undefined) {
   const locale = value?.trim();
 
   return locale ? locale.slice(0, 40) : "de-DE";
+}
+
+// "unknown" ist ein legitimer Rueckgabewert der Haupt-KI (Sprache nicht
+// sicher erkannt) und wird bewusst NICHT als Uebereinstimmung gewertet -
+// nur eine konkret erkannte, mit der Zielsprache identische Sprache
+// rechtfertigt das Ueberspringen der Uebersetzung.
+function isMenuLanguageSameAsTarget(menuLanguage: string | undefined, targetLocale: string) {
+  const normalizedMenuLanguage = menuLanguage?.trim().toLowerCase();
+
+  if (!normalizedMenuLanguage || normalizedMenuLanguage === "unknown") {
+    return false;
+  }
+
+  const targetLanguageCode = targetLocale.toLowerCase().split(/[-_]/)[0];
+
+  return normalizedMenuLanguage === targetLanguageCode;
 }
 
 function getLanguageNameForLocale(locale: string) {
