@@ -645,7 +645,7 @@
     "pickInput": {
       "title": "Speisekarte zeigen",
       "points": [
-        "Du kannst GustaroAI eine Speisekarte auf mehreren Wegen zeigen: Link einfügen, QR-Code scannen, Foto aufnehmen oder Speisekartentext einfügen. Bevor GustaroAI Dir passende Gerichte empfiehlt, kannst Du Deine Vorlieben noch einmal prüfen. Danach kommst Du direkt zurück zur Speisekartenanalyse - Dein Link, QR-Code, Foto oder Text bleibt erhalten.",
+        "Du kannst GustaroAI eine Speisekarte auf mehreren Wegen zeigen: Link einfügen, QR-Code scannen, Speisekartentext einfügen oder ein Restaurant suchen lassen. Bevor GustaroAI Dir passende Gerichte empfiehlt, kannst Du Deine Vorlieben noch einmal prüfen. Danach kommst Du direkt zurück zur Speisekartenanalyse - Dein Link, QR-Code oder Text bleibt erhalten.",
         "Mit „Was soll ich Dir empfehlen?“ wählst Du zwischen Vorspeisen und Salaten oder Hauptspeisen.",
         "Wenn Du Dich für ein Gericht entschieden hast, kannst Du Dir dazu optional noch eine Vorspeise oder einen Salat empfehlen lassen.",
         "Diese Auswahl begrenzt den Gerichtsraum der Analyse - Dein Profil bleibt dabei weiterhin wichtig.",
@@ -659,6 +659,8 @@
         "Empfehlung 1 ist GustaroAIs beste Wahl aus der erkannten Speisekarte.",
         "Speisekarten sind nicht immer vollständig lesbar. Deshalb kann es vorkommen, dass nicht alle Gerichte erkannt werden.",
         "Du kannst einmalig zusätzlich „Vorspeisen & Salate“ auswählen und dafür passende Empfehlungen aus derselben Speisekarte erhalten.",
+        "Zu Deinem Hauptgericht kannst Du außerdem eine passende Weinempfehlung anfordern.",
+        "Unter „Bestellen“ siehst Du Deine gewählte Vorspeise, Hauptgericht und Wein noch einmal übersichtlich zusammengefasst - praktisch zum Vorzeigen im Restaurant.",
         "„Neue Speisekarte zeigen“ verwirft die aktuelle Empfehlung und startet den Weg zu einer neuen Analyse.",
         "Wenn Du unsicher bist, kannst Du die Original-Speisekarte öffnen und selbst nachprüfen."
       ],
@@ -732,6 +734,16 @@
         "Klare Ausschlüsse werden später als harte Grenze behandelt."
       ],
       "tip": "Gustaro Plus nutzt diese Angaben nur fuer Weinempfehlungen. Dein Essensprofil bleibt getrennt."
+    },
+    "restaurantSearch": {
+      "title": "Restaurant suchen",
+      "points": [
+        "Gib Restaurantname und Stadt ein - das Land ist optional, hilft aber bei mehrfach vorkommenden Namen.",
+        "GustaroAI zeigt Dir eine Trefferliste. Wähle das richtige Restaurant aus - besonders wichtig bei Filialen in mehreren Städten.",
+        "Nach Deiner Bestätigung sucht GustaroAI die passende Speisekarte aus der offiziellen Quelle des Restaurants.",
+        "Findet GustaroAI keine nutzbare Speisekarte, kannst Du sie stattdessen als Link oder Text einfügen."
+      ],
+      "tip": "Je genauer Name und Stadt, desto zuverlässiger die Trefferliste."
     }
   },
   "restaurantSearch": {

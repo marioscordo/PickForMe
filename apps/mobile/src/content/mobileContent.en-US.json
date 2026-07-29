@@ -645,7 +645,7 @@
     "pickInput": {
       "title": "Show menu",
       "points": [
-        "You can show GustaroAI a menu in several ways: paste a link, scan a QR code, take a photo, or paste menu text. Before GustaroAI recommends dishes for you, you can quickly review your preferences. Afterwards, you return directly to the menu analysis - your link, QR code, photo, or text stays in place.",
+        "You can show GustaroAI a menu in several ways: paste a link, scan a QR code, paste menu text, or search for a restaurant. Before GustaroAI recommends dishes for you, you can quickly review your preferences. Afterwards, you return directly to the menu analysis - your link, QR code, or text stays in place.",
         "With 'What should I recommend?' you choose between starters and salads or main courses.",
         "Once you have chosen a dish, you can optionally ask for a starter or salad as an additional course.",
         "This limits the dish space for the analysis - your profile still remains important.",
@@ -659,6 +659,8 @@
         "Recommendation 1 is GustaroAI's best choice from the recognized menu.",
         "Menus are not always fully readable. Some dishes may not be detected.",
         "You can also select “Starters & Salads” once and receive suitable recommendations from the same menu.",
+        "You can also request a matching wine recommendation for your main dish.",
+        "Under \"Order\" you see your selected starter, main dish, and wine summarized clearly - handy to show at the restaurant.",
         "'Show new menu' discards the current recommendation and starts the path to a new analysis.",
         "If you are unsure, you can open the original menu and check it yourself."
       ],
@@ -732,6 +734,16 @@
         "Clear exclusions will later be treated as hard limits."
       ],
       "tip": "Gustaro Plus uses these settings only for wine recommendations. Your food profile stays separate."
+    },
+    "restaurantSearch": {
+      "title": "Search restaurant",
+      "points": [
+        "Enter the restaurant name and city - the country is optional but helps when the same name exists more than once.",
+        "GustaroAI shows you a list of matches. Choose the right restaurant - especially important for branches in several cities.",
+        "After you confirm, GustaroAI looks for the matching menu from the restaurant's official source.",
+        "If GustaroAI cannot find a usable menu, you can add it instead as a link or as text."
+      ],
+      "tip": "The more precise the name and city, the more reliable the results."
     }
   },
   "restaurantSearch": {

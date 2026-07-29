@@ -4,6 +4,7 @@ import { PickForMeApiError } from "../../api/apiClient";
 import { resolveRestaurantMenuSource, searchRestaurantCandidates } from "../../api/pickformeApi";
 import { useMobileContent } from "../../content/useMobileContent";
 import { colors, styles } from "../../theme/styles";
+import { GustaroHelp } from "../ui/GustaroHelp";
 import type { RestaurantDiscoveryCandidate } from "../../types/recommendations";
 
 type RestaurantSearchFlowStep = "form" | "results" | "confirm" | "resolving";
@@ -121,9 +122,12 @@ export function RestaurantSearchFlow({ onResolved, onClose }: RestaurantSearchFl
     <View style={styles.card}>
       <View style={local.headerRow}>
         <Text style={styles.h2}>{copy.title}</Text>
-        <Pressable accessibilityRole="button" onPress={onClose}>
-          <Text style={local.closeText}>{copy.close}</Text>
-        </Pressable>
+        <View style={local.headerActions}>
+          <GustaroHelp common={content.help.common} topic={content.help.restaurantSearch} />
+          <Pressable accessibilityRole="button" onPress={onClose}>
+            <Text style={local.closeText}>{copy.close}</Text>
+          </Pressable>
+        </View>
       </View>
 
       {step === "form" ? (
@@ -263,6 +267,11 @@ const local = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
   },
   closeText: {
     color: colors.muted,
