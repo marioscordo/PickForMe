@@ -13,12 +13,20 @@ export type SignUpResult =
   | { status: "authenticated" }
   | { status: "error"; message: string };
 
+// Eigene Fehlerklasse statt Text-Vergleich, damit LoginScreen diesen
+// speziellen Fall (Konto existiert, Passwort korrekt, aber E-Mail nie
+// bestaetigt) unabhaengig von der GUI-Sprache erkennen und einen
+// "erneut senden"-Button anbieten kann - ohne die generische
+// "Login fehlgeschlagen"-Meldung dafuer zu missbrauchen.
+export class EmailNotConfirmedError extends Error {}
+
 type AuthContextValue = {
   state: AuthState;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
+  resendConfirmationEmail: (email: string) => Promise<void>;
 };
 
 const authContent = getMobileContent(resolveGuiLanguageFromDevice()).authErrors;
@@ -105,10 +113,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (error) {
+      if (error.code === "email_not_confirmed") {
+        throw new EmailNotConfirmedError(authContent.emailNotConfirmed);
+      }
+
       throw new Error(authContent.loginFailed);
     }
 
     setState(authStateFromSession(data.session));
+  }
+
+  // Fuer Nutzer, die die urspruengliche Bestaetigungs-Mail nie erhalten haben
+  // (Spamfilter, Tippfehler beim Versand o.ae.) - loest denselben
+  // Supabase-Versand aus wie signUp(), ohne ein neues Konto anzulegen.
+  async function resendConfirmationEmail(email: string) {
+    const normalized = email.trim().toLowerCase();
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: normalized,
+      options: {
+        emailRedirectTo: getAuthCallbackUrl()
+      }
+    });
+
+    if (error) {
+      throw new Error(authContent.resendConfirmationFailed);
+    }
   }
 
   async function signUp(email: string, password: string): Promise<SignUpResult> {
@@ -166,7 +197,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signIn,
       signUp,
       signOut,
-      deleteAccount
+      deleteAccount,
+      resendConfirmationEmail
     }),
     [state]
   );

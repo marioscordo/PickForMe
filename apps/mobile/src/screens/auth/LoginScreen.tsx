@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Dimensions, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { EmailNotConfirmedError, useAuth } from "../../app/providers/AuthProvider";
 import { env } from "../../config/env";
 import { useMobileContent } from "../../content/useMobileContent";
 import { radius } from "../../theme/tokens";
@@ -29,14 +29,36 @@ export function LoginScreen({ onCreateAccount }: { onCreateAccount?: () => void 
   const [email, setEmail] = useState(env.devMode ? env.devEmail : "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [showResend, setShowResend] = useState(false);
+  const [resendStatus, setResendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   async function handleLogin() {
     setError("");
+    setShowResend(false);
+    setResendStatus("idle");
 
     try {
       await auth.signIn(email, password);
     } catch (e) {
+      if (e instanceof EmailNotConfirmedError) {
+        setError(e.message);
+        setShowResend(true);
+        return;
+      }
+
       setError(e instanceof Error ? e.message : content.login.genericError);
+    }
+  }
+
+  async function handleResendConfirmation() {
+    setResendStatus("sending");
+
+    try {
+      await auth.resendConfirmationEmail(email);
+      setResendStatus("sent");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : content.authErrors.resendConfirmationFailed);
+      setResendStatus("error");
     }
   }
 
@@ -108,6 +130,25 @@ export function LoginScreen({ onCreateAccount }: { onCreateAccount?: () => void 
               <View style={local.errorCard}>
                 <Text style={local.errorText}>{error}</Text>
               </View>
+            ) : null}
+
+            {showResend ? (
+              resendStatus === "sent" ? (
+                <Text style={local.resendStatusText}>{content.authErrors.resendConfirmationSuccess}</Text>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={resendStatus === "sending"}
+                  onPress={handleResendConfirmation}
+                  style={({ pressed }) => [local.linkButton, pressed && local.linkButtonPressed]}
+                >
+                  <Text style={local.linkButtonText}>
+                    {resendStatus === "sending"
+                      ? content.authErrors.resendConfirmationSending
+                      : content.authErrors.resendConfirmationButton}
+                  </Text>
+                </Pressable>
+              )
             ) : null}
 
             <Pressable accessibilityRole="button" onPress={handleLogin} style={({ pressed }) => [local.button, pressed && local.buttonPressed]}>
@@ -311,6 +352,14 @@ const local = StyleSheet.create({
     color: premiumPalette.errorText,
     fontSize: fs(13),
     lineHeight: fs(18)
+  },
+  resendStatusText: {
+    color: premiumPalette.body,
+    fontFamily: premiumFont,
+    fontSize: fs(14),
+    lineHeight: fs(20),
+    marginBottom: s(14),
+    textAlign: "center"
   },
   button: {
     alignItems: "center",
