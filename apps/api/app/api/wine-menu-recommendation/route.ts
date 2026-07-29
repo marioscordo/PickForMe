@@ -68,8 +68,9 @@ export async function POST(request: Request) {
         wineCandidates,
         userLocale: body.userLocale
       }),
-      25000,
-      "WINE_MENU_RECOMMENDATION_TIMEOUT"
+      30000,
+      "WINE_MENU_RECOMMENDATION_TIMEOUT",
+      "Die Suche nach dem passenden Wein auf der Karte hat zu lange gedauert. Bitte versuche es erneut."
     );
 
     return wineMenuResponse(recommendation);
@@ -142,9 +143,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorCode: string): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorCode: string, errorMessage: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(errorCode)), timeoutMs);
+    const timer = setTimeout(
+      () => reject(new AppError(503, errorCode, errorMessage, { retryable: true })),
+      timeoutMs
+    );
 
     promise
       .then((value) => {
