@@ -22,6 +22,7 @@ import { prepareRecommendationSearchSpace } from "../../../src/menu/prepareRecom
 import { loadMenuTextFromUrl, looksLikeUrl } from "../../../src/menu/loadMenuTextFromUrl";
 import { findLinkedMenuImageUrls, looksLikeImageUrl } from "../../../src/menu/findLinkedMenuImageUrls";
 import { prepareBestTildaMenuImageFallback } from "../../../src/menu/prepareTildaMenuImageFallback";
+import { prepareLinkedMenuImageFallback } from "../../../src/menu/prepareLinkedMenuImageFallback";
 import { preparePubhtml5MenuImages } from "../../../src/menu/preparePubhtml5MenuImageFallback";
 import { loadMenuTextFromMenury, looksLikeMenuryUrl } from "../../../src/menu/loadMenuTextFromMenury";
 import {
@@ -873,6 +874,153 @@ export async function POST(request: Request) {
 
             throw tildaImageAiError;
           }
+        }
+
+        // Generischer Bild-Fallback fuer Websites ohne Tilda-/pubhtml5-
+        // Plattformmuster, deren Speisekarte trotzdem nur als Bild(er)
+        // eingebunden ist (Fallanalyse "sonnenalm.de", Juli 2026). Nutzt
+        // dieselbe Two-Step-Pipeline mit Attribution-Evidence-Pruefung und
+        // Sicherheits-Verifier wie Text-/PDF-Speisekarten - kein
+        // unverifizierter Einzel-Vision-Call. Deckt bewusst nur Speisen ab:
+        // findLinkedMenuImageUrls schliesst Wein-/Getraenkebilder gezielt
+        // aus (Score -10 fuer "wein"/"getraenk"), Weinkarten-aus-Bild ist
+        // ein separates, hier nicht behandeltes Thema.
+        const linkedMenuImages = await prepareLinkedMenuImageFallback(rawMenuText);
+
+        if (linkedMenuImages) {
+          try {
+            const imageAllergenWarningPayload = buildAllergenInfoWarningPayload(
+              profile,
+              `${rawMenuText}\n${effectiveMenuText}`,
+              body.userLocale
+            );
+
+            return await analyzeMenuWithTwoStepMainFlow({
+              source: {
+                kind: "image",
+                urls: linkedMenuImages.imageDataUrls,
+                sourceUrl: linkedMenuImages.originalUrls[0] ?? rawMenuText,
+                text: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`
+              },
+              responseMode: "ai_image",
+              profile,
+              situation: body.situation,
+              requestedDishRoles,
+              preferredDishRole,
+              outputLocale,
+              userLocale: body.userLocale,
+              restaurantDescription,
+              localizedRestaurantDescription,
+              restaurantUrl: officialRestaurantUrl,
+              fallbackHeroContextText: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`,
+              htmlMenuExtraction,
+              deviceLocale: body.deviceLocale,
+              extraPayload: {
+                ...imageAllergenWarningPayload,
+                ...buildMenuExtractionPayload(htmlMenuExtraction)
+              },
+              timeoutMs: 60000,
+              requestStartedAt,
+              runId: requestRunId,
+              supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true
+            });
+          } catch (linkedImageAiError) {
+            if (linkedImageAiError instanceof AppError) {
+              throw linkedImageAiError;
+            }
+
+            console.error("GustaroAI Linked Menu Image AI failed.", linkedImageAiError);
+
+            const message = linkedImageAiError instanceof Error ? linkedImageAiError.message : "";
+
+            if (isRateLimitError(linkedImageAiError)) {
+              throw new AppError(
+                429,
+                "AI_RATE_LIMIT",
+                "Ich kann die Bild-Speisekarte gerade nicht auswerten. Bitte versuche es gleich noch einmal."
+              );
+            }
+
+            if (isTemporaryConnectionError(linkedImageAiError)) {
+              throw new AppError(
+                503,
+                "CONNECTION_ERROR",
+                "Ich erreiche den Service gerade nicht. Bitte versuche es gleich noch einmal.",
+                { retryable: true }
+              );
+            }
+
+            const attributionError = mapAttributionEvidenceError(linkedImageAiError);
+            if (attributionError) {
+              throw attributionError;
+            }
+
+            if (linkedImageAiError instanceof SyntaxError) {
+              throw new AppError(
+                500,
+                "AI_RESPONSE_INVALID",
+                "Die KI-Antwort konnte technisch nicht verarbeitet werden."
+              );
+            }
+
+            if (message.includes("TWO_STEP_MAIN_AI_TIMEOUT")) {
+              throw new AppError(
+                504,
+                "AI_TIMEOUT",
+                "Ich brauche fuer diese Bild-Speisekarte gerade zu lange. Bitte versuche es noch einmal.",
+                { retryable: true }
+              );
+            }
+
+            if (message.includes("IMAGE_AI_TIMEOUT")) {
+              throw new AppError(
+                422,
+                "ANALYSIS_NOT_SAFE",
+                "Ich konnte diese Bild-Speisekarte nicht sicher auswerten."
+              );
+            }
+
+            if (isInvalidImageAiError(linkedImageAiError)) {
+              throw new AppError(
+                422,
+                "IMAGE_MENU_NOT_READABLE",
+                "Diese Bild-Speisekarte konnte nicht sicher gelesen werden. Bitte nutze einen direkten Link zu einer PDF-Speisekarte oder fuege den Speisekartentext ein."
+              );
+            }
+
+            if (
+              message.includes("Profilregeln") ||
+              message.includes("keine sicher") ||
+              message.includes("NO_SAFE")
+            ) {
+              throw new AppError(
+                422,
+                "NO_SAFE_RECOMMENDATIONS",
+                "Ich konnte diese Bild-Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten."
+              );
+            }
+
+            throw linkedImageAiError;
+          }
+        }
+
+        // Weder die strukturierte HTML-Extraktion noch einer der
+        // Bild-Fallbacks (Tilda, generischer Bild-Fund) konnten die
+        // Speisekarte inhaltlich fuellen: htmlMenuExtraction ist zwar nicht
+        // null, aber leer (0 Gerichte). Ohne diese Sperre wuerde der duenne
+        // Fragments-Text (nur Navigations-Ueberschriften) direkt an die
+        // Text-KI gehen, die dann plausibel klingende, aber frei erfundene
+        // Gerichte samt Preis ausgegeben hat - derselbe Fehlerfall, der beim
+        // Foto-Speisekarten-Eingang zur Abschaltung gefuehrt hat
+        // (Fallanalyse "sonnenalm.de", Juli 2026). Bei null gefundenen
+        // Gerichten und keinem auswertbaren Bild lieber ehrlich abbrechen,
+        // statt zu raten.
+        if (htmlMenuExtraction && htmlMenuExtraction.items.length === 0) {
+          throw new AppError(
+            422,
+            "MENU_URL_UNREADABLE",
+            "Diese Speisekarte konnte ich nicht zuverlässig auslesen – vermutlich, weil sie nur als Bild ohne Text vorliegt. Bitte füge den Speisekartentext manuell ein."
+          );
         }
       }
     }
