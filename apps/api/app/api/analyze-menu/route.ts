@@ -1032,7 +1032,7 @@ export async function POST(request: Request) {
             ok: true,
             data: {
               mode: "ai_image",
-              orderLabels: buildOrderLabelsForMenuLanguage(undefined, body.userLocale),
+              orderLabels: buildOrderLabelsForMenuLanguage(undefined),
               dishes: aiResult.dishes,
               recommendations,
               conciergeHero,
@@ -1190,7 +1190,7 @@ export async function POST(request: Request) {
       ok: true,
       data: {
         mode: "fallback",
-        orderLabels: buildOrderLabelsForMenuLanguage(undefined, body.userLocale),
+        orderLabels: buildOrderLabelsForMenuLanguage(undefined),
         dishes,
         recommendations: localizedRecommendations,
         conciergeHero: await buildConciergeHeroFromOfficialWebsiteText({
@@ -1276,10 +1276,13 @@ async function localizeRecommendationsForPayload(
   }
 }
 
-function buildOrderLabelsForMenuLanguage(
-  menuLanguage: MenuLanguage | undefined,
-  userLocale: string | undefined
-): OrderLabels {
+// Der Bestellscreen richtet sich an das Restaurantpersonal, nicht an den
+// App-Nutzer - die Ueberschriften sollen deshalb ausschliesslich von der
+// Speisekarten-Sprache abhaengen, nie von der Nutzer-/GUI-Sprache. Deutsch
+// nur, wenn die Speisekarte nachweislich deutsch ist; jede andere/unbekannte
+// Sprache faellt auf Englisch zurueck (naeher an einer international
+// verstaendlichen Lingua franca als Deutsch).
+function buildOrderLabelsForMenuLanguage(menuLanguage: MenuLanguage | undefined): OrderLabels {
   switch (menuLanguage) {
     case "es":
       return { title: "Orden", starter: "Entrada", main: "Plato fuerte", wine: "Vino" };
@@ -1302,9 +1305,7 @@ function buildOrderLabelsForMenuLanguage(
       return { title: "Bestellung", starter: "Vorspeise", main: "Hauptspeise", wine: "Wein" };
     case "unknown":
     default:
-      return userLocale?.toLowerCase().startsWith("en")
-        ? { title: "Order", starter: "Starter", main: "Main dish", wine: "Wine" }
-        : { title: "Bestellung", starter: "Vorspeise", main: "Hauptspeise", wine: "Wein" };
+      return { title: "Order", starter: "Starter", main: "Main dish", wine: "Wine" };
   }
 }
 
@@ -1523,6 +1524,7 @@ async function analyzeMenuWithTwoStepMainFlow({
       candidates: mainDishResult.uncertainReviewCandidates,
       source,
       productionTrace: mainDishResult.productionTrace,
+      menuLanguage: mainDishResult.menuLanguage,
       localizedRestaurantDescription,
       htmlMenuExtraction,
       profile,
@@ -1578,6 +1580,7 @@ async function analyzeMenuWithTwoStepMainFlow({
       candidates: mainDishResult.uncertainReviewCandidates,
       source,
       productionTrace: mainDishResult.productionTrace,
+      menuLanguage: mainDishResult.menuLanguage,
       localizedRestaurantDescription,
       htmlMenuExtraction,
       profile,
@@ -1647,7 +1650,7 @@ async function analyzeMenuWithTwoStepMainFlow({
     runId
   });
 
-  const orderLabels = buildOrderLabelsForMenuLanguage(mainDishResult.menuLanguage, userLocale);
+  const orderLabels = buildOrderLabelsForMenuLanguage(mainDishResult.menuLanguage);
 
   const responseSerializationStartedAt = Date.now();
   const response = NextResponse.json({
@@ -1716,6 +1719,7 @@ function buildUncertainReviewResponse({
   candidates,
   source,
   productionTrace,
+  menuLanguage,
   localizedRestaurantDescription,
   htmlMenuExtraction,
   profile,
@@ -1736,6 +1740,7 @@ function buildUncertainReviewResponse({
   candidates: MainDishRecommendationResult["uncertainReviewCandidates"];
   source: TwoStepMenuSourceInput;
   productionTrace: MainDishRecommendationResult["productionTrace"];
+  menuLanguage: MainDishRecommendationResult["menuLanguage"];
   localizedRestaurantDescription: LocalizedRestaurantDescriptionResult | null;
   htmlMenuExtraction: MenuExtractionResult | null;
   profile: AnalyzeMenuRequest["profile"];
@@ -1800,7 +1805,7 @@ function buildUncertainReviewResponse({
     data: {
       mode: responseMode,
       recommendationResultType: "uncertain_review" as const,
-      orderLabels: buildOrderLabelsForMenuLanguage(undefined, outputLocale),
+      orderLabels: buildOrderLabelsForMenuLanguage(menuLanguage),
       dishes,
       recommendations: allergySafeRecommendations,
       conciergeHero,
