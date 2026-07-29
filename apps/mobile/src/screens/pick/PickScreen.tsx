@@ -501,20 +501,22 @@ export function PickScreen({
           <Text style={local.photoMenuError}>{photoMenuError}</Text>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          disabled={photoMenuLoading}
-          style={[local.findMenuRow, photoMenuLoading && local.findMenuRowDisabled]}
-          onPress={openPhotoCamera}
-        >
-          <View style={local.findMenuLeft}>
-            <Feather color={premiumPalette.gold} name="camera" size={s(19)} />
-            <Text style={local.findMenuText}>
-              {photoMenuLoading ? content.photoMenu.extracting : content.pick.photoMenuButton}
-            </Text>
-          </View>
-          <Feather color={premiumPalette.textSoft} name="chevron-right" size={s(24)} />
-        </Pressable>
+        {profileFeatures.photoMenuFeatureEnabled ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={photoMenuLoading}
+            style={[local.findMenuRow, photoMenuLoading && local.findMenuRowDisabled]}
+            onPress={openPhotoCamera}
+          >
+            <View style={local.findMenuLeft}>
+              <Feather color={premiumPalette.gold} name="camera" size={s(19)} />
+              <Text style={local.findMenuText}>
+                {photoMenuLoading ? content.photoMenu.extracting : content.pick.photoMenuButton}
+              </Text>
+            </View>
+            <Feather color={premiumPalette.textSoft} name="chevron-right" size={s(24)} />
+          </Pressable>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
