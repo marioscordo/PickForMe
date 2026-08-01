@@ -50,15 +50,17 @@ export async function POST(request: Request) {
       return wineMenuResponse(null);
     }
 
+    // wineCandidates wird NICHT hier zusaetzlich in source.text eingebettet:
+    // recommendConcreteWineForMainDishAI() haengt die identische
+    // JSON.stringify(wineCandidates)-Liste bereits ueber buildConcreteWinePrompt()
+    // an ("WineCandidates als einzige Quelle fuer konkrete Weine:"), die dann
+    // ueber buildTwoStepSourceContent() mit source.text zusammengefuehrt wird.
+    // Eine zweite Kopie hier war reine Verdopplung ohne zusaetzliche Information
+    // fuer die KI - bei einer vollen Weinkarte (~60 Kandidaten) ca. 5.500
+    // Tokens fuer nichts. Token-Optimierung Juli 2026.
     const source = {
       kind: "text" as const,
-      text: [
-        "Originale Weinkartenquelle:",
-        menuSourceText,
-        "",
-        "Vorstrukturierte WineCandidates:",
-        JSON.stringify(wineCandidates)
-      ].join("\n")
+      text: ["Originale Weinkartenquelle:", menuSourceText].join("\n")
     };
     const recommendation = await withTimeout(
       recommendConcreteWineForMainDishAI({
