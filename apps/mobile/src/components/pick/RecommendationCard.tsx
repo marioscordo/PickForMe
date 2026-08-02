@@ -737,9 +737,21 @@ export function RecommendationCard({
       requestedDishRoles: "starter,salad"
     });
 
+    // Token-Optimierung Juli 2026: result.reusableMenuText ist nur gesetzt,
+    // wenn die erste Analyse eine Text-/HTML-Speisekarte war (nie bei
+    // PDF/Bild - siehe analyze-menu/route.ts). Ist es vorhanden, senden wir
+    // den bereits extrahierten Text erneut statt der urspruenglichen URL und
+    // sparen so den kompletten Re-Fetch/Re-Parse derselben Speisekarte.
+    // Ohne menuImageSource-Check wuerde ein vorhandenes Bild-Feld sonst
+    // stillschweigend ignoriert - deshalb bleibt der Originalpfad (menuText)
+    // aktiv, sobald ein Bild im Spiel ist.
+    const nestedMenuText = !menuImageSource && result.reusableMenuText
+      ? result.reusableMenuText
+      : menuText;
+
     try {
       const data = await analyzeMenu({
-        menuText,
+        menuText: nestedMenuText,
         menuImageSource,
         onResponseStatus: (status) => {
           responseStatus = status;

@@ -46,6 +46,11 @@ export type AnalyzeData = {
   restaurantDescriptionUrl?: string;
   recommendationMode?: "single_dishes" | "whole_menu" | "sharing_menu";
   menuType?: string;
+  // Token-Optimierung Juli 2026: nur bei Text-/HTML-Speisekarten gesetzt
+  // (nie bei PDF/Bild). Kann bei einer zweiten Analyse desselben Menues
+  // (z.B. "Vorspeisen suchen") anstelle der urspruenglichen menuText-URL
+  // gesendet werden, um den Re-Fetch/Re-Parse zu vermeiden.
+  reusableMenuText?: string;
 };
 
 export type WineRecommendation = {

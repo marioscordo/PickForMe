@@ -1814,6 +1814,22 @@ async function analyzeMenuWithTwoStepMainFlow({
   const orderLabels = buildOrderLabelsForMenuLanguage(mainDishResult.menuLanguage);
 
   const responseSerializationStartedAt = Date.now();
+  // Token-Optimierung Juli 2026: reusableMenuText wird NUR fuer sourceKind
+  // "text"/"html" gesetzt - das ist der einzige Aufrufpunkt dieser Funktion,
+  // an dem source.text/source.kind exakt dem entspricht, was tatsaechlich an
+  // die Haupt-KI ging (kein PDF-Datei-Anhang, kein Bild-Fallback dazwischen).
+  // Der Mobile-Client kann diesen Text bei einer zweiten Analyse desselben
+  // Menues (z.B. "Vorspeisen suchen") anstelle der urspruenglichen URL
+  // senden und spart damit den kompletten Re-Fetch/Re-Parse. PDF- und
+  // Bild-Quellen bleiben bewusst unveraendert (siehe Diagnose Juli 2026):
+  // bei PDF liegt der extrahierte Text tief in der Pipeline und muesste
+  // separat herausgereicht werden, bei Bildern gibt es gar keinen
+  // rollen-unabhaengigen Text-Zwischenschritt (Vision-Call liefert direkt
+  // rollen-beschraenkte Kandidaten, ein Wiederverwenden wuerde z.B.
+  // Vorspeisen verlieren, die im ersten "main"-Aufruf nie erfasst wurden).
+  const reusableMenuText = (sourceKind === "text" || sourceKind === "html") && source.text
+    ? { reusableMenuText: source.text }
+    : {};
   const response = NextResponse.json({
     ok: true,
     data: {
@@ -1823,6 +1839,7 @@ async function analyzeMenuWithTwoStepMainFlow({
       dishes: mapped.dishes,
       recommendations: localizedRecommendations,
       conciergeHero,
+      ...reusableMenuText,
       ...extraPayload,
       ...buildRestaurantDescriptionPayload(localizedRestaurantDescription)
     }
