@@ -19,7 +19,23 @@ type TildaMenuImageCandidate = PreparedTildaMenuImage & {
   rankScore: number;
 };
 
-export async function prepareBestTildaMenuImageFallback(value: string): Promise<PreparedTildaMenuImage | null> {
+// Fallanalyse "hacha.ru/theater", Juli 2026: Tilda rendert eine hochgeladene
+// PDF-Speisekarte oft als mehrseitige Bilderserie (z.B. "___page-0001.jpg",
+// "___page-0002.jpg"). Die fruehere Fassung dieser Funktion waehlte per
+// rankScore (Aufloesung x Dateigroesse) genau EIN "bestes" Bild aus und
+// verwarf alle anderen Seiten vollstaendig - bei hacha.ru wurden so 2
+// gefundene Kandidaten auf 1 reduziert, die KI sah nur die Haelfte der
+// Karte und empfahl entsprechend nur 1 Gericht. Analog zum generischen
+// Bild-Fallback (prepareLinkedMenuImageFallback.ts, das seit der
+// sonnenalm.de-Fallanalyse bewusst ALLE gefundenen Speisekarten-Bilder
+// mitgibt) werden jetzt alle positiv bewerteten, vorbereiteten Kandidaten
+// zurueckgegeben statt nur der eine mit dem hoechsten Rank-Score.
+export type PreparedTildaMenuImages = {
+  imageDataUrls: string[];
+  originalUrls: string[];
+};
+
+export async function prepareBestTildaMenuImageFallback(value: string): Promise<PreparedTildaMenuImages | null> {
   const imageUrls = await findTildaMenuImageUrls(value, MAX_TILDA_MENU_IMAGE_CANDIDATES);
 
   if (imageUrls.length === 0) {
@@ -40,35 +56,33 @@ export async function prepareBestTildaMenuImageFallback(value: string): Promise<
     }
   }
 
-  const selected = candidates.sort((left, right) => right.rankScore - left.rankScore)[0] ?? null;
+  const rankedCandidates = candidates.sort((left, right) => right.rankScore - left.rankScore);
+  const best = rankedCandidates[0] ?? null;
 
   logTildaImageFallback({
     candidateCount: imageUrls.length,
     preparedCount: candidates.length,
-    selected: Boolean(selected),
-    selectedUrl: selected?.originalUrl,
-    originalWidth: selected?.originalWidth,
-    originalHeight: selected?.originalHeight,
-    resizedWidth: selected?.resizedWidth,
-    resizedHeight: selected?.resizedHeight,
-    originalBytes: selected?.originalBytes,
-    resizedBytes: selected?.resizedBytes,
-    estimatedHighDetailTiles512: selected ? estimateHighDetailTiles512(selected.resizedWidth, selected.resizedHeight) : undefined,
-    readability: selected ? "max_1280_menu_text_preserved" : undefined
+    selected: rankedCandidates.length > 0,
+    selectedCount: rankedCandidates.length,
+    selectedUrl: best?.originalUrl,
+    originalWidth: best?.originalWidth,
+    originalHeight: best?.originalHeight,
+    resizedWidth: best?.resizedWidth,
+    resizedHeight: best?.resizedHeight,
+    originalBytes: best?.originalBytes,
+    resizedBytes: best?.resizedBytes,
+    estimatedHighDetailTiles512: best ? estimateHighDetailTiles512(best.resizedWidth, best.resizedHeight) : undefined,
+    readability: best ? "max_1280_menu_text_preserved" : undefined
   });
 
-  return selected
-    ? {
-        imageDataUrl: selected.imageDataUrl,
-        originalUrl: selected.originalUrl,
-        originalWidth: selected.originalWidth,
-        originalHeight: selected.originalHeight,
-        resizedWidth: selected.resizedWidth,
-        resizedHeight: selected.resizedHeight,
-        originalBytes: selected.originalBytes,
-        resizedBytes: selected.resizedBytes
-      }
-    : null;
+  if (rankedCandidates.length === 0) {
+    return null;
+  }
+
+  return {
+    imageDataUrls: rankedCandidates.map((candidate) => candidate.imageDataUrl),
+    originalUrls: rankedCandidates.map((candidate) => candidate.originalUrl)
+  };
 }
 
 async function prepareTildaMenuImageCandidate(imageUrl: string): Promise<TildaMenuImageCandidate | null> {

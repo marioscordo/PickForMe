@@ -770,8 +770,8 @@ export async function POST(request: Request) {
             return await analyzeMenuWithTwoStepMainFlow({
               source: {
                 kind: "image",
-                urls: [tildaImage.imageDataUrl],
-                sourceUrl: tildaImage.originalUrl,
+                urls: tildaImage.imageDataUrls,
+                sourceUrl: tildaImage.originalUrls[0] ?? rawMenuText,
                 text: `${rawMenuText}\n${effectiveMenuText.slice(0, 3000)}`
               },
               responseMode: "ai_image",
