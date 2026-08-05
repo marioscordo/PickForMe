@@ -1113,6 +1113,12 @@ export function RecommendationCard({
         {result.servingHint ? (
           <Text style={local.nestedResultText}>{result.servingHint}</Text>
         ) : null}
+        {result.sommelierPhrase ? (
+          <View style={local.wineMenuSearchBox}>
+            <Text style={local.nestedResultMeta}>{content.recommendation.wineOrderPhraseLabel}</Text>
+            <Text style={local.nestedResultText}>{result.sommelierPhrase}</Text>
+          </View>
+        ) : null}
         <View style={local.wineMenuSearchBox}>
           <Text style={local.nestedResultText}>{content.recommendation.wineMenuSearchPrompt}</Text>
           <PremiumCardAction

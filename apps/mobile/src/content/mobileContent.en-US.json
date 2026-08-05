@@ -171,6 +171,7 @@
     "wineRecommendationTitle": "Wine recommendation",
     "wineRecommendationEmpty": "I cannot find a safe wine recommendation for this right now.",
     "wineRecommendationError": "I could not load the wine recommendation just now.",
+    "wineOrderPhraseLabel": "How to ask",
     "wineMenuSearchPrompt": "Should I check whether a matching wine is on the menu?",
     "wineMenuSearchButton": "Search the menu",
     "wineMenuSearchLoading": "I am checking the menu ...",

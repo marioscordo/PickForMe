@@ -25,6 +25,13 @@ export type WineRecommendation = {
   wineStyle: string;
   reason: string;
   servingHint?: string | null;
+  // Produktidee Juli 2026: ein fertig formulierter, hoeflicher Bestellsatz
+  // fuer Kellner/Sommelier, unabhaengig von jeder konkreten Weinkarte -
+  // funktioniert deshalb bei JEDEM Restaurant (anders als die konkrete
+  // Weinauswahl aus recommendConcreteWineForMainDishAI.ts, die eine
+  // auswertbare Weinkarte voraussetzt). Optional, damit bestehende
+  // Konsumenten dieses Typs unveraendert funktionieren.
+  sommelierPhrase?: string | null;
   confidence: "high" | "medium" | "low";
 };
 
@@ -88,6 +95,7 @@ export async function recommendWineForMainDishAI({
     wineStyle,
     reason,
     servingHint: stringField(recommendation.servingHint) || null,
+    sommelierPhrase: stringField(recommendation.sommelierPhrase) || null,
     confidence
   };
 }
@@ -131,6 +139,9 @@ function buildWinePrompt({
     "- wineStyle muss kurz und praktisch sein.",
     "- reason muss direkt auf Gericht und Weinprofil eingehen.",
     "- servingHint ist optional und darf kurz Temperatur, Koerper oder Alternative nennen.",
+    "- sommelierPhrase ist ein einziger, hoeflich formulierter, fertig aussprechbarer Satz in der Zielsprache, mit dem der Nutzer einen Kellner oder Sommelier direkt nach einem passenden Wein fragen kann (z. B. 'Koennten Sie mir bitte einen trockenen, vollmundigen Rotwein empfehlen, idealerweise einen Nebbiolo oder Syrah?').",
+    "- sommelierPhrase darf sich nur auf wineStyle/Rebsorten/Stilmerkmale beziehen, niemals auf eine konkrete Flasche, ein Weingut, einen Jahrgang oder einen Preis, da keine Weinkarte vorliegt.",
+    "- sommelierPhrase muss unabhaengig von einem bestimmten Restaurant formulierbar sein und darf keine Speisekartenfakten voraussetzen.",
     "",
     "Antwort ausschliesslich als valides JSON ohne Markdown:",
     "{",
@@ -139,6 +150,7 @@ function buildWinePrompt({
     '    "wineStyle": "passender Weinstil, keine konkrete Flasche",',
     '    "reason": "kurze Begruendung in der Zielsprache",',
     '    "servingHint": "optionaler kurzer Hinweis oder null",',
+    '    "sommelierPhrase": "fertig aussprechbarer Bestellsatz fuer Kellner/Sommelier in der Zielsprache",',
     '    "confidence": "high | medium | low"',
     "  }",
     "}"

@@ -171,6 +171,7 @@
     "wineRecommendationTitle": "Weinempfehlung",
     "wineRecommendationEmpty": "Ich finde dazu gerade keine sichere Weinempfehlung.",
     "wineRecommendationError": "Ich konnte die Weinempfehlung gerade nicht laden.",
+    "wineOrderPhraseLabel": "So kannst du fragen",
     "wineMenuSearchPrompt": "Soll ich schauen, ob ein passender Wein auf der Karte ist?",
     "wineMenuSearchButton": "Auf der Karte suchen",
     "wineMenuSearchLoading": "Ich pruefe die Karte ...",

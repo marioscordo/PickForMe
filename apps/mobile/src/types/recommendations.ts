@@ -59,6 +59,9 @@ export type WineRecommendation = {
   wineStyle: string;
   reason: string;
   servingHint?: string | null;
+  // Produktidee Juli 2026: fertig aussprechbarer Bestellsatz fuer
+  // Kellner/Sommelier, unabhaengig von jeder konkreten Weinkarte.
+  sommelierPhrase?: string | null;
   confidence: "high" | "medium" | "low";
 };
 
