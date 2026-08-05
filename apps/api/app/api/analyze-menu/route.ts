@@ -106,6 +106,16 @@ const MAX_ANALYZE_IMAGE_BASE64_LENGTH = 10_000_000;
 const PRODUCTION_REQUEST_TRACE_LOGGED = Symbol("gustaro.productionRequestTraceLogged");
 const UPLOADED_IMAGE_AI_TIMEOUT_MS = 70000;
 const PDF_AI_TIMEOUT_MS = 90000;
+// Fallanalyse Juli 2026: pubhtml5-, Tilda- und der generische Linked-Image-
+// Fallback senden seit den Session-Fixes (Familien-Filter, Tilda-Mehrseiten)
+// bewusst MEHRERE volle Bilder statt nur eines an die Vision-KI, um keine
+// Speisekarten-Seiten mehr zu verlieren. Das vorherige Budget von 60000ms
+// war fuer deutlich kleinere Bildmengen kalibriert und wurde bei einem
+// realen 4-Bilder-Aufruf knapp verfehlt (64s Ist- vs. 60s Soll-Zeit,
+// TWO_STEP_MAIN_AI_TIMEOUT -> 504). Analog zum PDF-Budget (90000ms) auf
+// 90000ms angehoben - der Mobile-Client wartet ohnehin bis 105000ms
+// (MOBILE_ANALYZE_TIMEOUT_MS), es bleibt also Spielraum.
+const MULTI_IMAGE_FALLBACK_AI_TIMEOUT_MS = 90000;
 const DISH_ROLE_CLASSIFICATION_TIMEOUT_MS = 30000;
 const STARTER_CANDIDATE_DISH_LIMIT = 20;
 const PDF_TEXT_AUGMENT_URL_LIMIT = 3;
@@ -611,7 +621,7 @@ export async function POST(request: Request) {
           extraPayload: {
             ...sourceInputAllergenWarningPayload
           },
-          timeoutMs: 60000,
+          timeoutMs: MULTI_IMAGE_FALLBACK_AI_TIMEOUT_MS,
           requestStartedAt,
           runId: requestRunId,
           supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true
@@ -791,7 +801,7 @@ export async function POST(request: Request) {
                 ...imageAllergenWarningPayload,
                 ...buildMenuExtractionPayload(htmlMenuExtraction)
               },
-              timeoutMs: 60000,
+              timeoutMs: MULTI_IMAGE_FALLBACK_AI_TIMEOUT_MS,
               requestStartedAt,
               runId: requestRunId,
               supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true
@@ -919,7 +929,7 @@ export async function POST(request: Request) {
                 ...imageAllergenWarningPayload,
                 ...buildMenuExtractionPayload(htmlMenuExtraction)
               },
-              timeoutMs: 60000,
+              timeoutMs: MULTI_IMAGE_FALLBACK_AI_TIMEOUT_MS,
               requestStartedAt,
               runId: requestRunId,
               supportsUncertainReviewCandidates: body.supportsUncertainReviewCandidates === true

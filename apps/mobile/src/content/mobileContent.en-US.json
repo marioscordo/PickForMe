@@ -26,7 +26,10 @@
       "I am reading the menu ...",
       "I am recognizing the dishes ...",
       "I am matching them with your profile ...",
-      "I am choosing suitable recommendations ..."
+      "I am checking everything for safety ...",
+      "I am choosing suitable recommendations ...",
+      "I am finishing the translation ...",
+      "For large menus this can take a bit longer - still working on it ..."
     ],
     "errorTitle": "Menu could not be evaluated safely",
     "inputMissingTitle": "Menu missing",

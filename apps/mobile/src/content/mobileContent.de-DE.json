@@ -26,7 +26,10 @@
       "Ich lese kurz die Speisekarte ...",
       "Ich erkenne die Gerichte ...",
       "Ich gleiche sie mit Deinem Profil ab ...",
-      "Ich wähle passende Empfehlungen ..."
+      "Ich prüfe alles auf Sicherheit für Dich ...",
+      "Ich wähle passende Empfehlungen ...",
+      "Ich formuliere die Übersetzung ...",
+      "Bei umfangreichen Speisekarten dauert das manchmal etwas länger - ich bin noch dran ..."
     ],
     "errorTitle": "Speisekarte nicht sicher ausgewertet",
     "inputMissingTitle": "Speisekarte fehlt",

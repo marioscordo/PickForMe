@@ -97,7 +97,11 @@ assert(analyzeRoute.includes("const UPLOADED_IMAGE_AI_TIMEOUT_MS = 70000"), "upl
 assert(/body\.sourceKind === "image"[\s\S]*validateAnalyzeImageBase64\(body\.imageBase64\)[\s\S]*validateAnalyzeImageMimeType\(body\.mimeType\)[\s\S]*timeoutMs: UPLOADED_IMAGE_AI_TIMEOUT_MS/.test(analyzeRoute), "uploaded Base64 images must be validated before using the dedicated timeout budget");
 assert(/responseMode: "ai_pdf"[\s\S]*timeoutMs: PDF_AI_TIMEOUT_MS/.test(analyzeRoute), "PDF analysis must keep the existing PDF timeout budget");
 assert(/const directImageUrl =[\s\S]*if \(directImageUrl\)[\s\S]*responseMode: "ai_image"[\s\S]*timeoutMs: 45000/.test(analyzeRoute), "direct remote image URLs must keep the existing 45000 ms timeout budget");
-assert(/prepareBestTildaMenuImageFallback[\s\S]*responseMode: "ai_image"[\s\S]*timeoutMs: 60000/.test(analyzeRoute), "Tilda image fallback must keep the existing 60000 ms timeout budget");
+// Token/Timeout-Update Juli 2026: der Tilda-Fallback sendet seit der
+// Mehrseiten-Korrektur mehrere volle Bilder statt nur eines, das Budget
+// wurde deshalb von 60000ms auf MULTI_IMAGE_FALLBACK_AI_TIMEOUT_MS
+// (90000ms) angehoben - siehe multi-image-timeout-and-loading-ux-regression.mjs.
+assert(/prepareBestTildaMenuImageFallback[\s\S]*responseMode: "ai_image"[\s\S]*timeoutMs: MULTI_IMAGE_FALLBACK_AI_TIMEOUT_MS/.test(analyzeRoute), "Tilda image fallback must use the raised multi-image timeout budget");
 assert(/responseMode: "ai"[\s\S]*timeoutMs: TEXT_AI_TIMEOUT_MS/.test(analyzeRoute), "text and HTML analysis must keep the existing text timeout budget");
 assert(!analyzeRoute.includes("console.info(imageBase64") && !analyzeRoute.includes("console.log(imageBase64"), "image data must not be written to diagnostics");
 assert(/503,\s*"CONNECTION_ERROR"/.test(analyzeRoute), "temporary connection errors must return HTTP 503");

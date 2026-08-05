@@ -35,9 +35,17 @@ export function AnalysisLoadingBox({
   useEffect(() => {
     setLoadingStepIndex(0);
 
+    // Fallanalyse Juli 2026: bei laengeren Analysen (Bild-Fallbacks bis zu
+    // 90s, siehe MULTI_IMAGE_FALLBACK_AI_TIMEOUT_MS) lief der Schritt-Text
+    // per Modulo mehrfach im Kreis - fuer die Nutzerin sah das aus, als
+    // wuerde die Analyse von vorne beginnen bzw. haengen ("Aktionen, die
+    // sich wiederholen"). Der letzte Eintrag in loadingSteps ist bewusst
+    // eine ruhige "dauert bei umfangreichen Karten laenger"-Nachricht ohne
+    // Fortschrittsanspruch - dort bleibt die Anzeige stehen, statt erneut
+    // bei Schritt 1 zu beginnen.
     const timer = setInterval(() => {
       setLoadingStepIndex((current) =>
-        steps.length > 0 ? (current + 1) % steps.length : 0
+        steps.length > 0 ? Math.min(current + 1, steps.length - 1) : 0
       );
     }, ANALYSIS_LOADING_STEP_INTERVAL_MS);
 

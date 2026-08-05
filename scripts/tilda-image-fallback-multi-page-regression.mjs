@@ -47,11 +47,14 @@ assert(
   "the old single-image array wrapping must be gone from route.ts"
 );
 
-// Timeout-Budget und responseMode duerfen sich nicht aendern - reine
-// Kandidatenmengen-Erweiterung, keine Verhaltensaenderung des Flows selbst.
+// responseMode bleibt unveraendert. Das Timeout-Budget wurde in einem
+// separaten, spaeteren Fix bewusst von 60000ms auf
+// MULTI_IMAGE_FALLBACK_AI_TIMEOUT_MS (90000ms) angehoben, weil dieser Zweig
+// jetzt mehrere volle Bilder verarbeitet - siehe
+// multi-image-timeout-and-loading-ux-regression.mjs fuer die Timeout-Pruefung.
 assert(
-  /prepareBestTildaMenuImageFallback[\s\S]*responseMode: "ai_image"[\s\S]*timeoutMs: 60000/.test(route),
-  "Tilda image fallback must keep the existing ai_image responseMode and 60000 ms timeout budget"
+  /prepareBestTildaMenuImageFallback[\s\S]*responseMode: "ai_image"/.test(route),
+  "Tilda image fallback must keep the existing ai_image responseMode"
 );
 
 console.log("tilda image fallback multi-page regression passed");
