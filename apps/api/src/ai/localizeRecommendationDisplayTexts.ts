@@ -42,7 +42,8 @@ type TranslationValidationFailureReason =
   | "translated_description_missing"
   | "translated_description_identical_to_foreign_original"
   | "translated_description_english_in_non_english_target"
-  | "translated_description_lamb_beef_conflict";
+  | "translated_description_lamb_beef_conflict"
+  | "translated_display_protein_dropped";
 
 export async function localizeRecommendationDisplayTexts({
   dishes,
@@ -282,7 +283,10 @@ function getDisplayTranslationValidationFailureReason(
   sourceMatchesTarget: boolean
 ): TranslationValidationFailureReason | null {
   return getDishTranslationValidationFailureReason(item, translation?.translatedName, targetLocale, sourceMatchesTarget) ??
-    getDescriptionTranslationValidationFailureReason(item, translation?.translatedDescription, targetLocale, sourceMatchesTarget);
+    getDescriptionTranslationValidationFailureReason(item, translation?.translatedDescription, targetLocale, sourceMatchesTarget) ??
+    (hasLikelyProteinDropConflict(item, translation?.translatedName, translation?.translatedDescription)
+      ? "translated_display_protein_dropped"
+      : null);
 }
 
 function isValidDishTranslation(
@@ -328,12 +332,20 @@ function hasValidExistingDisplayText(item: TranslationRequestItem, targetLocale:
     return false;
   }
 
-  return isValidDescriptionTranslation(
-    item,
-    normalizedExistingTranslatedDescription(item, targetLocale, sourceMatchesTarget),
-    targetLocale,
-    sourceMatchesTarget
-  );
+  const existingTranslatedDescription = normalizedExistingTranslatedDescription(item, targetLocale, sourceMatchesTarget);
+
+  if (!isValidDescriptionTranslation(item, existingTranslatedDescription, targetLocale, sourceMatchesTarget)) {
+    return false;
+  }
+
+  // Fallanalyse Aug 2026 (Mario, hacha.ru/theater): genau dieser Pfad hat
+  // die kaputte Uebersetzung durchgelassen - die Haupt-KI liefert
+  // translatedName/translatedDescription bereits mit der Analyse mit, und
+  // wenn die (wie hier) weder identisch zum Original noch englisch-
+  // verunreinigt war, wurde sie ungeprueft uebernommen, ohne je die
+  // Reparatur-KI zu erreichen. Der Protein-Check muss deshalb auch hier
+  // greifen, nicht nur bei frisch reparierten Uebersetzungen.
+  return !hasLikelyProteinDropConflict(item, item.currentTranslatedName, existingTranslatedDescription);
 }
 
 function normalizedExistingTranslatedDescription(item: TranslationRequestItem, targetLocale: string, sourceMatchesTarget: boolean) {
@@ -486,6 +498,79 @@ function hasLikelyEnglishDisplayText(value: string) {
     " tuna ",
     " with "
   ].some((term) => normalized.includes(term));
+}
+
+// Fallanalyse Aug 2026 (Mario, hacha.ru/theater, bildbasiertes Tilda-Menue):
+// "Курица чимчури в чесночном соусе" (Haehnchen im Chimichurri mit
+// Knoblauchsauce) wurde als "Kueche mit Knoblauchsosse" angezeigt - die
+// Hauptzutat (Haehnchen) ist in Name UND Beschreibung komplett
+// verschwunden, ohne dass eine der bestehenden Pruefungen (identisch zum
+// Original, Englisch-Leck, Lamm/Rind-Tausch) angeschlagen hat. Diese
+// Pruefung verallgemeinert den bestehenden Lamm/Rind-Spezialfall
+// (hasLikelyLambBeefTranslationConflict): wenn Quelltext (Name/
+// Beschreibung/sourceLine) einen erkennbaren Protein-Begriff enthaelt, muss
+// irgendeiner der Begriffe fuer DASSELBE Protein auch in Name+Beschreibung
+// der Uebersetzung zusammen vorkommen - sonst gilt sie als ungueltig und
+// wird ueber den bestehenden Reparatur-Mechanismus automatisch neu
+// angefragt. Bewusst NICHT pro Feld einzeln geprueft (Name ODER
+// Beschreibung darf das Protein nennen), um keine unnoetigen
+// Reparatur-Anfragen fuer legitime Formulierungen auszuloesen. Deckt nur
+// die im Produkt unterstuetzten Quell-/Zielsprachen ab (menuLanguage:
+// de/en/it/es/fr/id/ru, OUTPUT_LOCALES: de/en/it/es/fr/nl/pl/pt) - kein
+// Anspruch auf vollstaendige Weltsprachenabdeckung.
+const PROTEIN_KEYWORDS: Record<string, string[]> = {
+  chicken: [
+    "курица", "куриц", "цыпленок", "цыплён", "chicken", "poulet", "pollo",
+    "huhn", "hähnchen", "haehnchen", "hahn", "geflügel", "gefluegel",
+    "kip", "kurczak", "frango", "galinha", "ayam"
+  ],
+  beef: [
+    "говядина", "говяж", "beef", "boeuf", "bœuf", "manzo", "rind", "rund",
+    "wołowin", "wolowin", "vaca", "bovina", "ternera", "daging sapi"
+  ],
+  pork: [
+    "свинина", "свин", "pork", "porc", "maiale", "schwein", "varken",
+    "wieprzow", "porco", "cerdo", "babi"
+  ],
+  lamb: [
+    "баранина", "ягнят", "ягнен", "lamb", "agneau", "agnello", "lamm",
+    "lam", "jagni", "cordeiro", "cordero", "kambing"
+  ],
+  fish: [
+    "рыба", "лосос", "форель", "тунец", "fish", "salmon", "tuna", "trout",
+    "poisson", "saumon", "pesce", "salmone", "fisch", "lachs", "forelle",
+    "thunfisch", "vis", "zalm", "ryba", "łosoś", "losos", "peixe", "salmão",
+    "salmao", "pescado", "atum", "ikan"
+  ],
+  duck: [
+    "утка", "утин", "duck", "canard", "anatra", "ente", "eend", "kaczka",
+    "pato", "bebek"
+  ]
+};
+
+function hasLikelyProteinDropConflict(
+  item: TranslationRequestItem,
+  translatedName: string | undefined,
+  translatedDescription: string | null | undefined
+) {
+  const sourceText = ` ${[item.nameOriginal, item.descriptionOriginal, item.sourceLine]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase()} `;
+  const outputText = ` ${[translatedName, translatedDescription]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase()} `;
+
+  return Object.values(PROTEIN_KEYWORDS).some((terms) => {
+    const sourceMentionsProtein = terms.some((term) => sourceText.includes(term));
+
+    if (!sourceMentionsProtein) {
+      return false;
+    }
+
+    return !terms.some((term) => outputText.includes(term));
+  });
 }
 
 function hasLikelyLambBeefTranslationConflict(item: TranslationRequestItem, value: string) {
