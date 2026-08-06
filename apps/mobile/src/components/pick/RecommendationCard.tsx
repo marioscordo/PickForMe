@@ -553,6 +553,7 @@ export function RecommendationCard({
         },
         outputLocale: profile.outputLocale,
         winePreference,
+        menuLanguage: result.menuLanguage,
         signal: wineAbortController.signal
       });
 

@@ -9,6 +9,7 @@ import type { UserProfile } from "../types/profile";
 import type { PreferredDishRole, RequestedDishRole } from "../types/recommendationMode";
 import type {
   AnalyzeData,
+  MenuLanguage,
   RestaurantDiscoveryCandidate,
   RestaurantDiscoveryData,
   RestaurantIntroData,
@@ -52,6 +53,11 @@ type RequestWineRecommendationMobileArgs = {
   menuUrls?: string[];
   outputLocale: string;
   winePreference: WinePreference;
+  // Sprache der Original-Speisekarte (aus dem vorherigen Analyse-Ergebnis) -
+  // wird nur fuer sommelierPhrase gebraucht, damit der Bestellsatz in der
+  // Sprache des Restaurantpersonals formuliert wird, nicht in der GUI-
+  // Sprache des Nutzers (Mario, Aug 2026).
+  menuLanguage?: MenuLanguage;
   signal?: AbortSignal;
 };
 
@@ -219,7 +225,8 @@ export function requestWineRecommendation(args: RequestWineRecommendationMobileA
   const body = {
     mainDish: args.mainDish,
     profile: sanitizeWineProfileForApi(args.outputLocale, args.winePreference),
-    userLocale: resolveGuiLanguageFromDevice()
+    userLocale: resolveGuiLanguageFromDevice(),
+    menuLanguage: args.menuLanguage
   };
 
   return apiPost<WineRecommendationData, typeof body>(

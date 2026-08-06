@@ -4,6 +4,7 @@ import { requireUser } from "../../../src/auth/requireUser";
 import { profileFeatures } from "../../../src/config/profileFeatures";
 import { AppError } from "../../../src/errors/AppError";
 import { errorResponse } from "../../../src/errors/errorResponse";
+import { MenuLanguageSchema, type MenuLanguage } from "../../../src/ai/twoStepRecommendationSchemas";
 import {
   sanitizeWineProfileForRecommendation,
   type WineRecommendationProfile
@@ -13,6 +14,10 @@ type WineRecommendationRequest = {
   mainDish?: WineMainDishAnchor;
   profile?: WineRecommendationProfile;
   userLocale?: string;
+  // Damit sommelierPhrase in der Sprache der Original-Speisekarte statt der
+  // Nutzersprache formuliert werden kann (Mario, Aug 2026) - kommt vom
+  // Mobile-Client aus AnalyzeData.menuLanguage der vorherigen Analyse.
+  menuLanguage?: MenuLanguage;
 };
 
 export async function POST(request: Request) {
@@ -35,6 +40,7 @@ export async function POST(request: Request) {
     }
 
     const profile = sanitizeWineProfileForRecommendation(body.profile);
+    const menuLanguage = normalizeMenuLanguage(body.menuLanguage);
     const source = {
       kind: "text" as const,
       text: [
@@ -52,7 +58,8 @@ export async function POST(request: Request) {
         source,
         profile,
         mainDish,
-        userLocale: body.userLocale
+        userLocale: body.userLocale,
+        menuLanguage
       }),
       30000,
       "WINE_RECOMMENDATION_TIMEOUT",
@@ -92,6 +99,11 @@ function stringField(value: unknown) {
 
 function nullableStringField(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeMenuLanguage(value: unknown): MenuLanguage | undefined {
+  const parsed = MenuLanguageSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

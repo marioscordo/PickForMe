@@ -30,9 +30,11 @@ export type OrderLabels = {
   wine: string;
 };
 
+export type MenuLanguage = "de" | "en" | "it" | "es" | "fr" | "id" | "ru" | "unknown";
+
 export type AnalyzeData = {
   mode: "ai" | "ai_pdf" | "fallback";
-  menuLanguage?: "de" | "en" | "it" | "es" | "fr" | "id" | "ru" | "unknown";
+  menuLanguage?: MenuLanguage;
   orderLabels?: OrderLabels;
   dishes: Dish[];
   starterCandidateDishes?: Dish[];

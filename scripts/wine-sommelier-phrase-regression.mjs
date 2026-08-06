@@ -54,9 +54,12 @@ assert(
   "prompt must explicitly require the phrase to be menu-independent"
 );
 assert(
-  recommendAi.includes('"sommelierPhrase": "fertig aussprechbarer Bestellsatz fuer Kellner/Sommelier in der Zielsprache",'),
+  recommendAi.includes('"sommelierPhrase": "fertig aussprechbarer Bestellsatz fuer Kellner/Sommelier in der Sprache mit dem oben genannten ISO-Code fuer sommelierPhrase, nicht in der Zielsprache",'),
   "prompt output contract must include the new sommelierPhrase field"
 );
+// Sprachwahl-Update Aug 2026: sommelierPhrase-Text siehe
+// menu-language-sommelier-phrase-regression.mjs (separates Skript fuer die
+// menuLanguage-basierte Sprachwahl).
 
 // 4) Mobile-Typ
 assert(

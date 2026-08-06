@@ -8,7 +8,7 @@ import {
   normalizeTargetLocale,
   stripJsonFence
 } from "./twoStepRecommendationAIUtils";
-import type { TwoStepMenuSourceInput } from "./twoStepRecommendationSchemas";
+import type { MenuLanguage, TwoStepMenuSourceInput } from "./twoStepRecommendationSchemas";
 
 export type WineMainDishAnchor = {
   rank?: number;
@@ -40,17 +40,20 @@ export async function recommendWineForMainDishAI({
   profile,
   mainDish,
   userLocale,
+  menuLanguage,
   signal
 }: {
   source: TwoStepMenuSourceInput;
   profile: WineRecommendationProfile;
   mainDish: WineMainDishAnchor;
   userLocale?: string;
+  menuLanguage?: MenuLanguage;
   signal?: AbortSignal;
 }): Promise<WineRecommendation | null> {
   const client = createTwoStepOpenAIClient();
   const targetLocale = normalizeTargetLocale(userLocale ?? profile.outputLocale);
   const targetLanguage = getLanguageNameForLocale(targetLocale);
+  const sommelierPhraseLanguageCode = resolveSommelierPhraseLanguageCode(menuLanguage);
   const request: ResponseCreateParamsNonStreaming = {
     model: getTwoStepModelForSource(source),
     input: [
@@ -61,7 +64,8 @@ export async function recommendWineForMainDishAI({
             profile,
             mainDish,
             targetLocale,
-            targetLanguage
+            targetLanguage,
+            sommelierPhraseLanguageCode
           }),
           source
         })
@@ -108,22 +112,41 @@ function parseWineRecommendationResponse(outputText: string) {
   }
 }
 
+// Fallanalyse Aug 2026 (Mario): sommelierPhrase richtet sich an das
+// Restaurantpersonal vor Ort, nicht an den Nutzer - der Satz muss deshalb
+// in der Sprache der Original-Speisekarte formuliert sein, nicht in der
+// GUI-/Ausgabesprache des Nutzers (sonst versteht das Personal die Frage
+// oft nicht). menuLanguage ist ein von uns selbst kontrolliertes,
+// geschlossenes Enum (MenuLanguageSchema in twoStepRecommendationSchemas.ts)
+// - eine zusaetzliche Sprachnamen-Zuordnungstabelle (wie getLanguageNameForLocale
+// sie fuer die freien Geraete-Locales von targetLocale braucht) ist dafuer
+// nicht noetig: das Modell kennt die ISO-Codes zuverlaessig direkt. Bei
+// "unknown"/fehlend faellt die Wahl auf Englisch zurueck, analog zu
+// buildOrderLabelsForMenuLanguage() in analyze-menu/route.ts (Lingua franca
+// fuer das Personal, statt der Nutzersprache aufzuzwingen).
+function resolveSommelierPhraseLanguageCode(menuLanguage: MenuLanguage | undefined) {
+  return menuLanguage && menuLanguage !== "unknown" ? menuLanguage : "en";
+}
+
 function buildWinePrompt({
   profile,
   mainDish,
   targetLocale,
-  targetLanguage
+  targetLanguage,
+  sommelierPhraseLanguageCode
 }: {
   profile: WineRecommendationProfile;
   mainDish: WineMainDishAnchor;
   targetLocale: string;
   targetLanguage: string;
+  sommelierPhraseLanguageCode: string;
 }) {
   return [
     "Du bist GustaroAI und empfiehlst genau einen passenden Weinstil zu einem bestaetigten Hauptgericht.",
     "Es gibt in dieser Version keine Weinkarte. Empfiehl deshalb keinen konkreten Restaurantwein und keine Marke.",
     "Du darfst keine Speisekartenfakten erfinden.",
-    `Sprache fuer nutzerseitige Ausgaben: ${targetLanguage} (${targetLocale}).`,
+    `Sprache fuer nutzerseitige Ausgaben (title/wineStyle/reason/servingHint): ${targetLanguage} (${targetLocale}).`,
+    `Sprache fuer das Feld sommelierPhrase: ISO-Sprachcode "${sommelierPhraseLanguageCode}" - unabhaengig von der obigen Nutzersprache, weil dieser Satz an das Restaurantpersonal vor Ort gerichtet ist, das ueblicherweise die Sprache der Speisekarte spricht, nicht die des Nutzers.`,
     "",
     "Bestaetigtes Hauptgericht als Pflichtanker:",
     JSON.stringify({ mainDish }),
@@ -139,7 +162,7 @@ function buildWinePrompt({
     "- wineStyle muss kurz und praktisch sein.",
     "- reason muss direkt auf Gericht und Weinprofil eingehen.",
     "- servingHint ist optional und darf kurz Temperatur, Koerper oder Alternative nennen.",
-    "- sommelierPhrase ist ein einziger, hoeflich formulierter, fertig aussprechbarer Satz in der Zielsprache, mit dem der Nutzer einen Kellner oder Sommelier direkt nach einem passenden Wein fragen kann (z. B. 'Koennten Sie mir bitte einen trockenen, vollmundigen Rotwein empfehlen, idealerweise einen Nebbiolo oder Syrah?').",
+    "- sommelierPhrase ist ein einziger, hoeflich formulierter, fertig aussprechbarer Satz in der Sprache mit dem oben genannten ISO-Code fuer sommelierPhrase (Speisekarten-/Restaurantsprache, NICHT die Zielsprache der uebrigen Felder), mit dem der Nutzer einen Kellner oder Sommelier direkt nach einem passenden Wein fragen kann (z. B. 'Koennten Sie mir bitte einen trockenen, vollmundigen Rotwein empfehlen, idealerweise einen Nebbiolo oder Syrah?').",
     "- sommelierPhrase darf sich nur auf wineStyle/Rebsorten/Stilmerkmale beziehen, niemals auf eine konkrete Flasche, ein Weingut, einen Jahrgang oder einen Preis, da keine Weinkarte vorliegt.",
     "- sommelierPhrase muss unabhaengig von einem bestimmten Restaurant formulierbar sein und darf keine Speisekartenfakten voraussetzen.",
     "",
@@ -150,7 +173,7 @@ function buildWinePrompt({
     '    "wineStyle": "passender Weinstil, keine konkrete Flasche",',
     '    "reason": "kurze Begruendung in der Zielsprache",',
     '    "servingHint": "optionaler kurzer Hinweis oder null",',
-    '    "sommelierPhrase": "fertig aussprechbarer Bestellsatz fuer Kellner/Sommelier in der Zielsprache",',
+    '    "sommelierPhrase": "fertig aussprechbarer Bestellsatz fuer Kellner/Sommelier in der Sprache mit dem oben genannten ISO-Code fuer sommelierPhrase, nicht in der Zielsprache",',
     '    "confidence": "high | medium | low"',
     "  }",
     "}"
