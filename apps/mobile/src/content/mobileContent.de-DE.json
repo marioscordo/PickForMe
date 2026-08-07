@@ -85,6 +85,14 @@
     "logFailedTitle": "Hinweis konnte nicht bestätigt werden",
     "logFailedMessage": "Bitte versuche es noch einmal. Empfehlungen werden erst angezeigt, wenn der Hinweis bestätigt wurde."
   },
+  "staffQuestionOffer": {
+    "prompt": "Möchtest du, dass ich dir eine Frage in der Sprache der Speisekarte formuliere? Damit kannst du das Service-Personal direkt nach einem zu deinem Profil passenden Gericht fragen.",
+    "confirmButton": "Ja, bitte",
+    "rejectButton": "Nein, danke",
+    "loadingButton": "Einen Moment ...",
+    "errorText": "Die Frage konnte gerade nicht erstellt werden. Bitte versuche es später erneut.",
+    "fallbackTitle": "Frage an das Personal"
+  },
   "login": {
     "title": "Willkommen zurück",
     "subtitle": "Ich kenne Deine Vorlieben. Melde Dich an, dann suche ich Dir wieder etwas Passendes.",

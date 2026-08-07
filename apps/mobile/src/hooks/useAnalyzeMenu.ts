@@ -5,7 +5,7 @@ import { analyzeMenu, type MenuImageSource } from "../api/pickformeApi";
 import { useMobileContent } from "../content/useMobileContent";
 import type { MobileContent } from "../content/mobileContent";
 import type { RequestedDishRole } from "../types/recommendationMode";
-import type { AnalyzeData } from "../types/recommendations";
+import type { AnalyzeData, AnalyzeMenuErrorDetails, MenuLanguage, OrderLabels } from "../types/recommendations";
 
 export const MOBILE_ANALYZE_TIMEOUT_MS = 105000;
 
@@ -183,6 +183,7 @@ export function useAnalyzeMenu() {
   const [errorTitle, setErrorTitle] = useState("");
   const [errorCode, setErrorCode] = useState("");
   const [errorHttpStatus, setErrorHttpStatus] = useState<number | null>(null);
+  const [errorDetails, setErrorDetails] = useState<AnalyzeMenuErrorDetails | null>(null);
   const [currentRequestId, setCurrentRequestId] = useState<number | null>(null);
   const [lastResponseReceivedAt, setLastResponseReceivedAt] = useState<number | null>(null);
   const [lastDiagnosticRunId, setLastDiagnosticRunId] = useState("");
@@ -209,6 +210,7 @@ export function useAnalyzeMenu() {
     setErrorTitle("");
     setErrorCode("");
     setErrorHttpStatus(null);
+    setErrorDetails(null);
     setLoading(false);
     setCurrentRequestId(null);
     setLastResponseReceivedAt(null);
@@ -232,6 +234,7 @@ export function useAnalyzeMenu() {
     setErrorTitle("");
     setErrorCode("");
     setErrorHttpStatus(null);
+    setErrorDetails(null);
     setResult(null);
 
     const trimmedMenuText = menuText.trim();
@@ -328,6 +331,7 @@ export function useAnalyzeMenu() {
       setErrorTitle("");
       setErrorCode("");
       setErrorHttpStatus(null);
+      setErrorDetails(null);
       setLastDiagnosticRunId(diagnosticRunId);
       setLastResponseReceivedAt(responseReceivedAt);
       setResult(data);
@@ -364,6 +368,7 @@ export function useAnalyzeMenu() {
         setErrorTitle(presentation.title);
         setErrorCode(presentation.code ?? "");
         setErrorHttpStatus(presentation.httpStatus ?? null);
+        setErrorDetails(null);
         return;
       }
 
@@ -378,6 +383,7 @@ export function useAnalyzeMenu() {
       setErrorTitle(presentation.title);
       setErrorCode(presentation.code ?? "");
       setErrorHttpStatus(presentation.httpStatus ?? null);
+      setErrorDetails(e instanceof PickForMeApiError ? extractAnalyzeMenuErrorDetails(e.details) : null);
     } finally {
       clearTimeout(timeoutTimer);
       if (requestIdRef.current === requestId) {
@@ -395,6 +401,7 @@ export function useAnalyzeMenu() {
     setErrorTitle("");
     setErrorCode("");
     setErrorHttpStatus(null);
+    setErrorDetails(null);
     setResult(null);
     setLoading(false);
     setCurrentRequestId(null);
@@ -409,6 +416,7 @@ export function useAnalyzeMenu() {
     errorTitle,
     errorCode,
     errorHttpStatus,
+    errorDetails,
     currentRequestId,
     lastResponseReceivedAt,
     lastDiagnosticRunId,
@@ -426,6 +434,36 @@ function isAbortError(error: unknown) {
 
 function isClientAnalyzeTimeoutError(error: unknown) {
   return error instanceof Error && error.message === "CLIENT_ANALYZE_TIMEOUT";
+}
+
+const KNOWN_MENU_LANGUAGES: MenuLanguage[] = ["de", "en", "it", "es", "fr", "id", "ru", "unknown"];
+
+// Aug 2026 (Mario): NO_SAFE_RECOMMENDATIONS liefert seit diesem Feature
+// zusaetzlich menuLanguage/orderLabels in error.details mit, damit bei
+// Bedarf eine Kellner-Frage in der Kartensprache angefordert werden kann.
+// Defensiv geparst, weil details vom Server als unknown kommt und bei
+// anderen Fehlercodes (oder aelteren Server-Versionen) fehlen kann.
+function extractAnalyzeMenuErrorDetails(details: unknown): AnalyzeMenuErrorDetails | null {
+  if (typeof details !== "object" || details === null) {
+    return null;
+  }
+
+  const record = details as Record<string, unknown>;
+  const menuLanguage = KNOWN_MENU_LANGUAGES.includes(record.menuLanguage as MenuLanguage)
+    ? (record.menuLanguage as MenuLanguage)
+    : undefined;
+  const orderLabels = isOrderLabels(record.orderLabels) ? record.orderLabels : undefined;
+
+  return menuLanguage || orderLabels ? { menuLanguage, orderLabels } : null;
+}
+
+function isOrderLabels(value: unknown): value is OrderLabels {
+  return typeof value === "object" &&
+    value !== null &&
+    typeof (value as Partial<OrderLabels>).title === "string" &&
+    typeof (value as Partial<OrderLabels>).main === "string" &&
+    typeof (value as Partial<OrderLabels>).starter === "string" &&
+    typeof (value as Partial<OrderLabels>).wine === "string";
 }
 
 function createMobileAnalyzeRunId() {

@@ -85,6 +85,14 @@
     "logFailedTitle": "Note could not be confirmed",
     "logFailedMessage": "Please try again. Recommendations will only be shown after the note is confirmed."
   },
+  "staffQuestionOffer": {
+    "prompt": "Would you like me to phrase a question in the menu's language? You can use it to ask the staff directly for a dish that matches your profile.",
+    "confirmButton": "Yes, please",
+    "rejectButton": "No, thanks",
+    "loadingButton": "One moment ...",
+    "errorText": "The question could not be created right now. Please try again later.",
+    "fallbackTitle": "Question for the staff"
+  },
   "login": {
     "title": "Welcome back",
     "subtitle": "I know your preferences. Sign in and I will find something suitable again.",

@@ -1722,7 +1722,7 @@ async function analyzeMenuWithTwoStepMainFlow({
       422,
       "NO_SAFE_RECOMMENDATIONS",
       "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
-      buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
+      buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction, mainDishResult.menuLanguage)
     );
     logNoSafeProductionRequestTrace({
       error,
@@ -1778,7 +1778,7 @@ async function analyzeMenuWithTwoStepMainFlow({
       422,
       "NO_SAFE_RECOMMENDATIONS",
       "Ich konnte diese Speisekarte aufgrund Deines aktuellen Profils nicht sicher auswerten.",
-      buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction)
+      buildMenuAnalysisDetails(localizedRestaurantDescription, htmlMenuExtraction, mainDishResult.menuLanguage)
     );
     logNoSafeProductionRequestTrace({
       error,
@@ -3273,13 +3273,21 @@ function normalizeForAllergenInfoDetection(value: string) {
     .trim();
 }
 
+// menuLanguage optional (Aug 2026, Mario): wird nur beim NO_SAFE_RECOMMENDATIONS-
+// Fehlerpfad mitgegeben, damit Mobile bei Bedarf eine Kellner-Frage in der
+// Kartensprache anfordern kann (/api/allergy-staff-question), ohne die Karte
+// ein zweites Mal analysieren zu muessen. orderLabels wird daraus abgeleitet,
+// damit der clientseitige Dialog dieselbe Bestellungs-Terminologie zeigt wie
+// die bestehende Bestellliste bei erfolgreichen Empfehlungen.
 function buildMenuAnalysisDetails(
   restaurantDescription: LocalizedRestaurantDescriptionResult | null,
-  htmlMenuExtraction: MenuExtractionResult | null
+  htmlMenuExtraction: MenuExtractionResult | null,
+  menuLanguage?: MenuLanguage
 ) {
   const details = {
     ...buildRestaurantDescriptionPayload(restaurantDescription),
-    ...buildMenuExtractionPayload(htmlMenuExtraction)
+    ...buildMenuExtractionPayload(htmlMenuExtraction),
+    ...(menuLanguage ? { menuLanguage, orderLabels: buildOrderLabelsForMenuLanguage(menuLanguage) } : {})
   };
 
   return Object.keys(details).length > 0 ? details : undefined;

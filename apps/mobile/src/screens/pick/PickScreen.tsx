@@ -3,7 +3,7 @@ import { Alert, Dimensions, Keyboard, Modal, Platform, Pressable, StyleSheet, Te
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import { useProfile } from "../../app/providers/ProfileProvider";
-import { logAllergyWarningConfirmation, type MenuImageSource } from "../../api/pickformeApi";
+import { logAllergyWarningConfirmation, requestAllergyStaffQuestion, type MenuImageSource } from "../../api/pickformeApi";
 import { Screen } from "../../components/ui/Screen";
 import { MenuInputCard } from "../../components/pick/MenuInputCard";
 import { PhotoMenuCamera } from "../../components/pick/PhotoMenuCamera";
@@ -77,6 +77,17 @@ export function PickScreen({
   const [openableMenuUrl, setOpenableMenuUrl] = useState<string | null>(null);
   const [showAllergyWarning, setShowAllergyWarning] = useState(false);
   const [allergyWarningSaving, setAllergyWarningSaving] = useState(false);
+  // Produktidee Aug 2026 (Mario): wenn GustaroAI wegen der Allergene/
+  // Ausschluesse des Nutzers gar kein sicheres Gericht mehr findet
+  // (NO_SAFE_RECOMMENDATIONS), bieten wir statt einer reinen Sackgassen-
+  // Meldung eine Kellner-Frage in der Kartensprache an. "idle" = noch nicht
+  // gefragt, "loading"/"loaded"/"error" wie ueblich, "declined" = Nutzer hat
+  // "Nein danke" gewaehlt (Angebot bleibt dann ausgeblendet fuer diesen
+  // Fehlerzustand).
+  const [staffQuestionStatus, setStaffQuestionStatus] = useState<"idle" | "loading" | "loaded" | "declined" | "error">("idle");
+  const [staffQuestionText, setStaffQuestionText] = useState<string | null>(null);
+  const [showStaffQuestionOrderList, setShowStaffQuestionOrderList] = useState(false);
+  const staffQuestionAbortControllerRef = useRef<AbortController | null>(null);
   const pendingConfirmedMenuTextRef = useRef<string | null>(null);
   const pendingMenuUrlsRef = useRef<string[] | undefined>(undefined);
   const linkConfirmedAtRef = useRef<number | null>(null);
@@ -88,6 +99,14 @@ export function PickScreen({
       setEntryScrollToMoodKey((current) => current + 1);
     }
   }, [returnToMoodKey]);
+
+  useEffect(() => {
+    staffQuestionAbortControllerRef.current?.abort();
+    staffQuestionAbortControllerRef.current = null;
+    setStaffQuestionStatus("idle");
+    setStaffQuestionText(null);
+    setShowStaffQuestionOrderList(false);
+  }, [analyze.error]);
 
   useEffect(() => {
     if (!analyze.result || !analyze.lastResponseReceivedAt || !__DEV__) {
@@ -315,6 +334,53 @@ export function PickScreen({
     } finally {
       setAllergyWarningSaving(false);
     }
+  }
+
+  function declineStaffQuestionOffer() {
+    staffQuestionAbortControllerRef.current?.abort();
+    staffQuestionAbortControllerRef.current = null;
+    setStaffQuestionStatus("declined");
+  }
+
+  async function requestStaffQuestion() {
+    const menuLanguage = analyze.errorDetails?.menuLanguage;
+
+    if (!menuLanguage || staffQuestionStatus === "loading" || staffQuestionStatus === "loaded") {
+      return;
+    }
+
+    staffQuestionAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    staffQuestionAbortControllerRef.current = abortController;
+    setStaffQuestionStatus("loading");
+
+    try {
+      const data = await requestAllergyStaffQuestion({
+        profile,
+        menuLanguage,
+        signal: abortController.signal
+      });
+
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      if (data.question) {
+        setStaffQuestionText(data.question);
+        setStaffQuestionStatus("loaded");
+        setShowStaffQuestionOrderList(true);
+      } else {
+        setStaffQuestionStatus("error");
+      }
+    } catch {
+      if (!abortController.signal.aborted) {
+        setStaffQuestionStatus("error");
+      }
+    }
+  }
+
+  function closeStaffQuestionOrderList() {
+    setShowStaffQuestionOrderList(false);
   }
 
   async function openAnalyzedMenu() {
@@ -620,10 +686,71 @@ export function PickScreen({
                 : content.pick.errorTitle)}
             </Text>
             <Text style={local.errorText}>{analyze.error}</Text>
+
+            {analyze.errorCode === "NO_SAFE_RECOMMENDATIONS" && analyze.errorDetails?.menuLanguage && staffQuestionStatus !== "declined" ? (
+              <View style={local.staffQuestionOfferBox}>
+                <Text style={local.staffQuestionOfferText}>{content.staffQuestionOffer.prompt}</Text>
+                {staffQuestionStatus === "error" ? (
+                  <Text style={local.staffQuestionOfferErrorText}>{content.staffQuestionOffer.errorText}</Text>
+                ) : null}
+                <View style={local.staffQuestionOfferActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={staffQuestionStatus === "loading"}
+                    onPress={declineStaffQuestionOffer}
+                    style={({ pressed }) => [
+                      local.staffQuestionOfferButton,
+                      local.staffQuestionOfferButtonSecondary,
+                      (pressed || staffQuestionStatus === "loading") ? local.staffQuestionOfferButtonPressed : null
+                    ]}
+                  >
+                    <Text style={local.staffQuestionOfferButtonSecondaryText}>{content.staffQuestionOffer.rejectButton}</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={staffQuestionStatus === "loading"}
+                    onPress={requestStaffQuestion}
+                    style={({ pressed }) => [
+                      local.staffQuestionOfferButton,
+                      local.staffQuestionOfferButtonPrimary,
+                      (pressed || staffQuestionStatus === "loading") ? local.staffQuestionOfferButtonPressed : null
+                    ]}
+                  >
+                    <Text style={local.staffQuestionOfferButtonPrimaryText}>
+                      {staffQuestionStatus === "loading" ? content.staffQuestionOffer.loadingButton : content.staffQuestionOffer.confirmButton}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
           </View>
 
         </>
       ) : null}
+
+      <Modal animationType="slide" onRequestClose={closeStaffQuestionOrderList} presentationStyle="fullScreen" visible={showStaffQuestionOrderList}>
+        <View style={local.staffQuestionScreen}>
+          <View style={local.staffQuestionScreenHeader}>
+            <Text style={local.staffQuestionScreenTitle}>
+              {analyze.errorDetails?.orderLabels?.title ?? content.staffQuestionOffer.fallbackTitle}
+            </Text>
+            <Pressable
+              accessibilityLabel={content.common.cancel}
+              accessibilityRole="button"
+              onPress={closeStaffQuestionOrderList}
+              style={({ pressed }) => [local.staffQuestionCloseButton, pressed ? local.staffQuestionCloseButtonPressed : null]}
+            >
+              <Feather color={premiumPalette.gold} name="x" size={22} />
+            </Pressable>
+          </View>
+
+          {staffQuestionText ? (
+            <View style={local.staffQuestionScreenRow}>
+              <Text style={local.staffQuestionScreenText}>{staffQuestionText}</Text>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -1140,6 +1267,125 @@ const local = StyleSheet.create({
     fontSize: fs(15),
     fontWeight: "800",
     lineHeight: fs(20)
+  },
+
+  staffQuestionOfferBox: {
+    borderColor: "rgba(110, 36, 51, 0.22)",
+    borderTopWidth: 1,
+    marginTop: spacing.md,
+    paddingTop: spacing.md
+  },
+
+  staffQuestionOfferText: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(14),
+    fontWeight: "700",
+    lineHeight: fs(20),
+    marginBottom: spacing.sm
+  },
+
+  staffQuestionOfferErrorText: {
+    color: premiumColors.bordeaux,
+    fontSize: fs(13),
+    fontWeight: "600",
+    lineHeight: fs(18),
+    marginBottom: spacing.sm
+  },
+
+  staffQuestionOfferActions: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+
+  staffQuestionOfferButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: s(40),
+    paddingHorizontal: s(12)
+  },
+
+  staffQuestionOfferButtonPrimary: {
+    backgroundColor: premiumPalette.olive
+  },
+
+  staffQuestionOfferButtonSecondary: {
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.border,
+    borderWidth: 1
+  },
+
+  staffQuestionOfferButtonPressed: {
+    opacity: 0.72
+  },
+
+  staffQuestionOfferButtonPrimaryText: {
+    color: premiumPalette.surface,
+    fontSize: fs(13),
+    fontWeight: "800",
+    lineHeight: fs(18)
+  },
+
+  staffQuestionOfferButtonSecondaryText: {
+    color: premiumPalette.oliveDeep,
+    fontSize: fs(13),
+    fontWeight: "800",
+    lineHeight: fs(18)
+  },
+
+  staffQuestionScreen: {
+    backgroundColor: premiumPalette.surface,
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 58
+  },
+
+  staffQuestionScreenHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "space-between",
+    marginBottom: spacing.xl
+  },
+
+  staffQuestionScreenTitle: {
+    color: premiumColors.olive,
+    flex: 1,
+    fontSize: 28,
+    fontWeight: "900",
+    lineHeight: 34
+  },
+
+  staffQuestionCloseButton: {
+    alignItems: "center",
+    backgroundColor: premiumPalette.surfaceSoft,
+    borderColor: premiumPalette.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    width: 40
+  },
+
+  staffQuestionCloseButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }]
+  },
+
+  staffQuestionScreenRow: {
+    backgroundColor: "rgba(250, 247, 241, 0.72)",
+    borderColor: "rgba(200, 168, 90, 0.24)",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: spacing.md
+  },
+
+  staffQuestionScreenText: {
+    color: premiumColors.text,
+    fontSize: 20,
+    fontWeight: "800",
+    lineHeight: 28
   }
 });
 

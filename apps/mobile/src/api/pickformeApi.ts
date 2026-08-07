@@ -8,6 +8,7 @@ import { filterControlledProfileValues } from "../profile/profileInputPolicy";
 import type { UserProfile } from "../types/profile";
 import type { PreferredDishRole, RequestedDishRole } from "../types/recommendationMode";
 import type {
+  AllergyStaffQuestionData,
   AnalyzeData,
   MenuLanguage,
   RestaurantDiscoveryCandidate,
@@ -214,6 +215,32 @@ export function requestRestaurantIntro(args: RequestRestaurantIntroMobileArgs) {
 
   return apiPost<RestaurantIntroData, typeof body>(
     "/api/restaurant-intro",
+    body,
+    {
+      signal: args.signal
+    }
+  );
+}
+
+type RequestAllergyStaffQuestionMobileArgs = {
+  profile: UserProfile;
+  menuLanguage?: MenuLanguage;
+  signal?: AbortSignal;
+};
+
+// Produktidee Aug 2026 (Mario): wird nur aufgerufen, wenn GustaroAI wegen
+// der Allergene/Ausschluesse des Nutzers gar kein sicheres Gericht mehr
+// gefunden hat (NO_SAFE_RECOMMENDATIONS) UND der Nutzer aktiv bestaetigt,
+// dass er eine Kellner-Frage in der Kartensprache formuliert haben moechte
+// - siehe PickScreen.tsx.
+export function requestAllergyStaffQuestion(args: RequestAllergyStaffQuestionMobileArgs) {
+  const body = {
+    profile: sanitizeProfileForApi(args.profile),
+    menuLanguage: args.menuLanguage
+  };
+
+  return apiPost<AllergyStaffQuestionData, typeof body>(
+    "/api/allergy-staff-question",
     body,
     {
       signal: args.signal

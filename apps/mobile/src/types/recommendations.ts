@@ -32,6 +32,15 @@ export type OrderLabels = {
 
 export type MenuLanguage = "de" | "en" | "it" | "es" | "fr" | "id" | "ru" | "unknown";
 
+// Aug 2026 (Mario): wird bei NO_SAFE_RECOMMENDATIONS (kein Gericht passt
+// sicher zum Profil) als error.details mitgeschickt, damit die App bei
+// Bedarf eine Kellner-Frage in der Kartensprache anfordern kann, ohne die
+// Karte erneut zu analysieren - siehe useAnalyzeMenu.ts.
+export type AnalyzeMenuErrorDetails = {
+  menuLanguage?: MenuLanguage;
+  orderLabels?: OrderLabels;
+};
+
 export type AnalyzeData = {
   mode: "ai" | "ai_pdf" | "fallback";
   menuLanguage?: MenuLanguage;
@@ -92,6 +101,14 @@ export type ConcreteWineRecommendation = {
 
 export type WineRecommendationData = {
   recommendation: WineRecommendation | ConcreteWineRecommendation | null;
+};
+
+// Aug 2026 (Mario): Antwort von /api/allergy-staff-question - der Satz, mit
+// dem der Nutzer das Personal in der Kartensprache nach einem zu seinem
+// Profil passenden Gericht fragen kann, wenn GustaroAI selbst keine sichere
+// Empfehlung mehr finden konnte.
+export type AllergyStaffQuestionData = {
+  question: string | null;
 };
 
 export type StarterPairingsData = {
