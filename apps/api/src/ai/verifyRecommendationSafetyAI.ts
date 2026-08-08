@@ -94,6 +94,27 @@ function getUsageValue(usage: unknown, key: "input_tokens" | "output_tokens") {
   return typeof value === "number" ? value : undefined;
 }
 
+// Fallanalyse Aug 2026 (Mario): bei einem sehr umfangreichen Allergie-/
+// Ausschlussprofil (im konkreten Fall 33 aktive Restriktionen) wurde ein
+// knapp beschriebenes Gericht ("Rindfleisch mit gebratenem Gemuese und
+// Kartoffeln") als "safe" eingestuft, obwohl die Beschreibung ueber
+// Zubereitungsdetails (Sauce, Fett, Bindung) schlicht nichts aussagt. Kein
+// Plumbing-Fehler - die Regel "keine Zutaten erfinden" (s.o.) hat exakt wie
+// gewollt funktioniert. Das Problem ist die Asymmetrie der beiden
+// moeglichen Fehler: ein falsches "uncertain" kostet eine Rueckfrage, ein
+// falsches "safe" kann eine echte allergische Reaktion ausloesen. Deshalb
+// bewusst NICHT die Erfinde-keine-Zutaten-Regel aufweichen (das wuerde
+// falsche conflict-Urteile provozieren), sondern nur die Schwelle fuer
+// "safe" bei umfangreichen Profilen anheben: "nichts erwaehnt" ist bei 30+
+// aktiven Restriktionen ein zu schwaches Signal fuer "nachweislich frei von
+// allem". Der Schwellenwert (10) betrifft bewusst nur breite Profile -
+// Nutzer mit wenigen Ausschluessen sind davon nicht betroffen. Die
+// zusaetzlichen "uncertain"-Faelle laufen jetzt in die bestehende
+// Uncertain-Review-Liste bzw. (bei komplett leerem Ergebnis) in die
+// Kellner-Frage-Funktion (allergy-staff-question), landen also nicht mehr
+// in einer Sackgasse.
+const BROAD_RESTRICTION_PROFILE_THRESHOLD = 10;
+
 function buildSafetyVerifierPrompt({
   restrictions,
   candidates
@@ -101,6 +122,8 @@ function buildSafetyVerifierPrompt({
   restrictions: RecommendationSafetyRestriction[];
   candidates: RecommendationSafetyCandidate[];
 }) {
+  const isBroadRestrictionProfile = restrictions.length > BROAD_RESTRICTION_PROFILE_THRESHOLD;
+
   return [
     "Du bist ein kleiner Safety-Verifier fuer GustaroAI.",
     "Pruefe nur sichtbaren Originaltext gegen aktive Allergene, Ausschluesse und Unvertraeglichkeiten.",
@@ -131,11 +154,16 @@ function buildSafetyVerifierPrompt({
     "- Bist du dir bei der Kategorisierung einer genannten Zutat nicht sicher, ob sie zu einer Restriction gehoert, waehle uncertain statt safe.",
     "- Verwende ausschliesslich die gelieferten IDs.",
     "- Aendere Candidate-IDs und Restriction-IDs nicht.",
+    ...(isBroadRestrictionProfile
+      ? [
+          `- Achtung, umfangreiches Profil: restrictionCount liegt ueber ${BROAD_RESTRICTION_PROFILE_THRESHOLD}. Erfinde weiterhin keine Zutaten und keinen Konflikt - aber wenn nameOriginal/descriptionOriginal eines Kandidaten keine ausreichenden Zubereitungs- oder Zutatendetails liefert (z. B. keine Angabe zu Sauce, Fett, Bindung, Panade, Marinade oder Beilage), ist "nichts davon erwaehnt" bei so vielen gleichzeitig aktiven Restriktionen kein ausreichender Beleg fuer Abwesenheit. Waehle in diesem Fall fuer die betroffenen Restrictions uncertain statt safe.`
+        ]
+      : []),
     "- Fuehre vor der finalen Antwort intern eine Vollstaendigkeitspruefung durch: Kandidaten zaehlen, Restrictions zaehlen und sicherstellen, dass jeder Kandidat alle Restriction-IDs in checkedRestrictionIds enthaelt.",
     "- Gib diese Selbstpruefung nicht aus. Gib nur die finale JSON-Antwort aus.",
     "",
     "Input:",
-    JSON.stringify({ restrictions, candidates }, null, 2),
+    JSON.stringify({ restrictionCount: restrictions.length, restrictions, candidates }, null, 2),
     "",
     "Antwort ausschliesslich als valides JSON ohne Markdown:",
     "{",
