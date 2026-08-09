@@ -343,12 +343,59 @@ export async function recommendMainDishesAI({
 
   logMainDishAiResponseDiagnostic(parsed, runId);
 
+  const resolvedMenuLanguage = resolveMenuLanguageWithScriptFallback(parsed.menuLanguage, parsed.recommendations);
+  logDevAnalyzeTiming({
+    runId,
+    phase: "api.menu_language_resolved",
+    aiReportedMenuLanguage: parsed.menuLanguage,
+    resolvedMenuLanguage,
+    scriptFallbackApplied: resolvedMenuLanguage !== parsed.menuLanguage,
+    success: true
+  });
+
   return {
-    menuLanguage: parsed.menuLanguage,
+    menuLanguage: resolvedMenuLanguage,
     recommendations: parsed.recommendations,
     uncertainReviewCandidates: parsed.uncertainReviewCandidates ?? [],
     productionTrace: parsed.productionTrace
   };
+}
+
+// Bug Aug 2026 (Mario): "Wenn ich das Land nicht weiss, wieso kann GustaroAI
+// Rubel in Euro umrechnen?" / "Wir uebersetzen die Sprache in die
+// Ausgabesprache, also Russisch in Deutsch - dann weiss ich doch, dass es
+// russisch ist!" - menuLanguage ist ein separates, selbst-berichtetes Feld
+// derselben KI-Antwort, die bereits nameOriginal/descriptionOriginal aus dem
+// Originaltext extrahiert hat (die KI musste den Text also lesen). Trotzdem
+// kann dieses eine Feld unabhaengig davon "unknown" liefern, z. B. bei
+// Bild-Speisekarten. Kyrillische Zeichen sind deterministisch und eindeutig
+// erkennbar (Unicode-Bereich U+0400-U+04FF) - dafuer braucht es keinen
+// weiteren KI-Rateschritt. Als Absicherung NUR fuer den "unknown"-Fall: wenn
+// im bereits extrahierten Originaltext kyrillische Zeichen vorkommen, ist
+// die Speisekartensprache "ru". Bewusst kein Overrule eines bereits von der
+// KI erkannten Werts (de/en/it/es/fr/id/ru bleiben unangetastet) und bewusst
+// nicht auf andere lateinische Sprachen erweitert - die lassen sich nicht
+// ueber Zeichenbereiche unterscheiden, nur ueber Wortschatz, und bleiben
+// Aufgabe der KI.
+const CYRILLIC_SCRIPT_PATTERN = /[\u0400-\u04FF]/;
+
+function containsCyrillicScript(text: string | null | undefined): boolean {
+  return typeof text === "string" && CYRILLIC_SCRIPT_PATTERN.test(text);
+}
+
+function resolveMenuLanguageWithScriptFallback(
+  menuLanguage: MenuLanguage,
+  recommendations: Pick<MainDishAIRecommendation, "nameOriginal" | "descriptionOriginal">[]
+): MenuLanguage {
+  if (menuLanguage !== "unknown") {
+    return menuLanguage;
+  }
+
+  const hasCyrillicText = recommendations.some(
+    (item) => containsCyrillicScript(item.nameOriginal) || containsCyrillicScript(item.descriptionOriginal)
+  );
+
+  return hasCyrillicText ? "ru" : menuLanguage;
 }
 
 async function repairMissingCompactTranslatedDescriptions({
