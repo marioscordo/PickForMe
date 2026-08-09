@@ -1795,7 +1795,7 @@ function buildMainDishPrompt({
     "- translatedName ist Pflicht und ist die nutzerseitige Anzeigeuebersetzung in der Zielsprache.",
     `- translatedName muss in ${targetLanguage} (${targetLocale}) formuliert sein.`,
     "- Jede Empfehlung muss einen display-sicheren translatedName enthalten.",
-    "- Bei de-DE muss translatedName eine deutsche Anzeigeuebersetzung oder ein deutscher, fuer Nutzer verstaendlicher Gloss sein.",
+    `- Unabhaengig davon, welche Zielsprache oben genannt ist: translatedName muss eine echte Anzeigeuebersetzung oder ein fuer Nutzer verstaendlicher Gloss in genau dieser Zielsprache (${targetLanguage}) sein, nicht nur bei Deutsch.`,
     "- Kopiere nameOriginal nicht einfach als translatedName, wenn der Originalname fremdsprachig ist; liefere dann eine knappe belegbare Anzeigeuebersetzung.",
     "- Eigennamen oder unveraenderliche Gerichtstitel duerfen teilweise erhalten bleiben, aber translatedName muss trotzdem in der Zielsprache verstaendlich sein.",
     "- Uebersetze nur, was durch sourceEvidence oder Speisekartentext belegbar ist.",
@@ -1807,7 +1807,9 @@ function buildMainDishPrompt({
     "- Erlaubte menuLanguage-Werte: de, en, it, es, fr, id, ru, unknown.",
     "- Wenn die Original-Speisekartensprache nicht sicher bestimmbar ist, verwende unknown.",
     "",
-    buildMainDishProfileContext(profile, situation, roleAssignment, activePreferences, searchAssignment),
+    buildMainDishProfileContext(profile, situation, roleAssignment, activePreferences, searchAssignment, targetLocale, targetLanguage),
+    "",
+    `Letzte Erinnerung vor der Ausgabe: translatedName und translatedDescription muessen in ${targetLanguage} (${targetLocale}) formuliert sein - unabhaengig davon, in welcher Sprache dieser Prompt selbst geschrieben ist, und unabhaengig davon, ob ${targetLanguage} Deutsch, Englisch oder eine andere Sprache ist.`,
     "",
     "Antwort ausschliesslich als valides JSON ohne Markdown:",
     "{",
@@ -1861,13 +1863,21 @@ function buildMainDishProfileContext(
   situation: Situation | undefined,
   roleAssignment: RequestedDishRoleAssignment,
   positivePreferences: string[],
-  searchAssignment: ActivePreferenceSearchAssignment
+  searchAssignment: ActivePreferenceSearchAssignment,
+  targetLocale: string,
+  targetLanguage: string
 ) {
   const hardExclusions = uniqueValues(arrayValue(profile.customExclusions));
   const hardAllergens = uniqueValues(arrayValue(profile.allergens));
   return [
     "Nutzerprofil fuer diesen Main-AI-Call:",
-    `- Ausgabesprache nur fuer nutzerseitige Texte, kein Auswahlkriterium: ${profile.outputLocale || "de-DE"}`,
+    // Bug Aug 2026 (Mario): frueher stand hier der rohe profile.outputLocale-
+    // Wert, unabhaengig von targetLocale/targetLanguage weiter oben im
+    // Prompt. Beide referenzierten zwar denselben Wert, waren aber
+    // unabhaengig gepflegt - ein Risiko fuer kuenftige Divergenz und ein
+    // zusaetzliches, redundantes Sprachsignal im Prompt. Jetzt exakt
+    // dieselben Werte wie fuer translatedName/translatedDescription.
+    `- Ausgabesprache nur fuer nutzerseitige Texte, kein Auswahlkriterium: ${targetLanguage} (${targetLocale})`,
     `- Angeforderter Gerichtsrollenraum: ${roleAssignment.label} (${roleAssignment.roles.join(", ")})`,
     `- Kompatibilitaets-Situation alter Clients, kein aktiver Auswahlmodus: ${situation || "nicht angegeben"}`,
     `- Anzahl aktiver heutiger Vorlieben/Wunschrichtungen: ${positivePreferences.length}`,

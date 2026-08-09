@@ -74,11 +74,23 @@ function buildAllergyStaffQuestionPrompt({
     "",
     ...buildProfilePromptLines(profile),
     "",
+    // Bug Aug 2026 (Mario): buildProfilePromptLines() enthaelt eine Zeile
+    // "Ausgabesprache ... : <profile.outputLocale>" - die ist fuer alle
+    // anderen Aufrufer dieser Funktion korrekt (dort ist outputLocale die
+    // gewuenschte Zielsprache), aber hier falsch: das Feld question soll
+    // bewusst NICHT in der Profilsprache stehen, sondern in der
+    // Speisekartensprache. Ohne diesen expliziten Gegenhinweis bevorzugt das
+    // Modell die zuletzt/staerker genannte "Ausgabesprache" aus dem
+    // Nutzerprofil gegenueber der Sprachanweisung oben.
+    `Wichtig: Die oben im Nutzerprofil genannte Ausgabesprache gilt hier NICHT. Sie ist nur fuer andere Texttypen relevant, nicht fuer diesen Satz. Das Feld question muss ausschliesslich in der Sprache mit ISO-Code "${languageCode}" formuliert sein, auch wenn das von der Profilsprache abweicht.`,
+    "",
     "Verbindliche Regeln:",
     "- Nenne im Satz konkret die aktiven Allergene und Ausschluesse aus dem Nutzerprofil oben (z. B. 'kein Gluten, keine Nuesse'), nicht nur allgemein 'Allergien' oder 'Unvertraeglichkeiten'.",
     "- Es liegt keine auswertbare Speisekarte vor - beziehe Dich nicht auf ein bestimmtes Gericht, eine Kategorie oder einen Preis.",
     "- Keine medizinische Beratung, keine Diagnose, nur eine hoefliche Frage an das Personal.",
     "- Wenn im Nutzerprofil weder aktive Allergene noch aktive Ausschluesse/Unvertraeglichkeiten vorhanden sind, gib question als null zurueck.",
+    "",
+    `Letzte Erinnerung vor der Ausgabe: question muss ausschliesslich in der Sprache mit ISO-Code "${languageCode}" formuliert sein - nicht in der oben im Nutzerprofil genannten Ausgabesprache.`,
     "",
     "Antwort ausschliesslich als valides JSON ohne Markdown:",
     "{",
